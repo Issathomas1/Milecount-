@@ -193,7 +193,11 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
 updateCostUI();
 loadProfile();
 bind("analyzeManual",analyzeManualLoad);bind("saveProfile",saveProfile);
-bind("accountButton",function(){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));el("accountPanel")?.classList.remove("hidden");if(el("cloudStatus"))el("cloudStatus").textContent=(window.MileCountCloud&&MileCountCloud.isEnabled())?"Connected":"Local mode"});
+bind("accountButton",function(){
+ document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+ const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
+ if(el("cloudStatus"))el("cloudStatus").textContent=(window.MileCountCloud&&MileCountCloud.isEnabled())?"Connected":"Local mode";
+});
 bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
 bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
