@@ -375,6 +375,26 @@ class="screen active"
 <div class="card">
 
 <h2>
+Set up your vehicle
+</h2>
+
+<label>VEHICLE TYPE
+<select id="vehicleType">
+<option value="cargo">Cargo Van</option>
+<option value="sprinter">Sprinter / High-Roof Van</option>
+<option value="box16">16-ft Box Truck</option>
+<option value="box20">20-ft Box Truck</option>
+<option value="box24">24-ft Box Truck</option>
+<option value="box26" selected>26-ft Box Truck</option>
+</select>
+</label>
+
+<div class="row" style="margin-bottom:14px">
+<div class="metric"><small>MPG</small><b id="vehicleMPG">9</b></div>
+<div class="metric"><small>PAYLOAD</small><b id="vehiclePayload">10,000 lb</b></div>
+</div>
+
+<h2>
 Where are you going?
 </h2>
 
@@ -466,15 +486,15 @@ FIND ME MONEY
 <div class="card">
 
 <span class="badge">
-TRUCK PROFILE
+VEHICLE PROFILE
 </span>
 
-<h3>
+<h3 id="vehicleName">
 26-ft Box Truck
 </h3>
 
-<p>
-9 MPG • Home: Atlanta, GA
+<p id="vehicleSummary">
+9 MPG • 26 ft cargo • Home: Atlanta, GA
 </p>
 
 <p class="details">
@@ -897,12 +917,17 @@ Waiting for MileCount Fuel Engine...
 </div>
 
 
+<div class="row" style="margin-bottom:9px">
+<div class="metric"><small>ALL-MILES RPM</small><b id="allMilesRPM">Calculating...</b></div>
+<div class="metric"><small>EST OPERATING COST</small><b id="operatingCost">Calculating...</b></div>
+</div>
+
 <div class="row">
 
 <div class="metric">
 
 <small>
-EST AFTER FUEL
+EST TRIP MARGIN
 </small>
 
 <b id="afterFuel">
@@ -929,9 +954,7 @@ RETURN LOAD
 
 <p class="details">
 
-Estimated After Fuel is not net profit.
-Insurance, maintenance, truck payment,
-tolls, taxes and other expenses are not included.
+Estimated trip margin uses your vehicle profile's planning cost-per-mile and is not guaranteed profit. Taxes, tolls and unexpected expenses may not be included.
 
 </p>
 
