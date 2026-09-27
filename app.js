@@ -244,7 +244,7 @@ async function refreshAccount(){
   el("authLoggedOut")?.classList.toggle("hidden",logged);el("authLoggedIn")?.classList.toggle("hidden",!logged);
   if(!logged)return;
   if(el("accountEmail"))el("accountEmail").textContent=s.user.email||"Signed in";
-  const [p,v,t]=await Promise.all([MileCountCloud.profile(),MileCountCloud.vehicles(),MileCountCloud.trips()]);
+  const [p,v,t]=await Promise.all([MileCountCloud.profile(),MileCountCloud.vehicles(),MileCountCloud.plannerTrips()]);
   if(el("accountPlan"))el("accountPlan").textContent=(p?.plan||"free").toUpperCase();
   if(el("cloudVehicleCount"))el("cloudVehicleCount").textContent=v.length;
   if(el("cloudTripCount"))el("cloudTripCount").textContent=t.length;
