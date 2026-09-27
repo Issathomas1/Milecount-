@@ -336,8 +336,9 @@ color:var(--muted);
 MileCount<span class="green">.</span>
 </div>
 
-<div class="demo">
-SIMULATION
+<div style="display:flex;gap:8px;align-items:center">
+<div class="demo">SIMULATION</div>
+<button id="accountButton" type="button" style="width:auto;margin:0;padding:8px 11px;font-size:11px;background:#15271f;border:1px solid #2b4438">ACCOUNT</button>
 </div>
 
 </header>
@@ -1021,6 +1022,17 @@ START NEW TRIP
 </section>
 
 
+<div id="accountPanel" class="card hidden" style="margin:12px">
+<span class="badge">MILECOUNT CLOUD</span>
+<h2>Your MileCount account</h2>
+<p class="details">Cloud accounts are being wired for saved vehicles, trips, Pro access and cross-device history. Your current saved profile continues to work on this device.</p>
+<div class="row">
+<div class="metric"><small>CLOUD STATUS</small><b id="cloudStatus">Local mode</b></div>
+<div class="metric"><small>PLAN</small><b>Free prototype</b></div>
+</div>
+<button id="closeAccount" type="button">BACK TO MILECOUNT</button>
+</div>
+
 <footer>
 
 SIMULATION — LOADS ARE NOT BOOKABLE
@@ -1052,6 +1064,7 @@ map
 fuel
 app
 ===================== -->
+<script src="cloud.js"></script>
 <script src="routing.js"></script>
 <script src="map.js"></script>
 <script src="fuel.js"></script>
