@@ -244,8 +244,8 @@ async function refreshAccount(){
   el("authLoggedOut")?.classList.toggle("hidden",logged);el("authLoggedIn")?.classList.toggle("hidden",!logged);
   if(!logged)return;
   if(el("accountEmail"))el("accountEmail").textContent=s.user.email||"Signed in";
-  const [p,v,t]=await Promise.all([MileCountCloud.profile(),MileCountCloud.vehicles(),MileCountCloud.plannerTrips()]);
-  if(el("accountPlan"))el("accountPlan").textContent=(p?.plan||"free").toUpperCase();
+  const [p,v,t,admin]=await Promise.all([MileCountCloud.profile(),MileCountCloud.vehicles(),MileCountCloud.plannerTrips(),MileCountCloud.isAdmin()]);
+  if(el("accountPlan"))el("accountPlan").textContent=admin?"MASTER ADMIN":(p?.plan||"free").toUpperCase();if(admin){const pro=el("accountPanel")?.querySelector(".card[style*='background:#0a1510']");if(pro)pro.style.display="none";}
   if(el("cloudVehicleCount"))el("cloudVehicleCount").textContent=v.length;
   if(el("cloudTripCount"))el("cloudTripCount").textContent=t.length;
  }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
