@@ -63,8 +63,10 @@ window.MileCountCloud=(()=>{
   const s=await session();if(!s)throw new Error("Sign in first.");
   const a=await jsonFetch(MC_URL+"/rest/v1/"+table,{method:"POST",headers:{...authHeaders(s.access_token),"Prefer":"return=representation"},body:JSON.stringify({...obj,user_id:s.user.id})});return a[0]||a;
  }
+ async function rpc(name,obj={}){const s=await session();if(!s)throw new Error("Sign in first.");return jsonFetch(MC_URL+"/rest/v1/rpc/"+name,{method:"POST",headers:authHeaders(s.access_token),body:JSON.stringify(obj)})}
+ async function isAdmin(){try{return !!(await rpc("is_milecount_admin"))}catch(e){return false}}
  async function plannerTrips(){return rows("planner_trips","select=*&order=pickup_at.asc")}
  async function savePlannerTrip(t){return insert("planner_trips",t)}
  async function updatePlannerTrip(id,obj){const a=await patch("planner_trips","id=eq."+encodeURIComponent(id),obj);return a[0]||a}
- return {isEnabled:()=>true,health,signUp,signIn,signOut,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
+ return {isEnabled:()=>true,health,signUp,signIn,signOut,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,isAdmin,rpc,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
 })();
