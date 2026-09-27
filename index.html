@@ -320,6 +320,16 @@ font-size:11px;
 color:var(--muted);
 }
 
+
+.searchGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.filterGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.filterGrid label{margin:0}
+.searchStatus{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#09130f;margin-bottom:12px}
+.searchStatus strong{font-size:12px}.searchStatus span{font-size:10px;color:var(--muted)}
+.quickPills{display:flex;gap:7px;overflow:auto;padding-bottom:4px;margin:4px 0 12px}
+.quickPills button{width:auto;white-space:nowrap;padding:9px 11px;margin:0;background:#12241c;border:1px solid #294a3b;font-size:11px}
+.sectionEyebrow{font-size:10px;font-weight:900;letter-spacing:1.2px;color:#62d89a}
+@media(max-width:520px){.searchGrid,.filterGrid{grid-template-columns:1fr}.photoHero{height:300px}.photoHero div[style*="font-size:42px"]{font-size:36px!important}}
 </style>
 
 <!-- deploy-retry-20260927-1657-stable -->
@@ -401,30 +411,28 @@ Set up your vehicle
 <div class="metric"><small>PAYLOAD</small><b id="vehiclePayload">10,000 lb</b></div>
 </div>
 
-<h2>
-Where are you going?
-</h2>
+<div class="sectionEyebrow">NATIONWIDE FREIGHT SEARCH</div>
+<h2>Find the money on your route</h2>
+<div class="searchStatus"><div><strong>Provider-ready search</strong><br><span>Live freight appears here as providers are authorized.</span></div><span id="providerCount">API READY</span></div>
 
 
-<label>
-
-FROM
-
-<input id="from" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP" autocomplete="off">
+<div class="searchGrid"><label>FROM<input id="from" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP" autocomplete="off">
 <datalist id="usLocations"><option>Anywhere, USA</option><option>Atlanta, GA</option><option>Augusta, GA</option><option>Savannah, GA</option><option>Macon, GA</option><option>Columbus, GA</option><option>Birmingham, AL</option><option>Mobile, AL</option><option>Montgomery, AL</option><option>Huntsville, AL</option><option>Charlotte, NC</option><option>Raleigh, NC</option><option>Greensboro, NC</option><option>Wilmington, NC</option><option>Nashville, TN</option><option>Memphis, TN</option><option>Knoxville, TN</option><option>Chattanooga, TN</option><option>Greenville, SC</option><option>Columbia, SC</option><option>Charleston, SC</option><option>Jacksonville, FL</option><option>Orlando, FL</option><option>Tampa, FL</option><option>Miami, FL</option><option>Fort Lauderdale, FL</option><option>Tallahassee, FL</option><option>Dallas, TX</option><option>Houston, TX</option><option>Austin, TX</option><option>San Antonio, TX</option><option>El Paso, TX</option><option>Oklahoma City, OK</option><option>Tulsa, OK</option><option>New Orleans, LA</option><option>Baton Rouge, LA</option><option>Jackson, MS</option><option>Little Rock, AR</option><option>Louisville, KY</option><option>Lexington, KY</option><option>Richmond, VA</option><option>Norfolk, VA</option><option>Washington, DC</option><option>Baltimore, MD</option><option>Philadelphia, PA</option><option>Pittsburgh, PA</option><option>Newark, NJ</option><option>New York, NY</option><option>Boston, MA</option><option>Providence, RI</option><option>Hartford, CT</option><option>Buffalo, NY</option><option>Cleveland, OH</option><option>Columbus, OH</option><option>Cincinnati, OH</option><option>Detroit, MI</option><option>Indianapolis, IN</option><option>Chicago, IL</option><option>Milwaukee, WI</option><option>Minneapolis, MN</option><option>St. Louis, MO</option><option>Kansas City, MO</option><option>Omaha, NE</option><option>Wichita, KS</option><option>Denver, CO</option><option>Albuquerque, NM</option><option>Phoenix, AZ</option><option>Las Vegas, NV</option><option>Salt Lake City, UT</option><option>Boise, ID</option><option>Seattle, WA</option><option>Portland, OR</option><option>Sacramento, CA</option><option>San Francisco, CA</option><option>Fresno, CA</option><option>Los Angeles, CA</option><option>San Diego, CA</option></datalist>
 
 </label>
 
 
-<label>
+<label>TO<input id="to" list="usLocations" value="Charlotte, NC" placeholder="City, ST, ZIP or Anywhere, USA" autocomplete="off">
 
-TO
-
-<input id="to" list="usLocations" value="Charlotte, NC" placeholder="City, ST, ZIP or Anywhere, USA" autocomplete="off">
-
-</label>
+</label></div>
 
 
+<div class="quickPills"><button type="button" class="quickLane" data-dest="Anywhere, USA">ANYWHERE</button><button type="button" class="quickLane" data-dest="Atlanta, GA">ATLANTA</button><button type="button" class="quickLane" data-dest="Dallas, TX">DALLAS</button><button type="button" class="quickLane" data-dest="Chicago, IL">CHICAGO</button><button type="button" class="quickLane" data-dest="Los Angeles, CA">LOS ANGELES</button></div>
+<div class="filterGrid">
+<label>MAX DEADHEAD (MI)<input id="maxDeadhead" type="number" min="0" value="100"></label>
+<label>MIN RPM ($/MI)<input id="minRPM" type="number" min="0" step="0.05" value="1.75"></label>
+<label>PICKUP DATE<input id="pickupDate" type="date"></label>
+</div>
 <label>
 
 CURRENT LOAD PAY
@@ -480,7 +488,7 @@ value="6200"
 </div>
 
 <button id="find">
-AUTOSTACK • FILL SPACE
+FIND ME MONEY
 </button>
 
 </div>
