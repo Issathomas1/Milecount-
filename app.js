@@ -136,6 +136,21 @@ async function findMoney(){
  showScreen(2);
 }
 
+async function checkMarketQuote(){
+ const oz=String(el("from")?.value||"").trim(),dz=String(el("to")?.value||"").trim();
+ if(!/^\d{5}$/.test(oz)||!/^\d{5}$/.test(dz)){if(el("marketQuoteStatus"))el("marketQuoteStatus").textContent="ZIP REQUIRED";if(el("marketQuoteDetails"))el("marketQuoteDetails").textContent="Use 5-digit ZIP codes in FROM and TO to request a real market quote.";return}
+ if(el("marketQuoteStatus"))el("marketQuoteStatus").textContent="CHECKING…";if(el("marketQuotePrice"))el("marketQuotePrice").textContent="—";
+ try{
+  const pickup=el("pickupDate")?.value||new Date().toISOString().slice(0,10);
+  const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/warp-boxtruck-market-quote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin_zip:oz,destination_zip:dz,pickup_date:pickup,pallets:1,weight_lbs_per_pallet:Math.min(10000,Math.max(50,val("weight",500)))})});
+  const j=await r.json();if(!r.ok)throw new Error(j.error||"Quote unavailable");
+  const q=j.quote||{},price=Number(q.price||q.amount||q.total||q.quote_amount||0);
+  if(el("marketQuotePrice"))el("marketQuotePrice").textContent=price?money(price):"AVAILABLE";
+  if(el("marketQuoteStatus"))el("marketQuoteStatus").textContent=j.available?"LIVE QUOTE":"UNAVAILABLE";
+  if(el("marketQuoteDetails"))el("marketQuoteDetails").textContent="WARP • 26-ft shipper-side market quote • NOT A CARRIER LOAD"+(q.quote_id||q.id?" • Quote "+(q.quote_id||q.id):"");
+ }catch(e){if(el("marketQuoteStatus"))el("marketQuoteStatus").textContent="UNAVAILABLE";if(el("marketQuoteDetails"))el("marketQuoteDetails").textContent="Market quote unavailable • "+e.message}
+}
+
 function selectCandidate(i){
  const l=(S.candidateLoads||[])[i];if(!l)return;S.selectedCandidate=l;S.addedPay=l.pay;S.totalPay=S.primaryPay+l.pay;S.extraMiles=l.extraMiles;S.selectedStop=l.stop;
  if(el("added"))el("added").textContent="+"+money(l.pay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(l.pay);
@@ -293,6 +308,6 @@ bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showS
 async function loadPlannerAutoStack(){try{const q=new URLSearchParams(location.search),id=q.get("autostack_id")||localStorage.getItem("mcAutoStackPlannerId");if(!id||!window.MileCountCloud)return;const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===id);if(t){S.plannerTripId=t.id;if(el("from"))el("from").value=t.origin;if(el("to"))el("to").value=t.destination;if(el("pay"))el("pay").value=Number(t.original_pay||t.expected_revenue||0);if(el("space"))el("space").value=Math.max(0,26-Number(t.cargo_used_ft||0));if(el("weight"))el("weight").value=Math.max(0,10000-Number(t.weight_used_lb||0));setTimeout(findMoney,150)}localStorage.removeItem("mcAutoStackPlannerId")}catch(e){console.warn("AutoStack planner handoff",e)}}loadPlannerAutoStack();
 document.querySelectorAll(".quickLane").forEach(b=>b.addEventListener("click",()=>{if(el("to"))el("to").value=b.dataset.dest||"Anywhere, USA"}));
  if(el("pickupDate")&&!el("pickupDate").value){const d=new Date();el("pickupDate").value=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")}
-bind("find",findMoney);bind("addTrip",addToTrip);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
+bind("find",findMoney);bind("checkMarketQuote",checkMarketQuote);bind("addTrip",addToTrip);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
 })();
