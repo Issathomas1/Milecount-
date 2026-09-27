@@ -5,7 +5,7 @@ Stable buttons + simulated AutoStack optimizer + routing + fuel
 */
 (function(){
 "use strict";
-const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:740,extraMiles:0,roundTripMiles:524,homeAdded:false,origin:"Atlanta, GA",destination:"Charlotte, NC",home:"Atlanta, GA",selectedStop:"Greenville, SC"};
+const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:0,extraMiles:0,roundTripMiles:0,homeAdded:false,origin:"",destination:"",home:"Atlanta, GA",selectedStop:"",selectedCandidate:null,candidateLoads:[],tripMode:"idle"};
 const el=id=>document.getElementById(id);
 const val=(id,f=0)=>{const n=Number(el(id)?.value);return Number.isFinite(n)?n:f};
 const money=v=>"$"+Math.round(Number(v)||0).toLocaleString();
@@ -91,7 +91,7 @@ async function findMoney(){
  loads=loads.filter(l=>Number(l.extraMiles||0)<=maxDH && (Number(l.extraMiles||0)<=0 || Number(l.pay||0)/Number(l.extraMiles||1)>=minRPM));
  loads.sort((a,b)=>b.afterFuel-a.afterFuel);
  const best=loads[0]||{pay:0,space:0,weight:0,stop:S.destination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
- S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
+ S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;S.returnPay=0;S.roundTripMiles=0;S.tripMode=liveProvider?"live":"simulation";
 
  S.candidateLoads=loads;S.selectedCandidate=best;
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
@@ -227,7 +227,14 @@ async function saveCurrentTrip(){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);return false}
 }
-function startNewTrip(){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="GET ME HOME PAID"}showScreen(1)}
+function startNewTrip(){
+ S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.homeAdded=false;S.selectedStop="";S.selectedCandidate=null;S.candidateLoads=[];S.tripMode="idle";S.plannerTripId=null;
+ el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="GET ME HOME PAID"}
+ if(typeof clearMileCountMap==="function")clearMileCountMap();
+ if(el("tripStops"))el("tripStops").innerHTML="";
+ if(el("roadMiles"))el("roadMiles").textContent="—";if(el("driveTime"))el("driveTime").textContent="—";if(el("routeSource"))el("routeSource").textContent="Select a load to build the route.";
+ showScreen(1)
+}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -238,7 +245,7 @@ async function analyzeManualLoad(){
  let detour={extraMiles:0,extraDriveTime:"On route"};
  if(load.stop!==S.destination)detour=await routeDetour(load.stop,0);
  load.extraMiles=Math.max(0,Number(detour.extraMiles)||0);load.extraDriveTime=detour.extraDriveTime||"Estimated";load.fuel=fuelFor(load.extraMiles);load.afterFuel=load.pay-load.fuel.fuelCost;
- S.primaryPay=Math.max(0,val("pay",0));S.addedPay=load.pay;S.totalPay=S.primaryPay+load.pay;S.extraMiles=load.extraMiles;S.selectedStop=load.stop;S.homeAdded=false;
+ S.primaryPay=Math.max(0,val("pay",0));S.addedPay=load.pay;S.totalPay=S.primaryPay+load.pay;S.extraMiles=load.extraMiles;S.selectedStop=load.stop;S.homeAdded=false;S.returnPay=0;S.roundTripMiles=0;S.tripMode="manual";S.selectedCandidate=load;
  const p=updateCostUI();const incrementalRPM=load.extraMiles>0?load.pay/load.extraMiles:load.pay;
  if(el("loadCandidates"))el("loadCandidates").innerHTML='<div style="padding:12px;border:1px solid #31bf72;border-radius:12px;background:#0d2118"><div style="display:flex;justify-content:space-between"><b>'+load.name+'</b><b style="color:#31bf72">+'+money(load.pay)+'</b></div><div class="details">'+load.pickup+' → '+load.stop+' • '+load.space+' ft • '+load.weight.toLocaleString()+' lb • +'+load.extraMiles.toFixed(1)+' detour mi • MANUAL LOAD ✓</div></div>';
  if(el("added"))el("added").textContent="+"+money(load.pay);if(el("current"))el("current").textContent=money(S.primaryPay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(load.pay);
@@ -268,6 +275,16 @@ if(el("vehicleType"))el("vehicleType").addEventListener("change",function(){appl
 applyVehicle(el("vehicleType")?.value||"box26",false);
 updateCostUI();
 loadProfile();
+bind("requestLoad",function(){
+ const l=S.selectedCandidate;if(!l?.provider)return;
+ if(el("bookingStatus"))el("bookingStatus").textContent="STATUS • ACTION REQUIRED";
+ if(el("bookingMessage"))el("bookingMessage").textContent=l.provider==="TrukTek"?"TrukTek's published API does not expose direct booking. Use broker details to verify availability and request the load. MileCount will only show ACCEPTED after a provider/broker confirmation integration is available.":"This provider requires a confirmed booking endpoint before MileCount can mark the load accepted.";
+});
+bind("contactBroker",function(){
+ const l=S.selectedCandidate;if(!l)return;
+ const msg=[l.broker?"Broker: "+l.broker:null,l.bookingReference?"Load reference: "+l.bookingReference:null,l.provider?"Source: "+l.provider:null].filter(Boolean).join("\n");
+ alert(msg||"Broker contact details are not available in this provider response.");
+});
 bind("analyzeManual",analyzeManualLoad);bind("saveProfile",saveProfile);
 async function refreshAccount(){
  try{

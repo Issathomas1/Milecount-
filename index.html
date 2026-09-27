@@ -675,9 +675,14 @@ Truck after loading
 </div>
 
 
-<button id="addTrip">
-ADD TO AUTOSTACK
-</button>
+<div id="liveBookingPanel" class="card hidden" style="margin-top:12px;background:#0a1510">
+<span class="badge">LIVE LOAD ACTION</span>
+<h3 id="bookingTitle">Request this load</h3>
+<p id="bookingMessage" class="details">MileCount will use the provider's supported booking workflow. A load is not booked until the provider or broker confirms it.</p>
+<div class="row"><button id="requestLoad" type="button">REQUEST LOAD</button><button id="contactBroker" type="button" style="background:#15271f;border:1px solid #2b4438">BROKER DETAILS</button></div>
+<div id="bookingStatus" class="details">STATUS • NOT REQUESTED</div>
+</div>
+<button id="addTrip">ADD TO TRIP PLAN</button>
 
 </div>
 
