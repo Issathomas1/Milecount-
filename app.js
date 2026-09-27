@@ -196,9 +196,7 @@ async function saveProfile(){
    const s=await MileCountCloud.session();
    if(!s){if(el("saveStatus"))el("saveStatus").textContent="Saved on this device. Sign in to sync to cloud.";return}
    const v=activeVehicle;
-   const vehicleRow={name:v.name,vehicle_type:data.vehicleType,mpg:v.mpg,cargo_length_ft:v.cargoLength,payload_lb:v.payload,monthly_payment:data.monthlyPayment,monthly_insurance:data.monthlyInsurance,maintenance_cpm:data.maintenanceCPM,monthly_other:data.monthlyOther,expected_monthly_miles:data.monthlyMiles,is_default:true};
-   const existing=await MileCountCloud.defaultVehicle();
-   if(existing)await MileCountCloud.updateVehicle(existing.id,vehicleRow);else await MileCountCloud.saveVehicle(vehicleRow);
+   await MileCountCloud.saveVehicle({name:v.name,vehicle_type:data.vehicleType,mpg:v.mpg,cargo_length_ft:v.cargoLength,payload_lb:v.payload,monthly_payment:data.monthlyPayment,monthly_insurance:data.monthlyInsurance,maintenance_cpm:data.maintenanceCPM,monthly_other:data.monthlyOther,expected_monthly_miles:data.monthlyMiles,is_default:true});
    if(el("saveStatus"))el("saveStatus").textContent="Saved to MileCount Cloud ✓";
  }catch(e){if(el("saveStatus"))el("saveStatus").textContent="Local save worked • Cloud: "+e.message}
 }
@@ -219,126 +217,9 @@ async function refreshAccount(){
   if(!logged)return;
   if(el("accountEmail"))el("accountEmail").textContent=s.user.email||"Signed in";
   const [p,v,t]=await Promise.all([MileCountCloud.profile(),MileCountCloud.vehicles(),MileCountCloud.trips()]);
-  const plan=(p?.plan||"free").toLowerCase();
-  if(el("accountPlan"))el("accountPlan").textContent=plan.toUpperCase();
-  window.MileCountPlan=plan;
-  if(el("planFeatureText"))el("planFeatureText").innerHTML=plan==="free"?"<b>FREE</b> • Manual load analysis • 1 saved vehicle • basic trip economics<br><span style='color:#8adbb5'>PRO preview:</span> AutoStack, Backhaul Finder, Get Me Home Paid, advanced analytics":plan==="pro"?"<b>PRO ACTIVE ✓</b> • AutoStack • Backhaul Finder • Get Me Home Paid • advanced analytics • cloud history":"<b>FLEET ACTIVE ✓</b> • Pro tools + multi-vehicle fleet controls";
+  if(el("accountPlan"))el("accountPlan").textContent=(p?.plan||"free").toUpperCase();
   if(el("cloudVehicleCount"))el("cloudVehicleCount").textContent=v.length;
   if(el("cloudTripCount"))el("cloudTripCount").textContent=t.length;
-  const totals=t.reduce((a,x)=>{const revenue=Number(x.primary_pay||0)+Number(x.added_pay||0)+Number(x.return_pay||0);a.revenue+=revenue;a.margin+=Number(x.estimated_margin||0);a.miles+=Number(x.road_miles||0);return a},{revenue:0,margin:0,miles:0});
-  if(el("dashRevenue"))el("dashRevenue").textContent=money(totals.revenue);
-  if(el("dashMargin"))el("dashMargin").textContent=money(totals.margin);
-  if(el("dashMiles"))el("dashMiles").textContent=Math.round(totals.miles).toLocaleString();
-  if(el("dashRPM"))el("dashRPM").textContent="$"+(totals.miles?totals.revenue/totals.miles:0).toFixed(2);
-  if(el("vehicleHistory"))el("vehicleHistory").innerHTML=v.length?v.map(x=>'<div style="padding:12px 0;border-bottom:1px solid #284136"><div style="display:flex;justify-content:space-between;gap:10px"><b>'+x.name+'</b><span style="color:#55bd7b">'+Number(x.mpg||0)+' MPG</span></div><div style="margin-top:5px;color:#93a79d">'+Number(x.cargo_length_ft||0)+' ft • '+Number(x.payload_lb||0).toLocaleString()+' lb payload • 
-  if(el("tripHistory"))el("tripHistory").innerHTML=t.length?t.slice(0,10).map(x=>'<div style="padding:12px 0;border-bottom:1px solid #284136"><div style="display:flex;justify-content:space-between;gap:10px"><b>'+x.origin+' → '+x.destination+'</b><b style="color:#55bd7b">
- }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
-}
-bind("accountButton",async function(){
- document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
- const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- await refreshAccount();
-});
-bind("testCloud",async function(){try{el("authMessage").textContent="Testing MileCount Cloud...";const h=await MileCountCloud.health();el("authMessage").textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • status "+h.status+(h.error?" • "+h.error:"")}catch(e){el("authMessage").textContent="CLOUD TEST ERROR • "+e.message}});
-bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-function proGate(feature,fn){return async function(...args){let plan=window.MileCountPlan;try{if(!plan){const p=await MileCountCloud.profile();plan=(p?.plan||"free").toLowerCase();window.MileCountPlan=plan}}catch(e){}if(plan==="pro"||plan==="fleet")return fn.apply(this,args);alert(feature+" is a MileCount Pro feature. Pro billing is not live yet.");}}
-bind("find",findMoney);bind("addTrip",proGate("AutoStack",addToTrip));bind("protect",proGate("Backhaul Finder",protectReturn));bind("getHome",proGate("Get Me Home Paid",getHomePaid));bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
-console.log("MileCount App Engine V2 Ready");
-})();+Number((x.primary_pay||0)+(x.added_pay||0)+(x.return_pay||0)).toLocaleString()+'</b></div><div style="margin-top:5px;color:#93a79d">'+Number(x.road_miles||0).toFixed(0)+' mi • 
- }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
-}
-bind("accountButton",async function(){
- document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
- const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- await refreshAccount();
-});
-bind("testCloud",async function(){try{el("authMessage").textContent="Testing MileCount Cloud...";const h=await MileCountCloud.health();el("authMessage").textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • status "+h.status+(h.error?" • "+h.error:"")}catch(e){el("authMessage").textContent="CLOUD TEST ERROR • "+e.message}});
-bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
-console.log("MileCount App Engine V2 Ready");
-})();+Number(x.all_miles_rpm||0).toFixed(2)+'/mi • est. margin 
- }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
-}
-bind("accountButton",async function(){
- document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
- const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- await refreshAccount();
-});
-bind("testCloud",async function(){try{el("authMessage").textContent="Testing MileCount Cloud...";const h=await MileCountCloud.health();el("authMessage").textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • status "+h.status+(h.error?" • "+h.error:"")}catch(e){el("authMessage").textContent="CLOUD TEST ERROR • "+e.message}});
-bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
-console.log("MileCount App Engine V2 Ready");
-})();+Math.round(Number(x.estimated_margin||0)).toLocaleString()+'</div></div>').join(""):"No saved trips yet.";
- }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
-}
-bind("accountButton",async function(){
- document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
- const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- await refreshAccount();
-});
-bind("testCloud",async function(){try{el("authMessage").textContent="Testing MileCount Cloud...";const h=await MileCountCloud.health();el("authMessage").textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • status "+h.status+(h.error?" • "+h.error:"")}catch(e){el("authMessage").textContent="CLOUD TEST ERROR • "+e.message}});
-bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
-console.log("MileCount App Engine V2 Ready");
-})();+Number(x.monthly_insurance||0).toLocaleString()+'/mo insurance</div></div>').join(""):"No saved vehicles yet.";
-  if(el("tripHistory"))el("tripHistory").innerHTML=t.length?t.slice(0,10).map(x=>'<div style="padding:12px 0;border-bottom:1px solid #284136"><div style="display:flex;justify-content:space-between;gap:10px"><b>'+x.origin+' → '+x.destination+'</b><b style="color:#55bd7b">
- }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
-}
-bind("accountButton",async function(){
- document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
- const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- await refreshAccount();
-});
-bind("testCloud",async function(){try{el("authMessage").textContent="Testing MileCount Cloud...";const h=await MileCountCloud.health();el("authMessage").textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • status "+h.status+(h.error?" • "+h.error:"")}catch(e){el("authMessage").textContent="CLOUD TEST ERROR • "+e.message}});
-bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
-console.log("MileCount App Engine V2 Ready");
-})();+Number((x.primary_pay||0)+(x.added_pay||0)+(x.return_pay||0)).toLocaleString()+'</b></div><div style="margin-top:5px;color:#93a79d">'+Number(x.road_miles||0).toFixed(0)+' mi • 
- }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
-}
-bind("accountButton",async function(){
- document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
- const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- await refreshAccount();
-});
-bind("testCloud",async function(){try{el("authMessage").textContent="Testing MileCount Cloud...";const h=await MileCountCloud.health();el("authMessage").textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • status "+h.status+(h.error?" • "+h.error:"")}catch(e){el("authMessage").textContent="CLOUD TEST ERROR • "+e.message}});
-bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
-console.log("MileCount App Engine V2 Ready");
-})();+Number(x.all_miles_rpm||0).toFixed(2)+'/mi • est. margin 
- }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
-}
-bind("accountButton",async function(){
- document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
- const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- await refreshAccount();
-});
-bind("testCloud",async function(){try{el("authMessage").textContent="Testing MileCount Cloud...";const h=await MileCountCloud.health();el("authMessage").textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • status "+h.status+(h.error?" • "+h.error:"")}catch(e){el("authMessage").textContent="CLOUD TEST ERROR • "+e.message}});
-bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
-bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
-console.log("MileCount App Engine V2 Ready");
-})();+Math.round(Number(x.estimated_margin||0)).toLocaleString()+'</div></div>').join(""):"No saved trips yet.";
  }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
 }
 bind("accountButton",async function(){
