@@ -8,6 +8,24 @@ const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:740,extraMiles:0,rou
 const el=id=>document.getElementById(id);
 const val=(id,f=0)=>{const n=Number(el(id)?.value);return Number.isFinite(n)?n:f};
 const money=v=>"$"+Math.round(Number(v)||0).toLocaleString();
+const VEHICLES={
+ cargo:{name:"Cargo Van",mpg:18,cargoLength:10,payload:3500,costPerMile:.35,defaultSpace:10,defaultWeight:3000},
+ sprinter:{name:"Sprinter / High-Roof Van",mpg:16,cargoLength:14,payload:4000,costPerMile:.40,defaultSpace:14,defaultWeight:3500},
+ box16:{name:"16-ft Box Truck",mpg:12,cargoLength:16,payload:7000,costPerMile:.50,defaultSpace:12,defaultWeight:5500},
+ box20:{name:"20-ft Box Truck",mpg:10.5,cargoLength:20,payload:8500,costPerMile:.58,defaultSpace:14,defaultWeight:6200},
+ box24:{name:"24-ft Box Truck",mpg:9.5,cargoLength:24,payload:9500,costPerMile:.62,defaultSpace:14,defaultWeight:6200},
+ box26:{name:"26-ft Box Truck",mpg:9,cargoLength:26,payload:10000,costPerMile:.65,defaultSpace:14,defaultWeight:6200}
+};
+let activeVehicle=VEHICLES.box26;
+function applyVehicle(key,updateInputs=true){
+ activeVehicle=VEHICLES[key]||VEHICLES.box26;
+ if(typeof setMileCountVehicleProfile==="function")setMileCountVehicleProfile(activeVehicle);
+ if(el("vehicleName"))el("vehicleName").textContent=activeVehicle.name;
+ if(el("vehicleMPG"))el("vehicleMPG").textContent=activeVehicle.mpg;
+ if(el("vehiclePayload"))el("vehiclePayload").textContent=activeVehicle.payload.toLocaleString()+" lb";
+ if(el("vehicleSummary"))el("vehicleSummary").textContent=activeVehicle.mpg+" MPG • "+activeVehicle.cargoLength+" ft cargo • Home: Atlanta, GA";
+ if(updateInputs){if(el("space"))el("space").value=activeVehicle.defaultSpace;if(el("weight"))el("weight").value=activeVehicle.defaultWeight}
+}
 
 function showScreen(n){
  document.querySelectorAll(".screen").forEach((s,i)=>s.classList.toggle("active",i===n-1));
@@ -26,6 +44,7 @@ async function routeDetour(stop,fallback){
 }
 
 async function findMoney(){
+ applyVehicle(el("vehicleType")?.value||"box26",false);
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
  const loads=[
@@ -84,12 +103,16 @@ async function getHomePaid(){
  const miles=Number.isFinite(live)&&live>0?live:S.roundTripMiles;S.roundTripMiles=miles;
  const r=typeof calculateMileCountRoundTrip==="function"?calculateMileCountRoundTrip(S.totalPay,S.returnPay,miles,S.origin):null;
  if(r){
+  const operatingCost=r.miles*activeVehicle.costPerMile;
+  const tripMargin=r.totalRevenue-operatingCost;
+  if(el("allMilesRPM"))el("allMilesRPM").textContent="$"+r.rpm.toFixed(2);
+  if(el("operatingCost"))el("operatingCost").textContent=money(operatingCost);
   if(el("roundPay"))el("roundPay").textContent=money(r.totalRevenue);
   if(el("roundMiles"))el("roundMiles").textContent=Math.round(r.miles).toLocaleString();
   if(el("roundRPM"))el("roundRPM").textContent="$"+r.rpm.toFixed(2);
   if(el("fuelCostDisplay"))el("fuelCostDisplay").textContent=money(r.fuelCost);
   if(el("fuelDetails"))el("fuelDetails").textContent=r.gallons.toFixed(1)+" gallons • $"+r.dieselPrice.toFixed(2)+"/gal • "+r.fuelSource+(r.fuelUpdated?" • "+r.fuelUpdated:"");
-  if(el("afterFuel"))el("afterFuel").textContent=money(r.afterFuel);
+  if(el("afterFuel"))el("afterFuel").textContent=money(tripMargin);
  }
  el("homeResult")?.classList.remove("hidden");if(el("getHome")){el("getHome").textContent="HOMEBOUND LOAD ADDED ✓";el("getHome").disabled=true}
 }
@@ -101,6 +124,8 @@ function viewUpdatedTrip(){
 }
 function startNewTrip(){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="GET ME HOME PAID"}showScreen(1)}
 function bind(id,fn){const b=el(id);if(b)b.addEventListener("click",fn);else console.warn("Missing button",id)}
+if(el("vehicleType"))el("vehicleType").addEventListener("change",function(){applyVehicle(this.value,true)});
+applyVehicle(el("vehicleType")?.value||"box26",false);
 bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
 })();
