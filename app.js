@@ -1,3 +1,4 @@
+window.mcTripStorageKey="mcOriginalTrips:guest";(async()=>{try{const s=await window.MileCountCloud?.session?.();if(s?.user?.id)window.mcTripStorageKey="mcOriginalTrips:"+s.user.id}catch(e){}})();
 /*
 MileCount App Engine V2
 Stable buttons + simulated AutoStack optimizer + routing + fuel
@@ -130,7 +131,7 @@ async function updateOutboundMap(){
 async function addToTrip(){
  const l=S.selectedCandidate;
  if(l){
-  const raw=localStorage.getItem("mcOriginalTrips")||"[]";
+  const raw=localStorage.getItem((window.mcTripStorageKey||"mcOriginalTrips:guest"))||"[]";
   const trips=JSON.parse(raw);
   const today=new Date().toISOString().slice(0,10);
   const trip=trips.find(t=>t.date>=today&&t.from===S.origin&&t.to===S.destination);
@@ -142,7 +143,7 @@ async function addToTrip(){
     trip.addedPay=Number(trip.addedPay||0)+Number(l.pay||0);
     trip.used=Number(trip.used||0)+Number(l.space||0);
     trip.weight=Number(trip.weight||0)+Number(l.weight||0);
-    localStorage.setItem("mcOriginalTrips",JSON.stringify(trips));
+    localStorage.setItem((window.mcTripStorageKey||"mcOriginalTrips:guest"),JSON.stringify(trips));
    }
   }
  }
@@ -154,12 +155,12 @@ function protectReturn(){if(el("previewRoundPay"))el("previewRoundPay").textCont
 async function getHomePaid(){
  S.homeAdded=true;
  try{
-  const trips=JSON.parse(localStorage.getItem("mcOriginalTrips")||"[]"),today=new Date().toISOString().slice(0,10);
+  const trips=JSON.parse(localStorage.getItem((window.mcTripStorageKey||"mcOriginalTrips:guest"))||"[]"),today=new Date().toISOString().slice(0,10);
   const trip=trips.filter(t=>t.date>=today&&t.from===S.origin&&t.to===S.destination).sort((a,b)=>a.date.localeCompare(b.date))[0];
   if(trip){
    trip.returnLoad={name:"Homebound Return",from:S.destination,to:S.home,pay:Number(S.returnPay||0)};
    trip.returnPay=Number(S.returnPay||0);
-   localStorage.setItem("mcOriginalTrips",JSON.stringify(trips));
+   localStorage.setItem((window.mcTripStorageKey||"mcOriginalTrips:guest"),JSON.stringify(trips));
   }
  }catch(e){console.warn("Planner return update failed",e)}
 let route=null;
@@ -273,7 +274,7 @@ bind("signUp",async function(){try{const email=el("authEmail").value.trim(),pass
 bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
 bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
 bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-try{const q=new URLSearchParams(location.search),day=q.get("autostack")||localStorage.getItem("mcAutoStackTripDate");if(day){const trips=JSON.parse(localStorage.getItem("mcOriginalTrips")||"[]"),t=trips.find(x=>x.date===day);if(t){if(el("from"))el("from").value=t.from;if(el("to"))el("to").value=t.to;if(el("pay"))el("pay").value=t.pay;if(el("space"))el("space").value=Math.max(0,26-Number(t.used||0));if(el("weight"))el("weight").value=Math.max(0,10000-Number(t.weight||0));setTimeout(findMoney,150)}localStorage.removeItem("mcAutoStackTripDate")}}catch(e){console.warn("AutoStack calendar handoff",e)}
+try{const q=new URLSearchParams(location.search),day=q.get("autostack")||localStorage.getItem("mcAutoStackTripDate");if(day){const trips=JSON.parse(localStorage.getItem((window.mcTripStorageKey||"mcOriginalTrips:guest"))||"[]"),t=trips.find(x=>x.date===day);if(t){if(el("from"))el("from").value=t.from;if(el("to"))el("to").value=t.to;if(el("pay"))el("pay").value=t.pay;if(el("space"))el("space").value=Math.max(0,26-Number(t.used||0));if(el("weight"))el("weight").value=Math.max(0,10000-Number(t.weight||0));setTimeout(findMoney,150)}localStorage.removeItem("mcAutoStackTripDate")}}catch(e){console.warn("AutoStack calendar handoff",e)}
 bind("find",findMoney);bind("addTrip",addToTrip);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
 })();
