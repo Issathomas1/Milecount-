@@ -1036,7 +1036,6 @@ START NEW TRIP
 <div class="row" style="margin-top:9px"><div class="metric"><small>SAVED VEHICLES</small><b id="cloudVehicleCount">0</b></div><div class="metric"><small>SAVED TRIPS</small><b id="cloudTripCount">0</b></div></div>
 <button id="signOut" type="button" style="background:#15271f;border:1px solid #2b4438">SIGN OUT</button>
 </div>
-<button id="testCloud" type="button" onclick="mileCountCloudTest()" style="background:#15271f;border:1px solid #2b4438">TEST CLOUD CONNECTION</button>
 <div id="authMessage" class="details"></div>
 <button id="closeAccount" type="button">BACK TO MILECOUNT</button>
 </div>
@@ -1078,11 +1077,6 @@ app
 <script src="fuel.js"></script>
 <script src="app.js?v=39"></script>
 <script>
-async function mileCountCloudTest(){
- const m=document.getElementById("authMessage"); if(m)m.textContent="Testing...";
- try{const h=await window.MileCountCloud.health();if(m)m.textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • "+h.status+(h.error?" • "+h.error:"")}
- catch(e){if(m)m.textContent="TEST ERROR • "+e.message}
-}
 async function mileCountDirectSignUp(){
  const m=document.getElementById("authMessage");
  try{
