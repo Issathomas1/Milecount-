@@ -24,7 +24,7 @@ function applyVehicle(key,updateInputs=true){
  if(el("vehicleName"))el("vehicleName").textContent=activeVehicle.name;
  if(el("vehicleMPG"))el("vehicleMPG").textContent=activeVehicle.mpg;
  if(el("vehiclePayload"))el("vehiclePayload").textContent=activeVehicle.payload.toLocaleString()+" lb";
- if(el("vehicleSummary"))el("vehicleSummary").textContent=activeVehicle.mpg+" MPG • "+activeVehicle.cargoLength+" ft cargo • Home: Atlanta, GA";
+ if(el("vehicleSummary"))el("vehicleSummary").textContent=activeVehicle.mpg+" MPG • "+activeVehicle.cargoLength+" ft cargo • Nationwide search ready";
  if(updateInputs){if(el("space"))el("space").value=activeVehicle.defaultSpace;if(el("weight"))el("weight").value=activeVehicle.defaultWeight}
 }
 
@@ -57,7 +57,7 @@ function fuelFor(miles){
 }
 
 async function routeDetour(stop,fallback){
- if(typeof calculateMileCountDetour!=="function"||S.origin!=="Atlanta, GA"||S.destination!=="Charlotte, NC")return {extraMiles:fallback,extraDriveTime:"Estimated"};
+ if(typeof calculateMileCountDetour!=="function")return {extraMiles:fallback,extraDriveTime:"Estimated"};
  try{return await calculateMileCountDetour(S.origin,S.destination,[stop])}
  catch(e){console.warn("Detour fallback",e);return {extraMiles:fallback,extraDriveTime:"Estimated"}}
 }
@@ -67,8 +67,9 @@ async function findMoney(){
  const profile=updateCostUI();
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
- let loads=[];let liveProvider=false;
- try{const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:100})});if(r.ok){const j=await r.json();loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.pickup||S.origin,fallback:Number(x.deadhead||0),provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference}));liveProvider=loads.length>0}}catch(e){console.warn("TrukTek development pilot unavailable",e)}
+ let loads=[];let liveProvider=false; let providerErrors=[];
+ try{const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:100})});if(r.ok){const j=await r.json();loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.pickup||S.origin,fallback:Number(x.deadhead||0),provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference}));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek development pilot unavailable",e)}
+ if(el("dataModeBadge")){el("dataModeBadge").textContent=liveProvider?"LIVE • "+(loads[0]?.provider||"PROVIDER"):"SIMULATION • API READY";el("dataModeBadge").style.background=liveProvider?"#dff8e9":"#fff0bf";}
  if(!loads.length)loads=[
   {name:"Greenville Partial A • SIMULATION",pay:475,space:7,weight:2450,stop:"Greenville, SC",fallback:30},
   {name:"Greenville Partial B • SIMULATION",pay:290,space:4,weight:1800,stop:"Greenville, SC",fallback:18},
