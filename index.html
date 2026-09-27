@@ -501,6 +501,22 @@ VEHICLE PROFILE
 Truck MPG is stored once instead of asking the driver every trip.
 </p>
 
+<details style="margin-top:14px">
+<summary style="cursor:pointer;font-weight:900;color:#8adbb5">PERSONAL COST PROFILE</summary>
+<div style="margin-top:14px">
+<label>VEHICLE PAYMENT / MONTH<input id="monthlyPayment" type="number" value="900"></label>
+<label>INSURANCE / MONTH<input id="monthlyInsurance" type="number" value="1800"></label>
+<label>MAINTENANCE RESERVE / MILE<input id="maintenanceCPM" type="number" step="0.01" value="0.20"></label>
+<label>OTHER FIXED COSTS / MONTH<input id="monthlyOther" type="number" value="300"></label>
+<label>EXPECTED MILES / MONTH<input id="monthlyMiles" type="number" value="8000"></label>
+<div class="row">
+<div class="metric"><small>BREAK-EVEN CPM</small><b id="breakEvenCPM">Calculating...</b></div>
+<div class="metric"><small>TARGET RPM</small><b id="targetRPM">Calculating...</b></div>
+</div>
+<p class="details">Planning estimate only. Taxes, tolls, unexpected repairs and personal compensation can vary.</p>
+</div>
+</details>
+
 </div>
 
 </section>
@@ -577,6 +593,11 @@ AUTOSTACK DECISION
 <div class="row" style="margin-top:10px;margin-bottom:10px">
   <div class="metric"><small>ACTUAL DETOUR</small><b id="detourMiles">Checking...</b></div>
   <div class="metric"><small>EXTRA DRIVE TIME</small><b id="detourTime">Checking...</b></div>
+</div>
+
+<div class="row" style="margin-bottom:10px">
+  <div class="metric"><small>BREAK-EVEN RPM</small><b id="decisionBreakEven">Calculating...</b></div>
+  <div class="metric"><small>LOAD VERDICT</small><b id="loadVerdict">Checking...</b></div>
 </div>
 
 <div class="row" style="margin-bottom:10px">
