@@ -144,8 +144,11 @@ function selectCandidate(i){
  document.querySelectorAll(".candidateLoad").forEach((b,n)=>b.classList.toggle("selected",n===i));
 }
 async function updateOutboundMap(){
+ const l=S.selectedCandidate;
+ if(l?.provider&&Array.isArray(l.routeCoordinates)&&l.routeCoordinates.length>1&&typeof showMileCountProviderRoute==="function")return await showMileCountProviderRoute(l);
  if(typeof showMileCountRoute!=="function")return null;
- const stops=[S.origin]; if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop); if(stops.at(-1)!==S.destination)stops.push(S.destination);
+ if(l?.provider)return await showMileCountRoute([l.pickup||S.origin,l.delivery||S.destination]);
+ const stops=[S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);
  return await showMileCountRoute(stops);
 }
 async function addToTrip(){
@@ -162,6 +165,7 @@ async function addToTrip(){
    }
   }catch(e){console.warn("Planner AutoStack cloud update failed",e)}
  }
+ if(l?.provider&&el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+(l.pickup||S.origin)+'</b><br>LIVE LOAD PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+(l.delivery||S.destination)+'</b><br>LIVE LOAD DELIVERY</div>';
  showScreen(3);await updateOutboundMap();
 }
 function protectReturn(){
