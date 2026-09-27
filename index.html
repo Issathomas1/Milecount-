@@ -1025,11 +1025,18 @@ START NEW TRIP
 <div id="accountPanel" class="card hidden" style="margin:12px">
 <span class="badge">MILECOUNT CLOUD</span>
 <h2>Your MileCount account</h2>
-<p class="details">Cloud accounts are being wired for saved vehicles, trips, Pro access and cross-device history. Your current saved profile continues to work on this device.</p>
-<div class="row">
-<div class="metric"><small>CLOUD STATUS</small><b id="cloudStatus">Local mode</b></div>
-<div class="metric"><small>PLAN</small><b>Free prototype</b></div>
+<div id="authLoggedOut">
+<label>DISPLAY NAME<input id="authName" type="text" placeholder="Your name"></label>
+<label>EMAIL<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
+<label>PASSWORD<input id="authPassword" type="password" autocomplete="current-password" placeholder="8+ characters"></label>
+<div class="row"><button id="signIn" type="button">SIGN IN</button><button id="signUp" type="button" style="background:#15271f;border:1px solid #2b4438">CREATE ACCOUNT</button></div>
 </div>
+<div id="authLoggedIn" class="hidden">
+<div class="row"><div class="metric"><small>SIGNED IN</small><b id="accountEmail">—</b></div><div class="metric"><small>PLAN</small><b id="accountPlan">Free</b></div></div>
+<div class="row" style="margin-top:9px"><div class="metric"><small>SAVED VEHICLES</small><b id="cloudVehicleCount">0</b></div><div class="metric"><small>SAVED TRIPS</small><b id="cloudTripCount">0</b></div></div>
+<button id="signOut" type="button" style="background:#15271f;border:1px solid #2b4438">SIGN OUT</button>
+</div>
+<div id="authMessage" class="details"></div>
 <button id="closeAccount" type="button">BACK TO MILECOUNT</button>
 </div>
 
@@ -1064,6 +1071,7 @@ map
 fuel
 app
 ===================== -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="cloud.js"></script>
 <script src="routing.js"></script>
 <script src="map.js"></script>
