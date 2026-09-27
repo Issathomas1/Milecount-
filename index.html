@@ -1,15 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<meta
+name="viewport"
+content="width=device-width,initial-scale=1"
+>
 
 <title>MileCount</title>
 
 <link
 rel="stylesheet"
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+>
 
 <style>
 
@@ -173,10 +179,10 @@ margin-bottom:5px;
 font-size:18px;
 }
 
-.metricDetails{
+.details{
 font-size:11px;
 line-height:1.4;
-color:#718279;
+color:var(--muted);
 margin-top:6px;
 }
 
@@ -221,7 +227,7 @@ margin-bottom:12px;
 
 .mapLabel{
 font-size:11px;
-color:#718279;
+color:var(--muted);
 }
 
 .stop{
@@ -260,31 +266,18 @@ footer{
 text-align:center;
 padding:28px 15px;
 font-size:11px;
-color:#718279;
-}
-
-@media(max-width:420px){
-
-.row{
-gap:6px;
-}
-
-.metric{
-padding:10px;
-}
-
-.metric b{
-font-size:16px;
-}
-
+color:var(--muted);
 }
 
 </style>
+
 </head>
+
 
 <body>
 
 <div class="app">
+
 
 <header>
 
@@ -310,17 +303,15 @@ Make every mile count.
 </h1>
 
 <p>
-Find more money.
-Reduce empty miles.
-Get home paid.
+Find more money. Reduce empty miles. Get home paid.
 </p>
 
 </div>
 
 
-<!-- =========================
+<!-- =====================
 SCREEN 1
-========================= -->
+===================== -->
 
 <section
 id="screen1"
@@ -332,6 +323,7 @@ class="screen active"
 <h2>
 Where are you going?
 </h2>
+
 
 <label>
 
@@ -379,7 +371,7 @@ CURRENT LOAD PAY
 id="pay"
 type="number"
 value="1400"
-/>
+>
 
 </label>
 
@@ -392,7 +384,7 @@ SPACE LEFT
 id="space"
 type="number"
 value="14"
-/>
+>
 
 </label>
 
@@ -405,7 +397,7 @@ WEIGHT LEFT
 id="weight"
 type="number"
 value="6200"
-/>
+>
 
 </label>
 
@@ -431,8 +423,8 @@ TRUCK PROFILE
 9 MPG • Home: Atlanta, GA
 </p>
 
-<p style="color:#718279">
-MPG is saved in your truck profile so you don't have to enter it every trip.
+<p class="details">
+Truck MPG is stored once instead of asking the driver every trip.
 </p>
 
 </div>
@@ -440,9 +432,9 @@ MPG is saved in your truck profile so you don't have to enter it every trip.
 </section>
 
 
-<!-- =========================
+<!-- =====================
 SCREEN 2
-========================= -->
+===================== -->
 
 <section
 id="screen2"
@@ -458,6 +450,7 @@ MILECOUNT FOUND
 <h2>
 More money along your route.
 </h2>
+
 
 <div
 id="added"
@@ -512,17 +505,29 @@ Calculating...
 
 <div
 id="extraFuelDetails"
-class="metricDetails"
+class="details"
 >
-Fuel Engine
+MileCount Fuel Engine
 </div>
 
 </div>
 
 
-<p>
-MileCount found compatible simulated freight that fits your remaining truck capacity.
+<div class="card" style="margin-top:12px">
+
+<b>
+Truck after loading
+</b>
+
+<p id="remainingSpace">
+7 ft remaining
 </p>
+
+<p id="remainingWeight">
+3,750 lb remaining
+</p>
+
+</div>
 
 
 <button id="addTrip">
@@ -534,9 +539,9 @@ ADD TO MY TRIP
 </section>
 
 
-<!-- =========================
+<!-- =====================
 SCREEN 3
-========================= -->
+===================== -->
 
 <section
 id="screen3"
@@ -549,7 +554,9 @@ class="screen"
 Your trip
 </h2>
 
+
 <div id="realMap"></div>
+
 
 <p class="mapLabel">
 Interactive simulation map • dotted green line = MileCount route
@@ -652,9 +659,9 @@ PROTECT MY RETURN
 </section>
 
 
-<!-- =========================
+<!-- =====================
 SCREEN 4
-========================= -->
+===================== -->
 
 <section
 id="screen4"
@@ -667,9 +674,11 @@ class="screen"
 MILECOUNT PRO
 </span>
 
+
 <h2>
 Backhaul Finder
 </h2>
+
 
 <p>
 BEST WAY HOME
@@ -682,6 +691,7 @@ BEST WAY HOME
 Charlotte → Atlanta
 </h3>
 
+
 <div
 class="green"
 style="
@@ -692,9 +702,22 @@ font-weight:900;
 +$740
 </div>
 
+
 <p style="color:#60736a">
 Simulated return load
 </p>
+
+
+<div
+id="previewRoundPay"
+style="
+font-size:21px;
+font-weight:900;
+color:#15975f;
+"
+>
+$2,615 total round trip
+</div>
 
 </div>
 
@@ -715,9 +738,11 @@ class="card hidden"
 HOMEBOUND LOAD ADDED ✓
 </span>
 
+
 <h2>
 Total Round Trip
 </h2>
+
 
 <div
 id="roundPay"
@@ -763,6 +788,7 @@ $4.99
 ESTIMATED TOTAL FUEL
 </small>
 
+
 <div
 id="fuelCostDisplay"
 class="fuelPrice"
@@ -770,9 +796,10 @@ class="fuelPrice"
 Calculating...
 </div>
 
+
 <div
 id="fuelDetails"
-class="metricDetails"
+class="details"
 >
 Waiting for MileCount Fuel Engine...
 </div>
@@ -810,15 +837,11 @@ RETURN LOAD
 </div>
 
 
-<p style="
-font-size:11px;
-color:#718279;
-margin-top:12px;
-">
+<p class="details">
 
 Estimated After Fuel is not net profit.
-Insurance, maintenance, taxes, tolls,
-truck payment and other expenses are not included.
+Insurance, maintenance, truck payment,
+tolls, taxes and other expenses are not included.
 
 </p>
 
@@ -847,516 +870,35 @@ MileCount • Make every mile count.
 
 </footer>
 
+
 </div>
 
 
-<!-- LEAFLET -->
+<!-- =====================
+LIBRARIES
+===================== -->
 
 <script
 src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
 </script>
 
 
-<!-- MILECOUNT MODULES -->
+<!-- =====================
+MILECOUNT ENGINES
+
+ORDER MATTERS:
+map
+fuel
+app
+===================== -->
 
 <script src="map.js"></script>
 
 <script src="fuel.js"></script>
 
+<script src="app.js"></script>
 
-<!-- MAIN APP -->
 
-<script>
+</body>
 
-var primaryPay = 1400;
-
-var addedPay = 475;
-
-var totalPay = 1875;
-
-var returnPay = 740;
-
-var roundTripMiles = 524;
-
-
-/*
-========================================
-SCREEN CONTROL
-========================================
-*/
-
-function showScreen(number){
-
-document
-.getElementById("screen1")
-.classList.remove("active");
-
-document
-.getElementById("screen2")
-.classList.remove("active");
-
-document
-.getElementById("screen3")
-.classList.remove("active");
-
-document
-.getElementById("screen4")
-.classList.remove("active");
-
-
-document
-.getElementById(
-"screen" + number
-)
-.classList.add("active");
-
-
-window.scrollTo(0,0);
-
-
-/*
-Refresh Leaflet after hidden
-map screen becomes visible.
-*/
-
-if(number === 3){
-
-setTimeout(function(){
-
-if(
-typeof initMileCountMap ===
-"function"
-){
-
-initMileCountMap();
-
-}
-
-
-if(
-typeof mileCountMap !==
-"undefined" &&
-mileCountMap
-){
-
-mileCountMap.invalidateSize();
-
-}
-
-},250);
-
-}
-
-}
-
-
-/*
-========================================
-FIND ME MONEY
-========================================
-*/
-
-document
-.getElementById("find")
-.onclick = function(){
-
-
-primaryPay =
-Number(
-document.getElementById("pay").value
-) || 0;
-
-
-var space =
-Number(
-document.getElementById("space").value
-) || 0;
-
-
-var weight =
-Number(
-document.getElementById("weight").value
-) || 0;
-
-
-var extraMiles = 0;
-
-
-/*
-SIMULATED AUTOSTACK
-
-Later this becomes the real
-MileCount optimization engine.
-*/
-
-if(
-space >= 7 &&
-weight >= 2450
-){
-
-addedPay = 475;
-
-extraMiles = 30;
-
-}
-
-else if(
-space >= 4 &&
-weight >= 1800
-){
-
-addedPay = 290;
-
-extraMiles = 18;
-
-}
-
-else{
-
-addedPay = 0;
-
-extraMiles = 0;
-
-}
-
-
-totalPay =
-primaryPay +
-addedPay;
-
-
-/*
-Update money.
-*/
-
-document
-.getElementById("added")
-.innerText =
-"+$" +
-addedPay.toLocaleString();
-
-
-document
-.getElementById("current")
-.innerText =
-"$" +
-primaryPay.toLocaleString();
-
-
-document
-.getElementById("newTotal")
-.innerText =
-"$" +
-totalPay.toLocaleString();
-
-
-document
-.getElementById("tripPay")
-.innerText =
-"$" +
-totalPay.toLocaleString();
-
-
-document
-.getElementById("tripAdded")
-.innerText =
-"+$" +
-addedPay.toLocaleString();
-
-
-/*
-Calculate extra fuel
-through fuel.js
-*/
-
-if(
-typeof calculateMileCountTripFuel ===
-"function"
-){
-
-var extraFuelResult =
-calculateMileCountTripFuel(
-extraMiles,
-"Atlanta, GA"
-);
-
-
-document
-.getElementById("extraFuel")
-.innerText =
-"$" +
-Math.round(
-extraFuelResult.fuelCost
-).toLocaleString();
-
-
-document
-.getElementById("extraFuelDetails")
-.innerText =
-
-extraFuelResult.gallons.toFixed(1) +
-
-" gal • $" +
-
-extraFuelResult.dieselPrice.toFixed(2) +
-
-"/gal • " +
-
-extraFuelResult.source;
-
-}
-
-else{
-
-document
-.getElementById("extraFuel")
-.innerText =
-"Fuel unavailable";
-
-}
-
-
-showScreen(2);
-
-};
-
-
-/*
-========================================
-ADD TO TRIP
-========================================
-*/
-
-document
-.getElementById("addTrip")
-.onclick = function(){
-
-showScreen(3);
-
-};
-
-
-/*
-========================================
-PROTECT RETURN
-========================================
-*/
-
-document
-.getElementById("protect")
-.onclick = function(){
-
-showScreen(4);
-
-};
-
-
-/*
-========================================
-GET ME HOME PAID
-========================================
-*/
-
-document
-.getElementById("getHome")
-.onclick = function(){
-
-
-var roundTripPay =
-totalPay +
-returnPay;
-
-
-/*
-Fuel Engine
-*/
-
-if(
-typeof calculateMileCountRoundTrip ===
-"function"
-){
-
-var fuelResult =
-calculateMileCountRoundTrip(
-
-totalPay,
-
-returnPay,
-
-roundTripMiles,
-
-"Atlanta, GA"
-
-);
-
-
-document
-.getElementById("roundPay")
-.innerText =
-"$" +
-Math.round(
-fuelResult.totalRevenue
-).toLocaleString();
-
-
-document
-.getElementById("roundMiles")
-.innerText =
-fuelResult.miles.toLocaleString();
-
-
-document
-.getElementById("roundRPM")
-.innerText =
-"$" +
-fuelResult.rpm.toFixed(2);
-
-
-document
-.getElementById("fuelCostDisplay")
-.innerText =
-"$" +
-Math.round(
-fuelResult.fuelCost
-).toLocaleString();
-
-
-document
-.getElementById("fuelDetails")
-.innerText =
-
-fuelResult.gallons.toFixed(1) +
-
-" gallons • $" +
-
-fuelResult.dieselPrice.toFixed(2) +
-
-"/gal • " +
-
-fuelResult.fuelSource;
-
-
-document
-.getElementById("afterFuel")
-.innerText =
-"$" +
-Math.round(
-fuelResult.afterFuel
-).toLocaleString();
-
-}
-
-else{
-
-/*
-Fallback only if fuel.js
-fails to load.
-*/
-
-document
-.getElementById("roundPay")
-.innerText =
-"$" +
-roundTripPay.toLocaleString();
-
-
-document
-.getElementById("fuelCostDisplay")
-.innerText =
-"Fuel Engine unavailable";
-
-
-document
-.getElementById("afterFuel")
-.innerText =
-"Unavailable";
-
-}
-
-
-/*
-Show result.
-*/
-
-document
-.getElementById("homeResult")
-.classList.remove("hidden");
-
-
-document
-.getElementById("getHome")
-.innerText =
-"HOMEBOUND LOAD ADDED ✓";
-
-
-document
-.getElementById("getHome")
-.disabled =
-true;
-
-
-/*
-Update map route home.
-*/
-
-if(
-typeof showHomeboundRoute ===
-"function"
-){
-
-showHomeboundRoute();
-
-}
-
-};
-
-
-/*
-========================================
-VIEW UPDATED TRIP
-========================================
-*/
-
-document
-.getElementById("updatedTrip")
-.onclick = function(){
-
-
-var roundTripPay =
-totalPay +
-returnPay;
-
-
-document
-.getElementById("tripPay")
-.innerText =
-"$" +
-roundTripPay.toLocaleString();
-
-
-document
-.getElementById("tripStops")
-.innerHTML =
-
-'<div class="stop">' +
-'🚚 <b>Atlanta, GA</b><br>' +
-'START / PRIMARY CARGO' +
-'</div>' +
-
-'<div class="stop">' +
-'📦 <b>Greenville, SC</b><br>' +
-'MileCount partial delivery' +
-'</div>' +
-
-'<div class="stop">' +
-'🏁 <b>Charlotte, NC</b><br>' +
-'Original delivery' +
-'</div>' +
-
-'<div class="stop">' +
-'💰 <b>Charlotte, NC</b><br>' +
-'Return load pickup • +$740' +
-'</div>' +
-
-'<div class="stop">' +
-'🏠 <b>Atlanta, GA</b><br>'
+</html>
