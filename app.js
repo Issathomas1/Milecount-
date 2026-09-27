@@ -219,7 +219,10 @@ async function refreshAccount(){
   if(!logged)return;
   if(el("accountEmail"))el("accountEmail").textContent=s.user.email||"Signed in";
   const [p,v,t]=await Promise.all([MileCountCloud.profile(),MileCountCloud.vehicles(),MileCountCloud.trips()]);
-  if(el("accountPlan"))el("accountPlan").textContent=(p?.plan||"free").toUpperCase();
+  const plan=(p?.plan||"free").toLowerCase();
+  if(el("accountPlan"))el("accountPlan").textContent=plan.toUpperCase();
+  window.MileCountPlan=plan;
+  if(el("planFeatureText"))el("planFeatureText").innerHTML=plan==="free"?"<b>FREE</b> • Manual load analysis • 1 saved vehicle • basic trip economics<br><span style='color:#8adbb5'>PRO preview:</span> AutoStack, Backhaul Finder, Get Me Home Paid, advanced analytics":plan==="pro"?"<b>PRO ACTIVE ✓</b> • AutoStack • Backhaul Finder • Get Me Home Paid • advanced analytics • cloud history":"<b>FLEET ACTIVE ✓</b> • Pro tools + multi-vehicle fleet controls";
   if(el("cloudVehicleCount"))el("cloudVehicleCount").textContent=v.length;
   if(el("cloudTripCount"))el("cloudTripCount").textContent=t.length;
   const totals=t.reduce((a,x)=>{const revenue=Number(x.primary_pay||0)+Number(x.added_pay||0)+Number(x.return_pay||0);a.revenue+=revenue;a.margin+=Number(x.estimated_margin||0);a.miles+=Number(x.road_miles||0);return a},{revenue:0,margin:0,miles:0});
@@ -241,7 +244,8 @@ bind("signUp",async function(){try{const email=el("authEmail").value.trim(),pass
 bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
 bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
 bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
+function proGate(feature,fn){return async function(...args){let plan=window.MileCountPlan;try{if(!plan){const p=await MileCountCloud.profile();plan=(p?.plan||"free").toLowerCase();window.MileCountPlan=plan}}catch(e){}if(plan==="pro"||plan==="fleet")return fn.apply(this,args);alert(feature+" is a MileCount Pro feature. Pro billing is not live yet.");}}
+bind("find",findMoney);bind("addTrip",proGate("AutoStack",addToTrip));bind("protect",proGate("Backhaul Finder",protectReturn));bind("getHome",proGate("Get Me Home Paid",getHomePaid));bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
 })();+Number((x.primary_pay||0)+(x.added_pay||0)+(x.return_pay||0)).toLocaleString()+'</b></div><div style="margin-top:5px;color:#93a79d">'+Number(x.road_miles||0).toFixed(0)+' mi • 
  }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
