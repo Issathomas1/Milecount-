@@ -193,11 +193,26 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
 updateCostUI();
 loadProfile();
 bind("analyzeManual",analyzeManualLoad);bind("saveProfile",saveProfile);
-bind("accountButton",function(){
+async function refreshAccount(){
+ try{
+  const s=await MileCountCloud.session(),logged=!!s;
+  el("authLoggedOut")?.classList.toggle("hidden",logged);el("authLoggedIn")?.classList.toggle("hidden",!logged);
+  if(!logged)return;
+  if(el("accountEmail"))el("accountEmail").textContent=s.user.email||"Signed in";
+  const [p,v,t]=await Promise.all([MileCountCloud.profile(),MileCountCloud.vehicles(),MileCountCloud.trips()]);
+  if(el("accountPlan"))el("accountPlan").textContent=(p?.plan||"free").toUpperCase();
+  if(el("cloudVehicleCount"))el("cloudVehicleCount").textContent=v.length;
+  if(el("cloudTripCount"))el("cloudTripCount").textContent=t.length;
+ }catch(e){if(el("authMessage"))el("authMessage").textContent=e.message}
+}
+bind("accountButton",async function(){
  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
  const panel=el("accountPanel");if(panel){panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"start"})}
- if(el("cloudStatus"))el("cloudStatus").textContent=(window.MileCountCloud&&MileCountCloud.isEnabled())?"Connected":"Local mode";
+ await refreshAccount();
 });
+bind("signUp",async function(){try{const email=el("authEmail").value.trim(),password=el("authPassword").value,name=el("authName").value.trim();if(password.length<8)throw new Error("Use at least 8 characters.");await MileCountCloud.signUp(email,password,name);if(el("authMessage"))el("authMessage").textContent="Account created. Check your email if confirmation is required.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
+bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
+bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
 bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
 bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
