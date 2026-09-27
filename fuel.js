@@ -10,8 +10,18 @@ const MileCountTruck = {
   mpg: 9,
   home: "Atlanta, GA",
   cargoLength: 26,
-  payloadCapacity: 10000
+  payloadCapacity: 10000,
+  planningCostPerMile: 0.65
 };
+
+function setMileCountVehicleProfile(profile) {
+  if (!profile) return;
+  MileCountTruck.type = profile.name || MileCountTruck.type;
+  MileCountTruck.mpg = Number(profile.mpg) || MileCountTruck.mpg;
+  MileCountTruck.cargoLength = Number(profile.cargoLength) || MileCountTruck.cargoLength;
+  MileCountTruck.payloadCapacity = Number(profile.payload) || MileCountTruck.payloadCapacity;
+  MileCountTruck.planningCostPerMile = Number(profile.costPerMile) || MileCountTruck.planningCostPerMile;
+}
 
 
 /*
