@@ -1,0 +1,2 @@
+provider_load_id,pickup_city,pickup_lat,pickup_lng,pickup_start,pickup_end,delivery_city,delivery_lat,delivery_lng,delivery_start,delivery_end,pay,weight_lb,length_ft,vehicle_types,expires_at,booking_reference
+DEMO-001,"Atlanta, GA",33.749,-84.388,2026-10-01T08:00:00-04:00,2026-10-01T10:00:00-04:00,"Charlotte, NC",35.2271,-80.8431,2026-10-01T14:00:00-04:00,2026-10-01T17:00:00-04:00,475,2450,7,"sprinter|box16|box20|box24|box26",2026-10-01T10:00:00-04:00,PROVIDER-REF-001
