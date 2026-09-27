@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-
 <title>MileCount</title>
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
 
 <style>
 *{box-sizing:border-box}
@@ -106,6 +110,10 @@ font-weight:900;
 margin-top:10px;
 }
 
+button:disabled{
+opacity:.65;
+}
+
 .money{
 font-size:38px;
 font-weight:900;
@@ -149,6 +157,20 @@ color:#c7d8d0;
 display:none;
 }
 
+#realMap{
+width:100%;
+height:340px;
+border-radius:15px;
+overflow:hidden;
+margin-bottom:15px;
+}
+
+.mapLabel{
+font-size:11px;
+color:#718279;
+margin-top:0;
+}
+
 footer{
 text-align:center;
 padding:25px;
@@ -163,14 +185,30 @@ color:#718279;
 <div class="app">
 
 <header>
-<div class="logo">MileCount<span class="green">.</span></div>
-<div class="demo">SIMULATION</div>
+<div class="logo">
+MileCount<span class="green">.</span>
+</div>
+
+<div class="demo">
+SIMULATION
+</div>
 </header>
 
+
 <div class="hero">
+
 <small>BOX-TRUCK MONEY</small>
-<h1>Make every mile count.</h1>
-<p>Find more money. Reduce empty miles. Get home paid.</p>
+
+<h1>
+Make every mile count.
+</h1>
+
+<p>
+Find more money.
+Reduce empty miles.
+Get home paid.
+</p>
+
 </div>
 
 
@@ -180,38 +218,67 @@ color:#718279;
 
 <div class="card">
 
-<h2>Where are you going?</h2>
+<h2>
+Where are you going?
+</h2>
 
 <label>
 FROM
+
 <select id="from">
 <option>Atlanta, GA</option>
 <option>Charlotte, NC</option>
 </select>
+
 </label>
+
 
 <label>
 TO
+
 <select id="to">
 <option>Charlotte, NC</option>
 <option>Nashville, TN</option>
 </select>
+
 </label>
+
 
 <label>
 CURRENT LOAD PAY
-<input id="pay" type="number" value="1400">
+
+<input
+id="pay"
+type="number"
+value="1400"
+>
+
 </label>
+
 
 <label>
 SPACE LEFT
-<input id="space" type="number" value="14">
+
+<input
+id="space"
+type="number"
+value="14"
+>
+
 </label>
+
 
 <label>
 WEIGHT LEFT
-<input id="weight" type="number" value="6200">
+
+<input
+id="weight"
+type="number"
+value="6200"
+>
+
 </label>
+
 
 <button id="find">
 FIND ME MONEY
@@ -228,29 +295,51 @@ FIND ME MONEY
 
 <div class="card">
 
-<small>MILECOUNT FOUND</small>
+<small>
+MILECOUNT FOUND
+</small>
 
-<div id="added" class="money">
+<div
+id="added"
+class="money">
 +$475
 </div>
+
 
 <div class="row">
 
 <div class="metric">
-<small>CURRENT TRIP</small>
-<b id="current">$1,400</b>
+
+<small>
+CURRENT TRIP
+</small>
+
+<b id="current">
+$1,400
+</b>
+
 </div>
+
 
 <div class="metric">
-<small>NEW TRIP</small>
-<b id="newTotal">$1,875</b>
+
+<small>
+NEW TRIP
+</small>
+
+<b id="newTotal">
+$1,875
+</b>
+
 </div>
 
 </div>
+
 
 <p>
 MileCount found compatible simulated freight along your route.
 </p>
+
 
 <button id="addTrip">
 ADD TO MY TRIP
@@ -267,30 +356,75 @@ ADD TO MY TRIP
 
 <div class="card">
 
-<h2>Your trip</h2>
+<h2>
+Your trip
+</h2>
+
+<div id="realMap"></div>
+
+<p class="mapLabel">
+Interactive simulation map • dotted green line = MileCount route
+</p>
+
+
+<div id="tripStops">
 
 <p>
-🚚 Atlanta
-<br><br>
-⬇️
-<br><br>
-📦 Greenville — MileCount partial
-<br><br>
-⬇️
-<br><br>
-🏁 Charlotte — Original delivery
+🚚 <b>Atlanta, GA</b>
+<br>
+START / PRIMARY CARGO
 </p>
+
+<p>
+↓
+</p>
+
+<p>
+📦 <b>Greenville, SC</b>
+<br>
+MileCount partial delivery
+</p>
+
+<p>
+↓
+</p>
+
+<p>
+🏁 <b>Charlotte, NC</b>
+<br>
+Original delivery
+</p>
+
+</div>
+
 
 <div class="row">
 
 <div class="metric">
-<small>TRIP PAY</small>
-<b id="tripPay">$1,875</b>
+
+<small>
+TRIP PAY
+</small>
+
+<b id="tripPay">
+$1,875
+</b>
+
 </div>
 
+
 <div class="metric">
-<small>MILECOUNT ADDED</small>
-<b class="green">+$475</b>
+
+<small>
+MILECOUNT ADDED
+</small>
+
+<b
+id="tripAdded"
+class="green">
++$475
+</b>
+
 </div>
 
 </div>
@@ -300,11 +434,14 @@ ADD TO MY TRIP
 
 <div class="card">
 
-<h2>⚠️ Don't drive home empty.</h2>
+<h2>
+⚠️ Don't drive home empty.
+</h2>
 
 <p>
 MileCount found simulated freight heading toward home.
 </p>
+
 
 <button id="protect">
 PROTECT MY RETURN
@@ -321,27 +458,50 @@ PROTECT MY RETURN
 
 <div class="card pro">
 
-<small>MILECOUNT PRO</small>
+<small>
+MILECOUNT PRO
+</small>
 
-<h2>Backhaul Finder</h2>
+
+<h2>
+Backhaul Finder
+</h2>
+
 
 <p>
 BEST WAY HOME
 </p>
 
-<div style="background:white;color:#102019;padding:14px;border-radius:12px">
 
-<h3>Charlotte → Atlanta</h3>
+<div
+style="
+background:white;
+color:#102019;
+padding:14px;
+border-radius:12px;
+">
 
-<div class="green" style="font-size:25px;font-weight:900">
+<h3>
+Charlotte → Atlanta
+</h3>
+
+
+<div
+class="green"
+style="
+font-size:25px;
+font-weight:900;
+">
 +$740
 </div>
+
 
 <p style="color:#60736a">
 Simulated return load
 </p>
 
 </div>
+
 
 <button id="getHome">
 GET ME HOME PAID
@@ -350,45 +510,95 @@ GET ME HOME PAID
 </div>
 
 
-<div id="homeResult" class="card hidden">
+<div
+id="homeResult"
+class="card hidden">
 
-<small>HOMEBOUND LOAD ADDED ✓</small>
 
-<h2>Total Round Trip</h2>
+<small>
+HOMEBOUND LOAD ADDED ✓
+</small>
 
-<div id="roundPay" class="money">
+
+<h2>
+Total Round Trip
+</h2>
+
+
+<div
+id="roundPay"
+class="money">
 $2,615
 </div>
 
+
 <div class="row">
 
 <div class="metric">
-<small>ROUND TRIP MILES</small>
-<b>524</b>
+
+<small>
+ROUND TRIP MILES
+</small>
+
+<b>
+524
+</b>
+
 </div>
+
 
 <div class="metric">
-<small>ROUND TRIP RPM</small>
-<b id="roundRPM">$4.99</b>
+
+<small>
+ROUND TRIP RPM
+</small>
+
+<b id="roundRPM">
+$4.99
+</b>
+
 </div>
 
 </div>
+
 
 <br>
 
+
 <div class="row">
 
 <div class="metric">
-<small>EST FUEL</small>
-<b>$201</b>
+
+<small>
+EST FUEL
+</small>
+
+<b>
+$201
+</b>
+
 </div>
+
 
 <div class="metric">
-<small>EST AFTER FUEL</small>
-<b id="afterFuel">$2,414</b>
+
+<small>
+EST AFTER FUEL
+</small>
+
+<b id="afterFuel">
+$2,414
+</b>
+
 </div>
 
 </div>
+
+
+<button id="updatedTrip">
+VIEW UPDATED TRIP
+</button>
+
 
 <button id="restart">
 START NEW TRIP
@@ -400,12 +610,23 @@ START NEW TRIP
 
 
 <footer>
+
 SIMULATION — LOADS ARE NOT BOOKABLE
+
 <br><br>
+
 MileCount • Make every mile count.
+
 </footer>
 
 </div>
+
+
+<script
+src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+<script src="map.js"></script>
 
 
 <script>
@@ -413,64 +634,155 @@ MileCount • Make every mile count.
 var primaryPay = 1400;
 var addedPay = 475;
 var totalPay = 1875;
+var returnPay = 740;
+var homeAdded = false;
+
 
 function showScreen(number){
 
-document.getElementById("screen1").classList.remove("active");
-document.getElementById("screen2").classList.remove("active");
-document.getElementById("screen3").classList.remove("active");
-document.getElementById("screen4").classList.remove("active");
+document
+.getElementById("screen1")
+.classList.remove("active");
 
-document.getElementById("screen" + number).classList.add("active");
+document
+.getElementById("screen2")
+.classList.remove("active");
+
+document
+.getElementById("screen3")
+.classList.remove("active");
+
+document
+.getElementById("screen4")
+.classList.remove("active");
+
+
+document
+.getElementById("screen" + number)
+.classList.add("active");
+
 
 window.scrollTo(0,0);
+
+
+/*
+Leaflet maps need a resize refresh
+when their hidden screen becomes visible.
+*/
+
+if(number === 3){
+
+setTimeout(function(){
+
+if(typeof initMileCountMap === "function"){
+initMileCountMap();
+}
+
+if(
+typeof mileCountMap !== "undefined" &&
+mileCountMap
+){
+mileCountMap.invalidateSize();
+}
+
+},200);
+
+}
 
 }
 
 
-document.getElementById("find").onclick = function(){
+document
+.getElementById("find")
+.onclick = function(){
 
 primaryPay =
-Number(document.getElementById("pay").value) || 0;
+Number(
+document.getElementById("pay").value
+) || 0;
+
 
 var space =
-Number(document.getElementById("space").value) || 0;
+Number(
+document.getElementById("space").value
+) || 0;
+
 
 var weight =
-Number(document.getElementById("weight").value) || 0;
+Number(
+document.getElementById("weight").value
+) || 0;
 
 
-/* simple simulated capacity check */
+/*
+Simple simulated AutoStack capacity check.
+*/
 
-if(space >= 7 && weight >= 2450){
+if(
+space >= 7 &&
+weight >= 2450
+){
 
 addedPay = 475;
 
-}else if(space >= 4 && weight >= 1800){
+}
+
+else if(
+space >= 4 &&
+weight >= 1800
+){
 
 addedPay = 290;
 
-}else{
+}
+
+else{
 
 addedPay = 0;
 
 }
 
 
-totalPay = primaryPay + addedPay;
+totalPay =
+primaryPay + addedPay;
 
 
-document.getElementById("added").innerText =
-"+$" + addedPay.toLocaleString();
+homeAdded = false;
 
-document.getElementById("current").innerText =
-"$" + primaryPay.toLocaleString();
 
-document.getElementById("newTotal").innerText =
-"$" + totalPay.toLocaleString();
+document
+.getElementById("added")
+.innerText =
+"+$" +
+addedPay.toLocaleString();
 
-document.getElementById("tripPay").innerText =
-"$" + totalPay.toLocaleString();
+
+document
+.getElementById("current")
+.innerText =
+"$" +
+primaryPay.toLocaleString();
+
+
+document
+.getElementById("newTotal")
+.innerText =
+"$" +
+totalPay.toLocaleString();
+
+
+document
+.getElementById("tripPay")
+.innerText =
+"$" +
+totalPay.toLocaleString();
+
+
+document
+.getElementById("tripAdded")
+.innerText =
+"+$" +
+addedPay.toLocaleString();
 
 
 showScreen(2);
@@ -478,66 +790,214 @@ showScreen(2);
 };
 
 
-document.getElementById("addTrip").onclick = function(){
+document
+.getElementById("addTrip")
+.onclick = function(){
 
 showScreen(3);
 
 };
 
 
-document.getElementById("protect").onclick = function(){
+document
+.getElementById("protect")
+.onclick = function(){
 
 showScreen(4);
 
 };
 
 
-document.getElementById("getHome").onclick = function(){
+document
+.getElementById("getHome")
+.onclick = function(){
 
-var returnPay = 740;
+homeAdded = true;
+
 
 var roundTripPay =
 totalPay + returnPay;
 
-var roundTripMiles = 524;
+
+var roundTripMiles =
+524;
+
 
 var roundTripRPM =
-roundTripPay / roundTripMiles;
+roundTripPay /
+roundTripMiles;
 
-var estimatedFuel = 201;
+
+/*
+Temporary simulation fuel number.
+Public fuel service comes next.
+*/
+
+var estimatedFuel =
+201;
+
 
 var afterFuel =
-roundTripPay - estimatedFuel;
+roundTripPay -
+estimatedFuel;
 
 
-document.getElementById("roundPay").innerText =
-"$" + roundTripPay.toLocaleString();
-
-document.getElementById("roundRPM").innerText =
-"$" + roundTripRPM.toFixed(2);
-
-document.getElementById("afterFuel").innerText =
-"$" + afterFuel.toLocaleString();
+document
+.getElementById("roundPay")
+.innerText =
+"$" +
+roundTripPay.toLocaleString();
 
 
-document.getElementById("homeResult").classList.remove("hidden");
+document
+.getElementById("roundRPM")
+.innerText =
+"$" +
+roundTripRPM.toFixed(2);
 
-document.getElementById("getHome").innerText =
+
+document
+.getElementById("afterFuel")
+.innerText =
+"$" +
+afterFuel.toLocaleString();
+
+
+document
+.getElementById("homeResult")
+.classList.remove("hidden");
+
+
+document
+.getElementById("getHome")
+.innerText =
 "HOMEBOUND LOAD ADDED ✓";
 
-document.getElementById("getHome").disabled = true;
+
+document
+.getElementById("getHome")
+.disabled =
+true;
+
+
+/*
+Update the real map with the route home.
+*/
+
+if(
+typeof showHomeboundRoute === "function"
+){
+
+showHomeboundRoute();
+
+}
 
 };
 
 
-document.getElementById("restart").onclick = function(){
+document
+.getElementById("updatedTrip")
+.onclick = function(){
 
-document.getElementById("homeResult").classList.add("hidden");
+var roundTripPay =
+totalPay + returnPay;
 
-document.getElementById("getHome").disabled = false;
 
-document.getElementById("getHome").innerText =
+document
+.getElementById("tripPay")
+.innerText =
+"$" +
+roundTripPay.toLocaleString();
+
+
+document
+.getElementById("tripStops")
+.innerHTML =
+
+"<p>🚚 <b>Atlanta, GA</b><br>START / PRIMARY CARGO</p>" +
+
+"<p>↓</p>" +
+
+"<p>📦 <b>Greenville, SC</b><br>MileCount partial delivery</p>" +
+
+"<p>↓</p>" +
+
+"<p>🏁 <b>Charlotte, NC</b><br>Original delivery</p>" +
+
+"<p>↓</p>" +
+
+"<p>💰 <b>Charlotte, NC</b><br>Return load pickup • +$740</p>" +
+
+"<p>↓</p>" +
+
+"<p>🏠 <b>Atlanta, GA</b><br>HOME ✓</p>";
+
+
+showScreen(3);
+
+
+setTimeout(function(){
+
+if(
+typeof showHomeboundRoute === "function"
+){
+
+showHomeboundRoute();
+
+}
+
+if(
+typeof mileCountMap !== "undefined" &&
+mileCountMap
+){
+
+mileCountMap.invalidateSize();
+
+}
+
+},250);
+
+};
+
+
+document
+.getElementById("restart")
+.onclick = function(){
+
+homeAdded = false;
+
+
+document
+.getElementById("homeResult")
+.classList.add("hidden");
+
+
+document
+.getElementById("getHome")
+.disabled =
+false;
+
+
+document
+.getElementById("getHome")
+.innerText =
 "GET ME HOME PAID";
+
+
+document
+.getElementById("tripStops")
+.innerHTML =
+
+"<p>🚚 <b>Atlanta, GA</b><br>START / PRIMARY CARGO</p>" +
+
+"<p>↓</p>" +
+
+"<p>📦 <b>Greenville, SC</b><br>MileCount partial delivery</p>" +
+
+"<p>↓</p>" +
+
+"<p>🏁 <b>Charlotte, NC</b><br>Original delivery</p>";
+
 
 showScreen(1);
 
