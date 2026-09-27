@@ -1029,14 +1029,14 @@ START NEW TRIP
 <label>DISPLAY NAME<input id="authName" type="text" placeholder="Your name"></label>
 <label>EMAIL<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
 <label>PASSWORD<input id="authPassword" type="password" autocomplete="current-password" placeholder="8+ characters"></label>
-<div class="row"><button id="signIn" type="button">SIGN IN</button><button id="signUp" type="button" style="background:#15271f;border:1px solid #2b4438">CREATE ACCOUNT</button></div>
+<div class="row"><button id="signIn" type="button" onclick="mileCountDirectSignIn()">SIGN IN</button><button id="signUp" type="button" onclick="mileCountDirectSignUp()" style="background:#15271f;border:1px solid #2b4438">CREATE ACCOUNT</button></div>
 </div>
 <div id="authLoggedIn" class="hidden">
 <div class="row"><div class="metric"><small>SIGNED IN</small><b id="accountEmail">—</b></div><div class="metric"><small>PLAN</small><b id="accountPlan">Free</b></div></div>
 <div class="row" style="margin-top:9px"><div class="metric"><small>SAVED VEHICLES</small><b id="cloudVehicleCount">0</b></div><div class="metric"><small>SAVED TRIPS</small><b id="cloudTripCount">0</b></div></div>
 <button id="signOut" type="button" style="background:#15271f;border:1px solid #2b4438">SIGN OUT</button>
 </div>
-<button id="testCloud" type="button" style="background:#15271f;border:1px solid #2b4438">TEST CLOUD CONNECTION</button>
+<button id="testCloud" type="button" onclick="mileCountCloudTest()" style="background:#15271f;border:1px solid #2b4438">TEST CLOUD CONNECTION</button>
 <div id="authMessage" class="details"></div>
 <button id="closeAccount" type="button">BACK TO MILECOUNT</button>
 </div>
@@ -1077,6 +1077,31 @@ app
 <script src="map.js"></script>
 <script src="fuel.js"></script>
 <script src="app.js"></script>
+<script>
+async function mileCountCloudTest(){
+ const m=document.getElementById("authMessage"); if(m)m.textContent="Testing...";
+ try{const h=await window.MileCountCloud.health();if(m)m.textContent=h.ok?"CLOUD CONNECTED ✓ ("+h.status+")":"CLOUD FAILED • "+h.status+(h.error?" • "+h.error:"")}
+ catch(e){if(m)m.textContent="TEST ERROR • "+e.message}
+}
+async function mileCountDirectSignUp(){
+ const m=document.getElementById("authMessage");
+ try{
+  const email=document.getElementById("authEmail").value.trim(),password=document.getElementById("authPassword").value,name=document.getElementById("authName").value.trim();
+  if(password.length<8)throw new Error("Use at least 8 characters.");
+  const d=await window.MileCountCloud.signUp(email,password,name);
+  if(m)m.textContent=d.access_token?"ACCOUNT CREATED + SIGNED IN ✓":"ACCOUNT CREATED ✓ Check your email to confirm, then sign in.";
+ }catch(e){if(m)m.textContent=e.message}
+}
+async function mileCountDirectSignIn(){
+ const m=document.getElementById("authMessage");
+ try{
+  const email=document.getElementById("authEmail").value.trim(),password=document.getElementById("authPassword").value;
+  await window.MileCountCloud.signIn(email,password);
+  if(m)m.textContent="SIGNED IN ✓";
+  setTimeout(()=>location.reload(),700);
+ }catch(e){if(m)m.textContent=e.message}
+}
+</script>
 
 
 </body>
