@@ -67,10 +67,12 @@ async function findMoney(){
  const profile=updateCostUI();
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
- const loads=[
-  {name:"Greenville Partial A",pay:475,space:7,weight:2450,stop:"Greenville, SC",fallback:30},
-  {name:"Greenville Partial B",pay:290,space:4,weight:1800,stop:"Greenville, SC",fallback:18},
-  {name:"Spartanburg Partial",pay:360,space:5,weight:2100,stop:"Spartanburg, SC",fallback:24}
+ let loads=[];let liveProvider=false;
+ try{const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:100})});if(r.ok){const j=await r.json();loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.pickup||S.origin,fallback:Number(x.deadhead||0),provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference}));liveProvider=loads.length>0}}catch(e){console.warn("TrukTek development pilot unavailable",e)}
+ if(!loads.length)loads=[
+  {name:"Greenville Partial A • SIMULATION",pay:475,space:7,weight:2450,stop:"Greenville, SC",fallback:30},
+  {name:"Greenville Partial B • SIMULATION",pay:290,space:4,weight:1800,stop:"Greenville, SC",fallback:18},
+  {name:"Spartanburg Partial • SIMULATION",pay:360,space:5,weight:2100,stop:"Spartanburg, SC",fallback:24}
  ].filter(l=>l.space<=space&&l.weight<=weight);
 
  for(const l of loads){
@@ -90,7 +92,7 @@ async function findMoney(){
   <div style="display:flex;justify-content:space-between;gap:10px"><b>${l.name}</b><b style="color:#31bf72">+${money(l.pay)}</b></div>
   <div class="details">${l.space} ft • ${l.weight.toLocaleString()} lb • +${l.extraMiles.toFixed(1)} mi • est. +${money(l.afterFuel)} after fuel</div>
   <div style="margin-top:8px;font-size:11px;font-weight:900;color:${i===0?"#8ce0af":"#93a79d"}">${i===0?"BEST FIT ✓ • TAP TO SELECT":"TAP TO SELECT"}</div>
- </button>`).join(""):'<div class="details">No compatible simulated freight fits your remaining capacity.</div>';
+ </button>`).join(""):'<div class="details">No compatible freight fits your remaining capacity.</div>';
  document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
 
  if(el("added"))el("added").textContent="+"+money(best.pay);
@@ -112,7 +114,7 @@ async function findMoney(){
    el("loadVerdict").textContent=!best.pay?"NO FIT":(addedRPM>=profile.target?"STRONG ✓":addedRPM>=profile.breakEven?"WORKS":"PASS");
    el("loadVerdict").style.color=!best.pay?"#93a79d":(addedRPM>=profile.target?"#31bf72":addedRPM>=profile.breakEven?"#f1c75b":"#ff7777");
  }
- if(el("autoStackReason"))el("autoStackReason").textContent=best.pay?"Adds "+best.extraMiles.toFixed(1)+" road miles and about "+money(best.fuel.fuelCost)+" in diesel. Estimated +"+money(best.afterFuel)+" after added fuel. Your break-even is $"+profile.breakEven.toFixed(2)+"/mi.":"No compatible simulated freight fits the remaining truck capacity.";
+ if(el("autoStackReason"))el("autoStackReason").textContent=best.pay?"Adds "+best.extraMiles.toFixed(1)+" road miles and about "+money(best.fuel.fuelCost)+" in diesel. Estimated +"+money(best.afterFuel)+" after added fuel. Your break-even is $"+profile.breakEven.toFixed(2)+"/mi.":"No compatible freight fits the remaining truck capacity.";
  showScreen(2);
 }
 
