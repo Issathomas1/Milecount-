@@ -83,11 +83,14 @@ async function findMoney(){
  const best=loads[0]||{pay:0,space:0,weight:0,stop:S.destination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
  S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
 
+ S.candidateLoads=loads;S.selectedCandidate=best;
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>`
- <div style="padding:12px;border:1px solid ${i===0?"#31bf72":"#20352b"};border-radius:12px;background:${i===0?"#0d2118":"#111f19"}">
+ <button type="button" class="candidateLoad" data-load-index="${i}" style="text-align:left;padding:14px;border:1px solid ${i===0?"#31bf72":"#20352b"};border-radius:12px;background:${i===0?"#0d2118":"#111f19"};margin:0;color:#f3f8f5">
   <div style="display:flex;justify-content:space-between;gap:10px"><b>${l.name}</b><b style="color:#31bf72">+${money(l.pay)}</b></div>
-  <div class="details">${l.space} ft • ${l.weight.toLocaleString()} lb • +${l.extraMiles.toFixed(1)} mi • est. +${money(l.afterFuel)} after fuel ${i===0?"• BEST FIT ✓":""}</div>
- </div>`).join(""):'<div class="details">No compatible simulated freight fits your remaining capacity.</div>';
+  <div class="details">${l.space} ft • ${l.weight.toLocaleString()} lb • +${l.extraMiles.toFixed(1)} mi • est. +${money(l.afterFuel)} after fuel</div>
+  <div style="margin-top:8px;font-size:11px;font-weight:900;color:${i===0?"#8ce0af":"#93a79d"}">${i===0?"BEST FIT ✓ • TAP TO SELECT":"TAP TO SELECT"}</div>
+ </button>`).join(""):'<div class="details">No compatible simulated freight fits your remaining capacity.</div>';
+ document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
 
  if(el("added"))el("added").textContent="+"+money(best.pay);
  if(el("current"))el("current").textContent=money(pay);
@@ -112,6 +115,13 @@ async function findMoney(){
  showScreen(2);
 }
 
+function selectCandidate(i){
+ const l=(S.candidateLoads||[])[i];if(!l)return;S.selectedCandidate=l;S.addedPay=l.pay;S.totalPay=S.primaryPay+l.pay;S.extraMiles=l.extraMiles;S.selectedStop=l.stop;
+ if(el("added"))el("added").textContent="+"+money(l.pay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(l.pay);
+ if(el("remainingSpace"))el("remainingSpace").textContent=Math.max(0,val("space",0)-l.space)+" ft remaining";if(el("remainingWeight"))el("remainingWeight").textContent=Math.max(0,val("weight",0)-l.weight).toLocaleString()+" lb remaining";
+ if(el("detourMiles"))el("detourMiles").textContent=l.extraMiles.toFixed(1)+" mi";if(el("detourTime"))el("detourTime").textContent=l.extraDriveTime;if(el("spaceUsed"))el("spaceUsed").textContent=l.space+" ft";if(el("weightUsed"))el("weightUsed").textContent=l.weight.toLocaleString()+" lb";if(el("extraFuel"))el("extraFuel").textContent=money(l.fuel.fuelCost);if(el("addedAfterFuel"))el("addedAfterFuel").textContent="+"+money(l.afterFuel);
+ document.querySelectorAll(".candidateLoad").forEach((b,n)=>{b.style.borderColor=n===i?"#31bf72":"#20352b";b.style.background=n===i?"#0d2118":"#111f19"});
+}
 async function updateOutboundMap(){
  if(typeof showMileCountRoute!=="function")return null;
  const stops=[S.origin]; if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop); if(stops.at(-1)!==S.destination)stops.push(S.destination);
@@ -232,6 +242,6 @@ bind("signUp",async function(){try{const email=el("authEmail").value.trim(),pass
 bind("signIn",async function(){try{await MileCountCloud.signIn(el("authEmail").value.trim(),el("authPassword").value);el("authMessage").textContent="Signed in ✓";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
 bind("signOut",async function(){try{await MileCountCloud.signOut();el("authMessage").textContent="Signed out.";await refreshAccount()}catch(e){el("authMessage").textContent=e.message}});
 bind("closeAccount",function(){el("accountPanel")?.classList.add("hidden");showScreen(1)});
-bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
+bind("find",findMoney);bind("addTrip",addToTrip);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
 })();
