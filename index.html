@@ -484,10 +484,10 @@ value="6200"
 <label>PICKUP CITY<select id="manualPickup"><option>Atlanta, GA</option><option>Greenville, SC</option><option>Spartanburg, SC</option><option>Charlotte, NC</option><option>Nashville, TN</option></select></label>
 <label>DELIVERY CITY<select id="manualDelivery"><option>Greenville, SC</option><option>Spartanburg, SC</option><option selected>Charlotte, NC</option><option>Atlanta, GA</option><option>Nashville, TN</option></select></label>
 <div class="row">
-<label style="width:100%">LOAD PAY<input id="manualPay" type="number" placeholder="475"></label>
-<label style="width:100%">WEIGHT LB<input id="manualWeight" type="number" placeholder="2450"></label>
+<label style="width:100%">LOAD PAY<input id="manualPay" type="number" value="475" placeholder="475"></label>
+<label style="width:100%">WEIGHT LB<input id="manualWeight" type="number" value="2450" placeholder="2450"></label>
 </div>
-<label>CARGO SPACE NEEDED (FT)<input id="manualSpace" type="number" step="0.5" placeholder="7"></label>
+<label>CARGO SPACE NEEDED (FT)<input id="manualSpace" type="number" step="0.5" value="7" placeholder="7"></label>
 <button id="analyzeManual" type="button">ANALYZE THIS LOAD</button>
 <p class="details">Manual analysis only. MileCount does not book or verify this freight.</p>
 </div>
@@ -1076,7 +1076,7 @@ app
 <script src="routing.js"></script>
 <script src="map.js"></script>
 <script src="fuel.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=31"></script>
 <script>
 async function mileCountCloudTest(){
  const m=document.getElementById("authMessage"); if(m)m.textContent="Testing...";
