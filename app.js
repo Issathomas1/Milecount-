@@ -70,6 +70,8 @@ async function findMoney(){
  let loads=[];let liveProvider=false; let providerErrors=[];
  try{const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26"})});if(r.ok){const j=await r.json();loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.pickup||S.origin,fallback:Number(x.deadhead||0),provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference}));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek development pilot unavailable",e)}
  if(el("dataModeBadge")){el("dataModeBadge").textContent=liveProvider?"LIVE • "+(loads[0]?.provider||"PROVIDER"):"SIMULATION • API READY";el("dataModeBadge").style.background=liveProvider?"#dff8e9":"#fff0bf";}
+ if(el("footerMode"))el("footerMode").textContent=liveProvider?"LIVE PROVIDER DATA • SOURCE ATTRIBUTED":"INTEGRATION DEMO — SIMULATED LOADS ARE NOT BOOKABLE";
+ if(el("mapModeLabel"))el("mapModeLabel").textContent=liveProvider?"Live-provider trip preview • green line = MileCount road route":"Simulation trip preview • green line = MileCount road route";
  if(!loads.length)loads=[
   {name:"Greenville Partial A • SIMULATION",pay:475,space:7,weight:2450,stop:"Greenville, SC",fallback:30},
   {name:"Greenville Partial B • SIMULATION",pay:290,space:4,weight:1800,stop:"Greenville, SC",fallback:18},
@@ -152,7 +154,13 @@ async function addToTrip(){
  }
  showScreen(3);await updateOutboundMap();
 }
-function protectReturn(){if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay)+" total round trip";showScreen(4)}
+function protectReturn(){
+ if(el("returnLane"))el("returnLane").textContent=S.destination+" → "+S.home;
+ if(el("returnPay"))el("returnPay").textContent="+"+money(S.returnPay);
+ if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay);
+ if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(S.roundTripMiles||0).toLocaleString()+" mi";
+ showScreen(4)
+}
 
 async function getHomePaid(){
  S.homeAdded=true;
