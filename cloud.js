@@ -11,10 +11,21 @@ window.MileCountCloud=(()=>{
  function readSession(){try{return JSON.parse(localStorage.getItem(MC_SESSION_KEY)||"null")}catch(e){return null}}
  function writeSession(s){if(s)localStorage.setItem(MC_SESSION_KEY,JSON.stringify(s));else localStorage.removeItem(MC_SESSION_KEY)}
  async function jsonFetch(url,options={}){
-  const response=await fetch(url,options);
+  let response;
+  try {
+    response=await fetch(url,{...options,mode:"cors",cache:"no-store"});
+  } catch(e) {
+    throw new Error("NETWORK: Browser could not reach MileCount Cloud. "+(e?.message||"Fetch failed"));
+  }
   const text=await response.text();let body={};try{body=text?JSON.parse(text):{}}catch(e){body={message:text}}
-  if(!response.ok)throw new Error(body.msg||body.message||body.error_description||body.error||("Request failed ("+response.status+")"));
+  if(!response.ok)throw new Error("CLOUD "+response.status+": "+(body.msg||body.message||body.error_description||body.error||"Request rejected"));
   return body;
+ }
+ async function health(){
+   try{
+     const response=await fetch(MC_URL+"/auth/v1/health",{headers:{"apikey":MC_KEY},mode:"cors",cache:"no-store"});
+     return {ok:response.ok,status:response.status,url:MC_URL};
+   }catch(e){return {ok:false,status:0,url:MC_URL,error:e?.message||"Fetch failed"}}
  }
  function authHeaders(token){return {"apikey":MC_KEY,"Authorization":"Bearer "+(token||MC_KEY),"Content-Type":"application/json"}}
  async function signUp(email,password,displayName=""){
@@ -42,5 +53,5 @@ window.MileCountCloud=(()=>{
   const s=await session();if(!s)throw new Error("Sign in first.");
   const a=await jsonFetch(MC_URL+"/rest/v1/"+table,{method:"POST",headers:{...authHeaders(s.access_token),"Prefer":"return=representation"},body:JSON.stringify({...obj,user_id:s.user.id})});return a[0]||a;
  }
- return {isEnabled:()=>true,signUp,signIn,signOut,session,profile,vehicles,trips,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
+ return {isEnabled:()=>true,health,signUp,signIn,signOut,session,profile,vehicles,trips,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
 })();
