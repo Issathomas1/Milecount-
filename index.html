@@ -338,7 +338,12 @@ MileCount<span class="green">.</span>
 
 <div style="display:flex;gap:8px;align-items:center">
 <div class="demo">SIMULATION</div>
-<button id="accountButton" type="button" style="width:auto;margin:0;padding:8px 11px;font-size:11px;background:#15271f;border:1px solid #2b4438">ACCOUNT</button>
+<select id="driverMenu" aria-label="MileCount menu" style="width:auto;max-width:132px;margin:0;padding:8px 28px 8px 10px;font-size:11px;font-weight:900;background:#15271f;border:1px solid #2b4438;color:#f3f8f5">
+<option value="">MENU ▾</option>
+<option value="planner">PLANNER</option>
+<option value="account">ACCOUNT</option>
+</select>
+<button id="accountButton" type="button" style="display:none">ACCOUNT</button>
 </div>
 
 </header>
@@ -1079,12 +1084,13 @@ map
 fuel
 app
 ===================== -->
-<script src="cloud.js?v=39"></script>
+<script src="cloud.js?v=42-menu"></script>
 <script src="routing.js"></script>
 <script src="map.js"></script>
 <script src="fuel.js"></script>
-<script src="app.js?v=39"></script>
+<script src="app.js?v=42-menu"></script>
 <script>
+document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
  const m=document.getElementById("authMessage");
  try{
