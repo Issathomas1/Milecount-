@@ -178,6 +178,15 @@ function protectReturn(){
 }
 
 async function getHomePaid(){
+ if(S.tripMode==="live"||S.selectedCandidate?.provider){
+   S.homeAdded=false;S.returnPay=0;
+   el("homeResult")?.classList.add("hidden");
+   if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="LIVE BACKHAUL REQUIRED"}
+   if(el("returnPay"))el("returnPay").textContent="—";
+   if(el("returnStatus"))el("returnStatus").textContent="NOT SEARCHED";
+   if(el("bookingMessage"))el("bookingMessage").textContent="No return revenue is counted until a live provider confirms a backhaul.";
+   return;
+ }
  S.homeAdded=true;
  if(S.plannerTripId&&window.MileCountCloud){try{const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);if(t)await MileCountCloud.updatePlannerTrip(t.id,{return_pay:Number(S.returnPay||0),expected_revenue:Number(t.original_pay||0)+Number(t.autostack_pay||0)+Number(S.returnPay||0)})}catch(e){console.warn("Planner return cloud update failed",e)}}
 let route=null;
@@ -213,6 +222,7 @@ let route=null;
 }
 
 async function viewUpdatedTrip(){
+ if(S.tripMode==="live"&&S.returnPay>0&&!S.confirmedReturnLoad){S.returnPay=0;S.homeAdded=false}
  const total=S.totalPay+(S.homeAdded?S.returnPay:0);if(el("tripPay"))el("tripPay").textContent=money(total);
  if(el("tripStops")){const l=S.selectedCandidate;if(l?.provider){const a=l.pickup||S.origin,b=l.delivery||S.destination;el("tripStops").innerHTML='<div class="stop">🚚 <b>'+a+'</b><br>LIVE LOAD PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+b+'</b><br>LIVE LOAD DELIVERY</div>'}else el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>START / PRIMARY CARGO</div>'+(S.selectedStop!==S.destination?'<div class="stop">📦 <b>'+S.selectedStop+'</b><br>MileCount partial delivery</div>':'')+'<div class="stop">🏁 <b>'+S.destination+'</b><br>Original delivery</div>'+(S.homeAdded?'<div class="stop">💰 <b>'+S.destination+'</b><br>Return load pickup • +'+money(S.returnPay)+'</div><div class="stop">🏠 <b>'+S.home+'</b><br>HOME ✓</div>':'')}
  await saveCurrentTrip();
@@ -221,7 +231,8 @@ async function viewUpdatedTrip(){
 async function saveCurrentTrip(){
  try{
   const s=await MileCountCloud.session();if(!s)return false;
-  const miles=S.roundTripMiles||0,total=S.totalPay+(S.homeAdded?S.returnPay:0),fuel=fuelFor(miles),p=costProfile();
+  if(S.tripMode==="live"&&S.returnPay>0&&!S.confirmedReturnLoad){S.returnPay=0;S.homeAdded=false}
+  const miles=S.roundTripMiles||Number(S.selectedCandidate?.loadedMiles||0)||0,total=S.totalPay+(S.homeAdded?S.returnPay:0),fuel=fuelFor(miles),p=costProfile();
   const estimatedCost=miles*p.breakEven;
   await MileCountCloud.saveTrip({origin:S.origin,destination:S.destination,home_city:S.home,primary_pay:S.primaryPay,added_pay:S.addedPay,return_pay:S.homeAdded?S.returnPay:0,road_miles:miles,fuel_cost:fuel.fuelCost,all_miles_rpm:miles?total/miles:0,break_even_rpm:p.breakEven,estimated_trip_cost:estimatedCost,estimated_margin:total-estimatedCost,status:"saved"});
   return true;
