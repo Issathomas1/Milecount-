@@ -68,15 +68,17 @@ async function findMoney(){
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
  let loads=[];let liveProvider=false; let providerErrors=[];
- try{const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26"})});if(r.ok){const j=await r.json();loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.pickup||S.origin,fallback:Number(x.deadhead||0),provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference}));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek development pilot unavailable",e)}
- if(el("dataModeBadge")){el("dataModeBadge").textContent=liveProvider?"LIVE • "+(loads[0]?.provider||"PROVIDER"):"SIMULATION • API READY";el("dataModeBadge").style.background=liveProvider?"#dff8e9":"#fff0bf";}
- if(el("footerMode"))el("footerMode").textContent=liveProvider?"LIVE PROVIDER DATA • SOURCE ATTRIBUTED":"INTEGRATION DEMO — SIMULATED LOADS ARE NOT BOOKABLE";
- if(el("mapModeLabel"))el("mapModeLabel").textContent=liveProvider?"Live-provider trip preview • green line = MileCount road route":"Simulation trip preview • green line = MileCount road route";
- if(!loads.length)loads=[
+ let providerResponded=false,providerLiveFound=0,resolvedLane=null;
+ try{const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26"})});if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference}));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e)}
+ if(el("dataModeBadge")){el("dataModeBadge").textContent=providerResponded?(liveProvider?"LIVE • TRUKTEK":"LIVE SEARCH • 0 FIT"):"API UNAVAILABLE";el("dataModeBadge").style.background=liveProvider?"#dff8e9":"#fff0bf";}
+ if(el("footerMode"))el("footerMode").textContent=providerResponded?"LIVE TRUKTEK SEARCH • SOURCE ATTRIBUTED":"LIVE PROVIDER UNAVAILABLE";
+ if(el("mapModeLabel"))el("mapModeLabel").textContent=liveProvider?"Live-provider trip preview • green line = MileCount road route":"Route preview • green line = MileCount road route";
+ if(!loads.length&&!providerResponded)loads=[
   {name:"Greenville Partial A • SIMULATION",pay:475,space:7,weight:2450,stop:"Greenville, SC",fallback:30},
   {name:"Greenville Partial B • SIMULATION",pay:290,space:4,weight:1800,stop:"Greenville, SC",fallback:18},
   {name:"Spartanburg Partial • SIMULATION",pay:360,space:5,weight:2100,stop:"Spartanburg, SC",fallback:24}
  ].filter(l=>l.space<=space&&l.weight<=weight);
+ if(providerResponded&&!loads.length&&el("loadCandidates"))el("loadCandidates").innerHTML='<div class="details" style="padding:14px;border:1px solid #5f4d18;border-radius:12px">LIVE SEARCH COMPLETE • '+providerLiveFound+' provider loads found, but none fit the remaining '+space+' ft / '+weight.toLocaleString()+' lb capacity and current filters. No simulation was substituted.</div>';
 
  for(const l of loads){
   const d=await routeDetour(l.stop,l.fallback);
@@ -101,7 +103,7 @@ async function findMoney(){
  return `<button type="button" class="candidateLoad loadResult ${i===0?"selected":""}" data-load-index="${i}">
  <div class="loadTop"><div><div class="loadLane">${origin} → ${destination}</div><div class="loadMeta">${l.name||"Available load"} • ${activeVehicle.name}</div></div><div class="loadPay">${money(l.pay)}</div></div>
  <div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>${rpm?"$"+rpm.toFixed(2):"—"}</b></div><div class="loadMetric"><small>DEADHEAD</small><b>${dh.toFixed(0)} mi</b></div><div class="loadMetric"><small>WEIGHT</small><b>${Number(l.weight||0).toLocaleString()} lb</b></div><div class="loadMetric"><small>EST. AFTER FUEL*</small><b>${money(margin)}</b></div></div>
- <div class="loadFoot"><span class="sourceTag">${source}</span><span class="verdictTag">${i===0?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">No compatible freight matched these filters. Adjust deadhead/RPM or use simulation mode for the demo.</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ <div class="loadFoot"><span class="sourceTag">${source}</span><span class="verdictTag">${i===0?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">'+(providerResponded?'LIVE SEARCH COMPLETE • '+providerLiveFound+' provider loads found, but none fit your remaining capacity/current filters. No simulation was substituted.':'Live provider unavailable. Simulation fallback may be used for demonstration only.')+'</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
 
  if(el("added"))el("added").textContent="+"+money(best.pay);
  if(el("current"))el("current").textContent=money(pay);
