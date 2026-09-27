@@ -703,9 +703,7 @@ Your trip
 <div id="realMap"></div>
 
 
-<p class="mapLabel">
-Interactive simulation map • green line = MileCount road route
-</p>
+<p class="mapLabel" id="mapModeLabel">Route preview • green line = MileCount road route</p>
 
 <div class="row" style="margin-bottom:14px">
   <div class="metric">
@@ -802,9 +800,7 @@ class="green"
 ⚠️ Don't drive home empty.
 </h2>
 
-<p>
-MileCount found simulated freight heading toward home.
-</p>
+<p id="returnLead">MileCount checks available freight heading toward your home market so the return miles can earn.</p>
 
 
 <button id="protect">
@@ -843,39 +839,14 @@ BEST WAY HOME
 
 
 <div class="proBox">
-
-<h3>
-Charlotte → Atlanta
-</h3>
-
-
-<div
-class="green"
-style="
-font-size:28px;
-font-weight:900;
-"
->
-+$740
+<div class="loadTop"><div><div class="loadLane" id="returnLane">Charlotte, NC → Atlanta, GA</div><div class="loadMeta">Return / backhaul opportunity</div></div><div class="loadPay" id="returnPay">+$740</div></div>
+<div class="loadMetrics">
+<div class="loadMetric"><small>RETURN SOURCE</small><b id="returnSource">SIMULATION</b></div>
+<div class="loadMetric"><small>RETURN STATUS</small><b id="returnStatus">DEMO</b></div>
+<div class="loadMetric"><small>ROUND TRIP</small><b id="returnMilesPreview">Calculating</b></div>
+<div class="loadMetric"><small>TRIP TOTAL</small><b id="previewRoundPay">$2,615</b></div>
 </div>
-
-
-<p style="color:#60736a">
-Simulated return load
-</p>
-
-
-<div
-id="previewRoundPay"
-style="
-font-size:21px;
-font-weight:900;
-color:#15975f;
-"
->
-$2,615 total round trip
-</div>
-
+<div class="loadFoot"><span class="sourceTag" id="returnSourceTag">SIMULATION</span><span class="verdictTag">GET HOME PAID</span></div>
 </div>
 
 
@@ -1058,7 +1029,7 @@ START NEW ORIGINAL TRIP
 
 <footer>
 
-SIMULATION — LOADS ARE NOT BOOKABLE
+<span id="footerMode">INTEGRATION DEMO — SIMULATED LOADS ARE NOT BOOKABLE</span>
 
 <br><br>
 
