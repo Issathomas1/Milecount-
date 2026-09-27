@@ -127,10 +127,22 @@ async function getHomePaid(){
  const miles=Number.isFinite(live)&&live>0?live:S.roundTripMiles;S.roundTripMiles=miles;
  const r=typeof calculateMileCountRoundTrip==="function"?calculateMileCountRoundTrip(S.totalPay,S.returnPay,miles,S.origin):null;
  if(r){
-  const operatingCost=r.miles*activeVehicle.costPerMile;
-  const tripMargin=r.totalRevenue-operatingCost;
+  const monthlyMiles=Math.max(1,val("monthlyMiles",8000));
+  const maintenanceCost=r.miles*Math.max(0,val("maintenanceCPM",.20));
+  const insuranceCost=r.miles*(Math.max(0,val("monthlyInsurance",1800))/monthlyMiles);
+  const paymentCost=r.miles*(Math.max(0,val("monthlyPayment",900))/monthlyMiles);
+  const otherCost=r.miles*(Math.max(0,val("monthlyOther",300))/monthlyMiles);
+  const totalTripCost=r.fuelCost+maintenanceCost+insuranceCost+paymentCost+otherCost;
+  const tripMargin=r.totalRevenue-totalTripCost;
+  const breakEvenRPM=r.miles>0?totalTripCost/r.miles:0;
   if(el("allMilesRPM"))el("allMilesRPM").textContent="$"+r.rpm.toFixed(2);
-  if(el("operatingCost"))el("operatingCost").textContent=money(operatingCost);
+  if(el("tripBreakEvenRPM"))el("tripBreakEvenRPM").textContent="$"+breakEvenRPM.toFixed(2);
+  if(el("costFuel"))el("costFuel").textContent="-"+money(r.fuelCost);
+  if(el("costMaintenance"))el("costMaintenance").textContent="-"+money(maintenanceCost);
+  if(el("costInsurance"))el("costInsurance").textContent="-"+money(insuranceCost);
+  if(el("costPayment"))el("costPayment").textContent="-"+money(paymentCost);
+  if(el("costOther"))el("costOther").textContent="-"+money(otherCost);
+  if(el("operatingCost"))el("operatingCost").textContent="-"+money(totalTripCost);
   if(el("roundPay"))el("roundPay").textContent=money(r.totalRevenue);
   if(el("roundMiles"))el("roundMiles").textContent=Math.round(r.miles).toLocaleString();
   if(el("roundRPM"))el("roundRPM").textContent="$"+r.rpm.toFixed(2);
