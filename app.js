@@ -196,7 +196,9 @@ async function saveProfile(){
    const s=await MileCountCloud.session();
    if(!s){if(el("saveStatus"))el("saveStatus").textContent="Saved on this device. Sign in to sync to cloud.";return}
    const v=activeVehicle;
-   await MileCountCloud.saveVehicle({name:v.name,vehicle_type:data.vehicleType,mpg:v.mpg,cargo_length_ft:v.cargoLength,payload_lb:v.payload,monthly_payment:data.monthlyPayment,monthly_insurance:data.monthlyInsurance,maintenance_cpm:data.maintenanceCPM,monthly_other:data.monthlyOther,expected_monthly_miles:data.monthlyMiles,is_default:true});
+   const vehicleRow={name:v.name,vehicle_type:data.vehicleType,mpg:v.mpg,cargo_length_ft:v.cargoLength,payload_lb:v.payload,monthly_payment:data.monthlyPayment,monthly_insurance:data.monthlyInsurance,maintenance_cpm:data.maintenanceCPM,monthly_other:data.monthlyOther,expected_monthly_miles:data.monthlyMiles,is_default:true};
+   const existing=await MileCountCloud.defaultVehicle();
+   if(existing)await MileCountCloud.updateVehicle(existing.id,vehicleRow);else await MileCountCloud.saveVehicle(vehicleRow);
    if(el("saveStatus"))el("saveStatus").textContent="Saved to MileCount Cloud ✓";
  }catch(e){if(el("saveStatus"))el("saveStatus").textContent="Local save worked • Cloud: "+e.message}
 }
