@@ -144,6 +144,13 @@ async function updateOutboundMap(){
 }
 async function addToTrip(){
  const l=S.selectedCandidate;
+ if(l?.provider){
+   const pickup=l.pickup||S.origin,delivery=l.delivery||S.destination;
+   if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+pickup+'</b><br>LIVE LOAD PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+delivery+'</b><br>LIVE LOAD DELIVERY</div>';
+   if(el("roadMiles"))el("roadMiles").textContent=Number(l.loadedMiles||0)>0?Number(l.loadedMiles).toFixed(0)+" mi":"Provider route";
+   if(el("driveTime"))el("driveTime").textContent="Route ready";
+   if(el("routeSource"))el("routeSource").textContent=l.provider+" live load • refining road route in background";
+ }
  if(l&&S.plannerTripId&&window.MileCountCloud){
   try{
    const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);
@@ -156,7 +163,8 @@ async function addToTrip(){
    }
   }catch(e){console.warn("Planner AutoStack cloud update failed",e)}
  }
- showScreen(3);await updateOutboundMap();
+ showScreen(3);
+ setTimeout(()=>{updateOutboundMap().catch(e=>console.warn("Background route refinement",e))},0);
 }
 function protectReturn(){
  const live=!!S.selectedCandidate?.provider;
