@@ -940,7 +940,17 @@ Waiting for MileCount Fuel Engine...
 
 <div class="row" style="margin-bottom:9px">
 <div class="metric"><small>ALL-MILES RPM</small><b id="allMilesRPM">Calculating...</b></div>
-<div class="metric"><small>EST OPERATING COST</small><b id="operatingCost">Calculating...</b></div>
+<div class="metric"><small>BREAK-EVEN RPM</small><b id="tripBreakEvenRPM">Calculating...</b></div>
+</div>
+
+<div class="card" style="margin-top:12px;background:#0a1510">
+<b>Trip Cost Breakdown</b>
+<div class="stop"><span>Fuel</span><b id="costFuel" style="float:right">—</b></div>
+<div class="stop"><span>Maintenance reserve</span><b id="costMaintenance" style="float:right">—</b></div>
+<div class="stop"><span>Insurance allocation</span><b id="costInsurance" style="float:right">—</b></div>
+<div class="stop"><span>Vehicle payment allocation</span><b id="costPayment" style="float:right">—</b></div>
+<div class="stop"><span>Other fixed-cost allocation</span><b id="costOther" style="float:right">—</b></div>
+<div class="stop"><span>Total estimated trip cost</span><b id="operatingCost" style="float:right">—</b></div>
 </div>
 
 <div class="row">
@@ -948,7 +958,7 @@ Waiting for MileCount Fuel Engine...
 <div class="metric">
 
 <small>
-EST TRIP MARGIN
+EST CONTRIBUTION MARGIN
 </small>
 
 <b id="afterFuel">
@@ -975,7 +985,7 @@ RETURN LOAD
 
 <p class="details">
 
-Estimated trip margin uses your vehicle profile's planning cost-per-mile and is not guaranteed profit. Taxes, tolls and unexpected expenses may not be included.
+Estimated contribution margin subtracts the displayed fuel, maintenance reserve and allocated fixed costs. It is a planning estimate, not guaranteed profit. Taxes, tolls, labor, fees and unexpected expenses may not be included.
 
 </p>
 
