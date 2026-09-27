@@ -3,7 +3,7 @@ MileCount Cloud V3
 Direct Supabase Auth + REST client (no external JS SDK dependency).
 Only the browser-safe publishable key is used here. RLS protects user rows.
 */
-const MC_URL="https://lrnvxqtmywkhtrmsjquc.supabase.co";
+const MC_URL="https://lrnyxqtmywkhtrmsjquc.supabase.co";
 const MC_KEY="sb_publishable_6cP65DrMPJFkHgnk6eEAAA_-LQQC1fN";
 const MC_SESSION_KEY="milecount_supabase_session";
 
