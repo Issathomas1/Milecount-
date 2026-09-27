@@ -47,11 +47,20 @@ window.MileCountCloud=(()=>{
   return jsonFetch(MC_URL+"/rest/v1/"+table+"?"+query,{headers:{...authHeaders(s.access_token),"Accept":"application/json"}});
  }
  async function profile(){const s=await session();if(!s)return null;const a=await rows("profiles","id=eq."+encodeURIComponent(s.user.id)+"&select=*");return a[0]||null}
- async function vehicles(){return rows("vehicles","select=*&order=created_at.desc")}
+ async function vehicles(){return rows("vehicles","select=*&order=is_default.desc,created_at.desc")}
+ async function defaultVehicle(){const a=await rows("vehicles","is_default=eq.true&select=*&order=created_at.desc&limit=1");return a[0]||null}
  async function trips(){return rows("trips","select=*&order=created_at.desc")}
+ async function updateVehicle(id,obj){
+  const s=await session();if(!s)throw new Error("Sign in first.");
+  const a=await jsonFetch(MC_URL+"/rest/v1/vehicles?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{...authHeaders(s.access_token),"Prefer":"return=representation"},body:JSON.stringify(obj)});return a[0]||a;
+ }
+ async function deleteVehicle(id){
+  const s=await session();if(!s)throw new Error("Sign in first.");
+  await jsonFetch(MC_URL+"/rest/v1/vehicles?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:{...authHeaders(s.access_token),"Prefer":"return=minimal"}});return true;
+ }
  async function insert(table,obj){
   const s=await session();if(!s)throw new Error("Sign in first.");
   const a=await jsonFetch(MC_URL+"/rest/v1/"+table,{method:"POST",headers:{...authHeaders(s.access_token),"Prefer":"return=representation"},body:JSON.stringify({...obj,user_id:s.user.id})});return a[0]||a;
  }
- return {isEnabled:()=>true,health,signUp,signIn,signOut,session,profile,vehicles,trips,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
+ return {isEnabled:()=>true,health,signUp,signIn,signOut,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
 })();
