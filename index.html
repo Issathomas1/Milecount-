@@ -476,8 +476,23 @@ value="6200"
 </label>
 
 
+<div class="card" style="margin-top:14px;background:#0a1510">
+<span class="badge">REAL LOAD INPUT</span>
+<h3>Analyze a load you already found</h3>
+<label>LOAD NAME / REFERENCE<input id="manualName" type="text" placeholder="Example: Charlotte partial"></label>
+<label>PICKUP CITY<select id="manualPickup"><option>Atlanta, GA</option><option>Greenville, SC</option><option>Spartanburg, SC</option><option>Charlotte, NC</option><option>Nashville, TN</option></select></label>
+<label>DELIVERY CITY<select id="manualDelivery"><option>Greenville, SC</option><option>Spartanburg, SC</option><option selected>Charlotte, NC</option><option>Atlanta, GA</option><option>Nashville, TN</option></select></label>
+<div class="row">
+<label style="width:100%">LOAD PAY<input id="manualPay" type="number" placeholder="475"></label>
+<label style="width:100%">WEIGHT LB<input id="manualWeight" type="number" placeholder="2450"></label>
+</div>
+<label>CARGO SPACE NEEDED (FT)<input id="manualSpace" type="number" step="0.5" placeholder="7"></label>
+<button id="analyzeManual" type="button">ANALYZE THIS LOAD</button>
+<p class="details">Manual analysis only. MileCount does not book or verify this freight.</p>
+</div>
+
 <button id="find">
-FIND ME MONEY
+FIND SIMULATED MONEY
 </button>
 
 </div>
@@ -500,6 +515,8 @@ VEHICLE PROFILE
 <p class="details">
 Truck MPG is stored once instead of asking the driver every trip.
 </p>
+<button id="saveProfile" type="button" style="background:#15271f;border:1px solid #2b4438">SAVE MY VEHICLE + COSTS</button>
+<div id="saveStatus" class="details"></div>
 
 <details style="margin-top:14px">
 <summary style="cursor:pointer;font-weight:900;color:#8adbb5">PERSONAL COST PROFILE</summary>
