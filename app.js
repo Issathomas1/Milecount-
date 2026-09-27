@@ -456,11 +456,11 @@ Version 1.0
   ------------------------------
   */
 
-  function addToTrip() {
-
-    updateOutboundMap();
+  async function addToTrip() {
 
     showScreen(3);
+
+    await updateOutboundMap();
 
   }
 
@@ -471,7 +471,7 @@ Version 1.0
   ------------------------------
   */
 
-  function updateOutboundMap() {
+  async function updateOutboundMap() {
 
     if (
       typeof showMileCountRoute !==
@@ -492,7 +492,7 @@ Version 1.0
       "Atlanta, GA"
     ) {
 
-      showMileCountRoute([
+      return await showMileCountRoute([
         "Atlanta, GA",
         "Greenville, SC",
         MileCountState.destination
@@ -502,7 +502,7 @@ Version 1.0
 
     else {
 
-      showMileCountRoute([
+      return await showMileCountRoute([
         MileCountState.origin,
         MileCountState.destination
       ]);
@@ -564,173 +564,98 @@ Version 1.0
   ------------------------------
   */
 
-  function getHomePaid() {
+  async function getHomePaid() {
 
-    MileCountState.homeAdded =
-      true;
+    MileCountState.homeAdded = true;
 
+    const outbound = MileCountState.totalPay;
+    const returnPay = MileCountState.returnPay;
 
-    const outbound =
-      MileCountState.totalPay;
+    let route = null;
 
+    if (typeof showHomeboundRoute === "function") {
+      try {
+        route = await showHomeboundRoute(
+          MileCountState.origin,
+          MileCountState.destination,
+          MileCountState.home
+        );
+      } catch (error) {
+        console.warn("MileCount homebound routing failed:", error);
+      }
+    }
 
-    const returnPay =
-      MileCountState.returnPay;
-
+    const liveMiles =
+      route && Number.isFinite(route.miles)
+        ? route.miles
+        : (
+            typeof getMileCountCurrentRoadMiles === "function"
+              ? getMileCountCurrentRoadMiles()
+              : null
+          );
 
     const miles =
-      MileCountState.roundTripMiles;
+      Number.isFinite(liveMiles) && liveMiles > 0
+        ? liveMiles
+        : MileCountState.roundTripMiles;
 
-
-    /*
-    Fuel engine.
-    */
+    MileCountState.roundTripMiles = miles;
 
     let result = null;
 
-
-    if (
-      typeof
-        calculateMileCountRoundTrip ===
-      "function"
-    ) {
-
-      result =
-        calculateMileCountRoundTrip(
-          outbound,
-          returnPay,
-          miles,
-          MileCountState.origin
-        );
-
+    if (typeof calculateMileCountRoundTrip === "function") {
+      result = calculateMileCountRoundTrip(
+        outbound,
+        returnPay,
+        miles,
+        MileCountState.origin
+      );
     }
-
 
     if (result) {
-
       if (el("roundPay")) {
-
-        el("roundPay")
-          .textContent =
-          money(
-            result.totalRevenue
-          );
-
+        el("roundPay").textContent = money(result.totalRevenue);
       }
-
 
       if (el("roundMiles")) {
-
-        el("roundMiles")
-          .textContent =
-          Math.round(
-            result.miles
-          ).toLocaleString();
-
+        el("roundMiles").textContent =
+          Math.round(result.miles).toLocaleString();
       }
-
 
       if (el("roundRPM")) {
-
-        el("roundRPM")
-          .textContent =
-          "$" +
-          result.rpm
-            .toFixed(2);
-
+        el("roundRPM").textContent = "$" + result.rpm.toFixed(2);
       }
 
-
-      if (
-        el("fuelCostDisplay")
-      ) {
-
-        el("fuelCostDisplay")
-          .textContent =
-          money(
-            result.fuelCost
-          );
-
+      if (el("fuelCostDisplay")) {
+        el("fuelCostDisplay").textContent = money(result.fuelCost);
       }
-
 
       if (el("fuelDetails")) {
-
-        el("fuelDetails")
-          .textContent =
-
-          result.gallons
-            .toFixed(1) +
-
+        el("fuelDetails").textContent =
+          result.gallons.toFixed(1) +
           " gallons • $" +
-
-          result.dieselPrice
-            .toFixed(2) +
-
+          result.dieselPrice.toFixed(2) +
           "/gal • " +
-
-          result.fuelSource;
-
+          result.fuelSource +
+          (result.fuelUpdated ? " • " + result.fuelUpdated : "");
       }
-
 
       if (el("afterFuel")) {
-
-        el("afterFuel")
-          .textContent =
-          money(
-            result.afterFuel
-          );
-
+        el("afterFuel").textContent = money(result.afterFuel);
       }
-
     }
-
-
-    /*
-    Reveal result.
-    */
 
     if (el("homeResult")) {
-
-      el("homeResult")
-        .classList
-        .remove("hidden");
-
+      el("homeResult").classList.remove("hidden");
     }
 
-
-    const homeButton =
-      el("getHome");
-
+    const homeButton = el("getHome");
 
     if (homeButton) {
-
-      homeButton.textContent =
-        "HOMEBOUND LOAD ADDED ✓";
-
-      homeButton.disabled =
-        true;
-
+      homeButton.textContent = "HOMEBOUND LOAD ADDED ✓";
+      homeButton.disabled = true;
     }
-
-
-    /*
-    Update map.
-    */
-
-    if (
-      typeof
-        showHomeboundRoute ===
-      "function"
-    ) {
-
-      showHomeboundRoute();
-
-    }
-
   }
-
 
   /*
   ------------------------------
@@ -817,7 +742,11 @@ Version 1.0
         "function"
       ) {
 
-        showHomeboundRoute();
+        showHomeboundRoute(
+          MileCountState.origin,
+          MileCountState.destination,
+          MileCountState.home
+        );
 
       }
 
