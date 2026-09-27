@@ -1097,7 +1097,7 @@ async function mileCountDirectSignUp(){
   const email=document.getElementById("authEmail").value.trim(),password=document.getElementById("authPassword").value,name=document.getElementById("authName").value.trim();
   if(password.length<8)throw new Error("Use at least 8 characters.");
   const d=await window.MileCountCloud.signUp(email,password,name);
-  if(m)m.textContent=d.access_token?"ACCOUNT CREATED + SIGNED IN ✓":"ACCOUNT CREATED ✓ Check your email to confirm, then sign in.";
+  if(d.access_token){if(m)m.textContent="ACCOUNT CREATED ✓";setTimeout(()=>location.href="welcome.html",500)}else{if(m)m.textContent="ACCOUNT CREATED ✓ Check your email to confirm. After confirmation, return here and sign in."}
  }catch(e){if(m)m.textContent=e.message}
 }
 async function mileCountDirectSignIn(){
