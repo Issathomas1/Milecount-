@@ -741,7 +741,9 @@ async function showMileCountProviderRoute(load){
     updateMileCountRouteInfo(mileCountLastRoute);
     return mileCountLastRoute;
   }
-  return showMileCountRoute([load.pickup||load.originLabel,load.delivery||load.destinationLabel].filter(Boolean));
+  const stops=[load.pickup||load.originLabel,load.delivery||load.destinationLabel].filter(Boolean);
+  if(stops.length<2){const src=document.getElementById("routeSource");if(src)src.textContent=(load.provider||"Provider")+" load • route geometry unavailable";return null}
+  return showMileCountRoute(stops);
 }
 
 /*
