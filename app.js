@@ -275,6 +275,16 @@ if(el("vehicleType"))el("vehicleType").addEventListener("change",function(){appl
 applyVehicle(el("vehicleType")?.value||"box26",false);
 updateCostUI();
 loadProfile();
+bind("requestLoad",function(){
+ const l=S.selectedCandidate;if(!l?.provider)return;
+ if(el("bookingStatus"))el("bookingStatus").textContent="STATUS • ACTION REQUIRED";
+ if(el("bookingMessage"))el("bookingMessage").textContent=l.provider==="TrukTek"?"TrukTek's published API does not expose direct booking. Use broker details to verify availability and request the load. MileCount will only show ACCEPTED after a provider/broker confirmation integration is available.":"This provider requires a confirmed booking endpoint before MileCount can mark the load accepted.";
+});
+bind("contactBroker",function(){
+ const l=S.selectedCandidate;if(!l)return;
+ const msg=[l.broker?"Broker: "+l.broker:null,l.bookingReference?"Load reference: "+l.bookingReference:null,l.provider?"Source: "+l.provider:null].filter(Boolean).join("\n");
+ alert(msg||"Broker contact details are not available in this provider response.");
+});
 bind("analyzeManual",analyzeManualLoad);bind("saveProfile",saveProfile);
 async function refreshAccount(){
  try{
