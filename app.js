@@ -155,7 +155,7 @@ Version 1.0
   ------------------------------
   */
 
-  function findMoney() {
+  async function findMoney() {
 
     const pay =
       Math.max(
@@ -369,10 +369,67 @@ Version 1.0
     Fuel Engine connection.
     */
 
-    updateExtraFuel(
-      extraMiles
-    );
+    let realExtraMiles = extraMiles;
+    let extraDriveTime = "Estimated";
 
+    if (
+      MileCountState.origin === "Atlanta, GA" &&
+      MileCountState.destination === "Charlotte, NC" &&
+      typeof calculateMileCountDetour === "function" &&
+      addedPay > 0
+    ) {
+      try {
+        const detour = await calculateMileCountDetour(
+          MileCountState.origin,
+          MileCountState.destination,
+          ["Greenville, SC"]
+        );
+
+        if (detour && Number.isFinite(detour.extraMiles)) {
+          realExtraMiles = detour.extraMiles;
+          extraDriveTime = detour.extraDriveTime;
+          MileCountState.extraMiles = realExtraMiles;
+        }
+      } catch (error) {
+        console.warn("MileCount detour calculation failed:", error);
+      }
+    }
+
+    if (el("detourMiles")) {
+      el("detourMiles").textContent = realExtraMiles.toFixed(1) + " mi";
+    }
+
+    if (el("detourTime")) {
+      el("detourTime").textContent = extraDriveTime;
+    }
+
+    if (el("spaceUsed")) {
+      el("spaceUsed").textContent = spaceUsed + " ft";
+    }
+
+    if (el("weightUsed")) {
+      el("weightUsed").textContent = weightUsed.toLocaleString() + " lb";
+    }
+
+    const extraFuelResult = updateExtraFuel(realExtraMiles);
+
+    if (extraFuelResult) {
+      const afterFuelAdded = addedPay - extraFuelResult.fuelCost;
+
+      if (el("addedAfterFuel")) {
+        el("addedAfterFuel").textContent = "+" + money(afterFuelAdded);
+      }
+
+      if (el("autoStackReason")) {
+        el("autoStackReason").textContent =
+          addedPay > 0
+            ? "Adds " + realExtraMiles.toFixed(1) +
+              " road miles and about " + money(extraFuelResult.fuelCost) +
+              " in diesel. Estimated +" + money(afterFuelAdded) +
+              " after added fuel."
+            : "No compatible simulated freight fits the remaining truck capacity.";
+      }
+    }
 
     showScreen(2);
 
@@ -403,7 +460,7 @@ Version 1.0
 
       }
 
-      return;
+      return null;
 
     }
 
@@ -446,6 +503,8 @@ Version 1.0
         fuel.source;
 
     }
+
+    return fuel;
 
   }
 
