@@ -152,7 +152,17 @@ async function addToTrip(){
 function protectReturn(){if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay)+" total round trip";showScreen(4)}
 
 async function getHomePaid(){
- S.homeAdded=true;let route=null;
+ S.homeAdded=true;
+ try{
+  const trips=JSON.parse(localStorage.getItem("mcOriginalTrips")||"[]"),today=new Date().toISOString().slice(0,10);
+  const trip=trips.filter(t=>t.date>=today&&t.from===S.origin&&t.to===S.destination).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  if(trip){
+   trip.returnLoad={name:"Homebound Return",from:S.destination,to:S.home,pay:Number(S.returnPay||0)};
+   trip.returnPay=Number(S.returnPay||0);
+   localStorage.setItem("mcOriginalTrips",JSON.stringify(trips));
+  }
+ }catch(e){console.warn("Planner return update failed",e)}
+let route=null;
  if(typeof showHomeboundRoute==="function"){try{route=await showHomeboundRoute(S.origin,S.destination,S.home)}catch(e){console.warn(e)}}
  const live=route&&Number.isFinite(route.miles)?route.miles:(typeof getMileCountCurrentRoadMiles==="function"?getMileCountCurrentRoadMiles():null);
  const miles=Number.isFinite(live)&&live>0?live:S.roundTripMiles;S.roundTripMiles=miles;
