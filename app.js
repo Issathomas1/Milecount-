@@ -33,6 +33,24 @@ function showScreen(n){
  if(n===3)setTimeout(()=>{if(typeof initMileCountMap==="function")initMileCountMap();if(typeof mileCountMap!=="undefined"&&mileCountMap)mileCountMap.invalidateSize()},200);
 }
 
+function costProfile(){
+ const monthlyMiles=Math.max(1,val("monthlyMiles",8000));
+ const fixed=val("monthlyPayment",900)+val("monthlyInsurance",1800)+val("monthlyOther",300);
+ const maintenance=Math.max(0,val("maintenanceCPM",.20));
+ const fuelPrice=(typeof getMileCountFuelPrice==="function"?getMileCountFuelPrice(S.origin).price:0);
+ const fuelCPM=fuelPrice/(activeVehicle.mpg||9);
+ const breakEven=(fixed/monthlyMiles)+maintenance+fuelCPM;
+ const target=breakEven*1.25;
+ return {fixed,maintenance,fuelCPM,breakEven,target};
+}
+function updateCostUI(){
+ const p=costProfile();
+ if(el("breakEvenCPM"))el("breakEvenCPM").textContent="$"+p.breakEven.toFixed(2);
+ if(el("targetRPM"))el("targetRPM").textContent="$"+p.target.toFixed(2);
+ if(el("decisionBreakEven"))el("decisionBreakEven").textContent="$"+p.breakEven.toFixed(2);
+ return p;
+}
+
 function fuelFor(miles){
  return typeof calculateMileCountTripFuel==="function"?calculateMileCountTripFuel(miles,S.origin):{fuelCost:0,gallons:0,dieselPrice:0,source:"Unavailable"};
 }
@@ -45,6 +63,7 @@ async function routeDetour(stop,fallback){
 
 async function findMoney(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
+ const profile=updateCostUI();
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
  const loads=[
@@ -84,7 +103,12 @@ async function findMoney(){
  if(el("extraFuel"))el("extraFuel").textContent=money(best.fuel.fuelCost);
  if(el("extraFuelDetails"))el("extraFuelDetails").textContent=best.fuel.gallons.toFixed(1)+" gal • $"+best.fuel.dieselPrice.toFixed(2)+"/gal • "+best.fuel.source;
  if(el("addedAfterFuel"))el("addedAfterFuel").textContent="+"+money(best.afterFuel);
- if(el("autoStackReason"))el("autoStackReason").textContent=best.pay?"Adds "+best.extraMiles.toFixed(1)+" road miles and about "+money(best.fuel.fuelCost)+" in diesel. Estimated +"+money(best.afterFuel)+" after added fuel.":"No compatible simulated freight fits the remaining truck capacity.";
+ const addedRPM=best.extraMiles>0?best.pay/best.extraMiles:0;
+ if(el("loadVerdict")){
+   el("loadVerdict").textContent=!best.pay?"NO FIT":(addedRPM>=profile.target?"STRONG ✓":addedRPM>=profile.breakEven?"WORKS":"PASS");
+   el("loadVerdict").style.color=!best.pay?"#93a79d":(addedRPM>=profile.target?"#31bf72":addedRPM>=profile.breakEven?"#f1c75b":"#ff7777");
+ }
+ if(el("autoStackReason"))el("autoStackReason").textContent=best.pay?"Adds "+best.extraMiles.toFixed(1)+" road miles and about "+money(best.fuel.fuelCost)+" in diesel. Estimated +"+money(best.afterFuel)+" after added fuel. Your break-even is $"+profile.breakEven.toFixed(2)+"/mi.":"No compatible simulated freight fits the remaining truck capacity.";
  showScreen(2);
 }
 
@@ -124,8 +148,10 @@ function viewUpdatedTrip(){
 }
 function startNewTrip(){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="GET ME HOME PAID"}showScreen(1)}
 function bind(id,fn){const b=el(id);if(b)b.addEventListener("click",fn);else console.warn("Missing button",id)}
-if(el("vehicleType"))el("vehicleType").addEventListener("change",function(){applyVehicle(this.value,true)});
+if(el("vehicleType"))el("vehicleType").addEventListener("change",function(){applyVehicle(this.value,true);updateCostUI()});
+["monthlyPayment","monthlyInsurance","maintenanceCPM","monthlyOther","monthlyMiles"].forEach(id=>{if(el(id))el(id).addEventListener("input",updateCostUI)});
 applyVehicle(el("vehicleType")?.value||"box26",false);
+updateCostUI();
 bind("find",findMoney);bind("addTrip",addToTrip);bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
 })();
