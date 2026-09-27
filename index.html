@@ -338,7 +338,7 @@ MileCount<span class="green">.</span>
 </div>
 
 <div style="display:flex;gap:8px;align-items:center">
-<div class="demo">SIMULATION</div>
+<div class="demo" id="dataModeBadge">INTEGRATION DEMO</div>
 <select id="driverMenu" aria-label="MileCount menu" style="width:auto;max-width:132px;margin:0;padding:8px 28px 8px 10px;font-size:11px;font-weight:900;background:#15271f;border:1px solid #2b4438;color:#f3f8f5">
 <option value="">MENU ▾</option>
 <option value="planner">PLANNER</option>
@@ -367,7 +367,7 @@ MileCount<span class="green">.</span>
 
 <div class="hero" style="padding-top:14px;padding-bottom:14px">
 <small>MILECOUNT ROUTE ENGINE</small>
-<p style="margin:6px 0 0">Plan. Load. Get paid.</p>
+<p style="margin:6px 0 0">Nationwide freight intelligence • integration-ready</p>
 </div>
 
 <!-- =====================
@@ -410,17 +410,8 @@ Where are you going?
 
 FROM
 
-<select id="from">
-
-<option>
-Atlanta, GA
-</option>
-
-<option>
-Charlotte, NC
-</option>
-
-</select>
+<input id="from" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP" autocomplete="off">
+<datalist id="usLocations"><option>Anywhere, USA</option><option>Atlanta, GA</option><option>Augusta, GA</option><option>Savannah, GA</option><option>Macon, GA</option><option>Columbus, GA</option><option>Birmingham, AL</option><option>Mobile, AL</option><option>Montgomery, AL</option><option>Huntsville, AL</option><option>Charlotte, NC</option><option>Raleigh, NC</option><option>Greensboro, NC</option><option>Wilmington, NC</option><option>Nashville, TN</option><option>Memphis, TN</option><option>Knoxville, TN</option><option>Chattanooga, TN</option><option>Greenville, SC</option><option>Columbia, SC</option><option>Charleston, SC</option><option>Jacksonville, FL</option><option>Orlando, FL</option><option>Tampa, FL</option><option>Miami, FL</option><option>Fort Lauderdale, FL</option><option>Tallahassee, FL</option><option>Dallas, TX</option><option>Houston, TX</option><option>Austin, TX</option><option>San Antonio, TX</option><option>El Paso, TX</option><option>Oklahoma City, OK</option><option>Tulsa, OK</option><option>New Orleans, LA</option><option>Baton Rouge, LA</option><option>Jackson, MS</option><option>Little Rock, AR</option><option>Louisville, KY</option><option>Lexington, KY</option><option>Richmond, VA</option><option>Norfolk, VA</option><option>Washington, DC</option><option>Baltimore, MD</option><option>Philadelphia, PA</option><option>Pittsburgh, PA</option><option>Newark, NJ</option><option>New York, NY</option><option>Boston, MA</option><option>Providence, RI</option><option>Hartford, CT</option><option>Buffalo, NY</option><option>Cleveland, OH</option><option>Columbus, OH</option><option>Cincinnati, OH</option><option>Detroit, MI</option><option>Indianapolis, IN</option><option>Chicago, IL</option><option>Milwaukee, WI</option><option>Minneapolis, MN</option><option>St. Louis, MO</option><option>Kansas City, MO</option><option>Omaha, NE</option><option>Wichita, KS</option><option>Denver, CO</option><option>Albuquerque, NM</option><option>Phoenix, AZ</option><option>Las Vegas, NV</option><option>Salt Lake City, UT</option><option>Boise, ID</option><option>Seattle, WA</option><option>Portland, OR</option><option>Sacramento, CA</option><option>San Francisco, CA</option><option>Fresno, CA</option><option>Los Angeles, CA</option><option>San Diego, CA</option></datalist>
 
 </label>
 
@@ -429,17 +420,7 @@ Charlotte, NC
 
 TO
 
-<select id="to">
-
-<option>
-Charlotte, NC
-</option>
-
-<option>
-Nashville, TN
-</option>
-
-</select>
+<input id="to" list="usLocations" value="Charlotte, NC" placeholder="City, ST, ZIP or Anywhere, USA" autocomplete="off">
 
 </label>
 
@@ -487,8 +468,8 @@ value="6200"
 <span class="badge">REAL LOAD INPUT</span>
 <h3>Analyze a load you already found</h3>
 <label>LOAD NAME / REFERENCE<input id="manualName" type="text" placeholder="Example: Charlotte partial"></label>
-<label>PICKUP CITY<select id="manualPickup"><option>Atlanta, GA</option><option>Greenville, SC</option><option>Spartanburg, SC</option><option>Charlotte, NC</option><option>Nashville, TN</option></select></label>
-<label>DELIVERY CITY<select id="manualDelivery"><option>Greenville, SC</option><option>Spartanburg, SC</option><option selected>Charlotte, NC</option><option>Atlanta, GA</option><option>Nashville, TN</option></select></label>
+<label>PICKUP CITY<input id="manualPickup" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP"></label>
+<label>DELIVERY CITY<input id="manualDelivery" list="usLocations" value="Charlotte, NC" placeholder="City, ST or ZIP"></label>
 <div class="row">
 <label style="width:100%">LOAD PAY<input id="manualPay" type="number" value="475" placeholder="475"></label>
 <label style="width:100%">WEIGHT LB<input id="manualWeight" type="number" value="2450" placeholder="2450"></label>
