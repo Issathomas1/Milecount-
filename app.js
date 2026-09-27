@@ -90,13 +90,16 @@ async function findMoney(){
  S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
 
  S.candidateLoads=loads;S.selectedCandidate=best;
- if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>`
- <button type="button" class="candidateLoad" data-load-index="${i}" style="text-align:left;padding:14px;border:1px solid ${i===0?"#31bf72":"#20352b"};border-radius:12px;background:${i===0?"#0d2118":"#111f19"};margin:0;color:#f3f8f5">
-  <div style="display:flex;justify-content:space-between;gap:10px"><b>${l.name}</b><b style="color:#31bf72">+${money(l.pay)}</b></div>
-  <div class="details">${l.space} ft • ${l.weight.toLocaleString()} lb • +${l.extraMiles.toFixed(1)} mi • est. +${money(l.afterFuel)} after fuel</div>
-  <div style="margin-top:8px;font-size:11px;font-weight:900;color:${i===0?"#8ce0af":"#93a79d"}">${i===0?"BEST FIT ✓ • TAP TO SELECT":"TAP TO SELECT"}</div>
- </button>`).join(""):'<div class="details">No compatible freight fits your remaining capacity.</div>';
- document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
+ const miles=Math.max(0,Number(l.loadedMiles||l.loaded_miles||0)),dh=Math.max(0,Number(l.deadhead||l.deadhead_miles||l.extraMiles||0));
+ const allMiles=miles+dh,rpm=allMiles>0?Number(l.pay||0)/allMiles:(dh>0?Number(l.pay||0)/dh:0);
+ const margin=Number(l.afterFuel||0),verdict=rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS";
+ const origin=l.origin?.city?l.origin.city+", "+(l.origin.state||""):S.origin,destination=l.destination?.city?l.destination.city+", "+(l.destination.state||""):l.stop;
+ const source=l.provider||((l.name||"").includes("SIMULATION")?"SIMULATION":"MILECOUNT");
+ return `<button type="button" class="candidateLoad loadResult ${i===0?"selected":""}" data-load-index="${i}">
+ <div class="loadTop"><div><div class="loadLane">${origin} → ${destination}</div><div class="loadMeta">${l.name||"Available load"} • ${activeVehicle.name}</div></div><div class="loadPay">${money(l.pay)}</div></div>
+ <div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>${rpm?"$"+rpm.toFixed(2):"—"}</b></div><div class="loadMetric"><small>DEADHEAD</small><b>${dh.toFixed(0)} mi</b></div><div class="loadMetric"><small>WEIGHT</small><b>${Number(l.weight||0).toLocaleString()} lb</b></div><div class="loadMetric"><small>EST. AFTER FUEL*</small><b>${money(margin)}</b></div></div>
+ <div class="loadFoot"><span class="sourceTag">${source}</span><span class="verdictTag">${i===0?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">No compatible freight matched these filters. Adjust deadhead/RPM or use simulation mode for the demo.</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
 
  if(el("added"))el("added").textContent="+"+money(best.pay);
  if(el("current"))el("current").textContent=money(pay);
@@ -126,7 +129,7 @@ function selectCandidate(i){
  if(el("added"))el("added").textContent="+"+money(l.pay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(l.pay);
  if(el("remainingSpace"))el("remainingSpace").textContent=Math.max(0,val("space",0)-l.space)+" ft remaining";if(el("remainingWeight"))el("remainingWeight").textContent=Math.max(0,val("weight",0)-l.weight).toLocaleString()+" lb remaining";
  if(el("detourMiles"))el("detourMiles").textContent=l.extraMiles.toFixed(1)+" mi";if(el("detourTime"))el("detourTime").textContent=l.extraDriveTime;if(el("spaceUsed"))el("spaceUsed").textContent=l.space+" ft";if(el("weightUsed"))el("weightUsed").textContent=l.weight.toLocaleString()+" lb";if(el("extraFuel"))el("extraFuel").textContent=money(l.fuel.fuelCost);if(el("addedAfterFuel"))el("addedAfterFuel").textContent="+"+money(l.afterFuel);
- document.querySelectorAll(".candidateLoad").forEach((b,n)=>{b.style.borderColor=n===i?"#31bf72":"#20352b";b.style.background=n===i?"#0d2118":"#111f19"});
+ document.querySelectorAll(".candidateLoad").forEach((b,n)=>b.classList.toggle("selected",n===i));
 }
 async function updateOutboundMap(){
  if(typeof showMileCountRoute!=="function")return null;
