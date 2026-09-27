@@ -1,115 +1,89 @@
 /*
 ==================================================
-MILECOUNT FUEL ENGINE
-Version 1.0
+MILECOUNT FUEL ENGINE V3
+Official EIA baseline
 ==================================================
-
-Purpose:
-
-- Store truck MPG
-- Store latest diesel estimate
-- Calculate gallons
-- Calculate fuel cost
-- Calculate extra-load fuel
-- Calculate round-trip fuel
-- Calculate estimated money after fuel
-
-IMPORTANT:
-
-"After Fuel" is NOT net profit.
-
-It does not automatically include:
-insurance
-maintenance
-truck payment
-driver pay
-tolls
-taxes
-repairs
-other operating expenses
-==================================================
-*/
-
-
-/*
-------------------------------
-DEFAULT TRUCK PROFILE
-------------------------------
 */
 
 const MileCountTruck = {
-
   type: "26-ft Box Truck",
-
   mpg: 9,
-
   home: "Atlanta, GA",
-
   cargoLength: 26,
-
-  payloadCapacity: 10000,
-
-  liftgate: true,
-
-  palletJack: true
-
+  payloadCapacity: 10000
 };
 
 
 /*
-------------------------------
-FUEL PRICE DATABASE
-------------------------------
+==================================================
+PUBLIC DIESEL DATA
 
-For now these are CACHED / SIMULATION
-values.
+Source:
+U.S. Energy Information Administration
 
-Later MileCount can replace these
-with current EIA/public data.
+Dataset:
+Weekly Retail On-Highway Diesel Prices
 
-Never label these as live prices.
-------------------------------
+Region:
+Lower Atlantic (PADD 1C)
+
+Current verified value:
+$6.139 / gallon
+
+Week:
+September 21, 2026
+
+Release:
+September 22, 2026
+==================================================
 */
 
 const MileCountFuelPrices = {
 
   "Atlanta, GA": {
-    price: 3.45,
-    source: "SIMULATED / CACHED",
-    updated: "Prototype"
+    price: 6.139,
+    source: "EIA • Lower Atlantic",
+    updated: "Sep 21, 2026"
   },
 
   "Charlotte, NC": {
-    price: 3.42,
-    source: "SIMULATED / CACHED",
-    updated: "Prototype"
-  },
-
-  "Nashville, TN": {
-    price: 3.38,
-    source: "SIMULATED / CACHED",
-    updated: "Prototype"
+    price: 6.139,
+    source: "EIA • Lower Atlantic",
+    updated: "Sep 21, 2026"
   },
 
   "Greenville, SC": {
-    price: 3.39,
-    source: "SIMULATED / CACHED",
-    updated: "Prototype"
+    price: 6.139,
+    source: "EIA • Lower Atlantic",
+    updated: "Sep 21, 2026"
   },
 
-  "Baltimore, MD": {
-    price: 3.58,
-    source: "SIMULATED / CACHED",
-    updated: "Prototype"
+  "Nashville, TN": {
+    price: 6.139,
+    source: "EIA • Lower Atlantic",
+    updated: "Sep 21, 2026"
   }
 
 };
 
 
 /*
-------------------------------
-GET DIESEL PRICE
-------------------------------
+Fallback
+*/
+
+const MileCountFallbackFuel = {
+
+  price: 6.139,
+
+  source: "EIA • Lower Atlantic",
+
+  updated: "Sep 21, 2026"
+
+};
+
+
+/*
+GET FUEL PRICE
 */
 
 function getMileCountFuelPrice(city) {
@@ -120,29 +94,13 @@ function getMileCountFuelPrice(city) {
 
   }
 
-  /*
-  Fallback price.
-
-  Still clearly simulated.
-  */
-
-  return {
-
-    price: 3.45,
-
-    source: "SIMULATED / CACHED",
-
-    updated: "Prototype"
-
-  };
+  return MileCountFallbackFuel;
 
 }
 
 
 /*
-------------------------------
 CALCULATE GALLONS
-------------------------------
 */
 
 function calculateMileCountGallons(
@@ -150,25 +108,19 @@ function calculateMileCountGallons(
   mpg
 ) {
 
-  miles = Number(miles);
+  miles = Number(miles) || 0;
 
-  mpg = Number(mpg);
+  mpg = Number(mpg) || MileCountTruck.mpg;
 
 
-  if (
-    !Number.isFinite(miles) ||
-    miles < 0
-  ) {
+  if (miles < 0) {
 
     miles = 0;
 
   }
 
 
-  if (
-    !Number.isFinite(mpg) ||
-    mpg <= 0
-  ) {
+  if (mpg <= 0) {
 
     mpg = MileCountTruck.mpg;
 
@@ -181,47 +133,7 @@ function calculateMileCountGallons(
 
 
 /*
-------------------------------
-CALCULATE FUEL COST
-------------------------------
-*/
-
-function calculateMileCountFuelCost(
-  miles,
-  mpg,
-  dieselPrice
-) {
-
-  const gallons =
-    calculateMileCountGallons(
-      miles,
-      mpg
-    );
-
-
-  dieselPrice =
-    Number(dieselPrice);
-
-
-  if (
-    !Number.isFinite(dieselPrice) ||
-    dieselPrice < 0
-  ) {
-
-    dieselPrice = 0;
-
-  }
-
-
-  return gallons * dieselPrice;
-
-}
-
-
-/*
-------------------------------
-FULL TRIP FUEL ESTIMATE
-------------------------------
+CALCULATE TRIP FUEL
 */
 
 function calculateMileCountTripFuel(
@@ -240,26 +152,33 @@ function calculateMileCountTripFuel(
     );
 
 
-  const cost =
+  const fuelCost =
     gallons *
     fuelData.price;
 
 
   return {
 
-    miles: miles,
+    miles:
+      Number(miles) || 0,
 
-    mpg: MileCountTruck.mpg,
+    mpg:
+      MileCountTruck.mpg,
 
-    gallons: gallons,
+    gallons:
+      gallons,
 
-    dieselPrice: fuelData.price,
+    dieselPrice:
+      fuelData.price,
 
-    fuelCost: cost,
+    fuelCost:
+      fuelCost,
 
-    source: fuelData.source,
+    source:
+      fuelData.source,
 
-    updated: fuelData.updated
+    updated:
+      fuelData.updated
 
   };
 
@@ -267,34 +186,7 @@ function calculateMileCountTripFuel(
 
 
 /*
-------------------------------
-EXTRA LOAD FUEL
-------------------------------
-
-Example:
-
-MileCount adds a partial that
-requires 30 additional miles.
-------------------------------
-*/
-
-function calculateMileCountExtraFuel(
-  extraMiles,
-  city
-) {
-
-  return calculateMileCountTripFuel(
-    extraMiles,
-    city
-  );
-
-}
-
-
-/*
-------------------------------
-ROUND TRIP ECONOMICS
-------------------------------
+CALCULATE ROUND TRIP
 */
 
 function calculateMileCountRoundTrip(
@@ -365,6 +257,9 @@ function calculateMileCountRoundTrip(
     gallons:
       fuel.gallons,
 
+    mpg:
+      fuel.mpg,
+
     dieselPrice:
       fuel.dieselPrice,
 
@@ -386,62 +281,26 @@ function calculateMileCountRoundTrip(
 
 
 /*
-------------------------------
-MONEY FORMATTER
-------------------------------
+MONEY FORMAT
 */
 
 function mileCountMoney(value) {
 
-  value =
-    Number(value) || 0;
-
-
-  return (
-    "$" +
-    Math.round(value)
-      .toLocaleString()
-  );
+  return "$" +
+    Math.round(
+      Number(value) || 0
+    ).toLocaleString();
 
 }
 
 
 /*
-------------------------------
-DECIMAL MONEY FORMATTER
-------------------------------
-*/
-
-function mileCountMoneyDecimal(value) {
-
-  value =
-    Number(value) || 0;
-
-
-  return (
-    "$" +
-    value.toFixed(2)
-  );
-
-}
-
-
-/*
-------------------------------
-TEST / DEBUG
-------------------------------
-
-You can run this later
-in the browser console:
-
-mileCountFuelTest()
-
-------------------------------
+TEST
 */
 
 function mileCountFuelTest() {
 
-  const test =
+  const result =
     calculateMileCountRoundTrip(
       1875,
       740,
@@ -451,11 +310,11 @@ function mileCountFuelTest() {
 
 
   console.log(
-    "MileCount Fuel Test",
-    test
+    "MileCount EIA Fuel Engine:",
+    result
   );
 
 
-  return test;
+  return result;
 
 }
