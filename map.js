@@ -222,23 +222,9 @@ CREATE NUMBERED MARKER
 ==================================================
 */
 
-function createMileCountMarker(
-  city,
-  index,
-  totalStops
-) {
-
-  const location =
-    MileCountMapLocations[
-      city
-    ];
-
-
-  if (!location) {
-
-    return null;
-
-  }
+function createMileCountMarker(city,index,totalStops,overrideLocation) {
+  const location=overrideLocation||MileCountMapLocations[city];
+  if(!location)return null;
 
 
   let iconHTML = "";
@@ -390,17 +376,7 @@ async function showMileCountRoute(
   road route loads.
   */
 
-  stops.forEach(
-    function (city,index) {
-
-      createMileCountMarker(
-        city,
-        index,
-        stops.length
-      );
-
-    }
-  );
+  // Markers are added after locations are resolved; do not place guessed markers.
 
 
   /*
@@ -425,10 +401,8 @@ async function showMileCountRoute(
         roadRoute;
 
 
-      const leafletCoordinates =
-        mileCountGeometryToLeaflet(
-          roadRoute.geometry
-        );
+      const leafletCoordinates=mileCountGeometryToLeaflet(roadRoute.geometry);
+      (roadRoute.resolvedLocations||[]).forEach((p,index)=>createMileCountMarker(stops[index],index,stops.length,[p.lat,p.lon]));
 
 
       if (

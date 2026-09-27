@@ -97,6 +97,27 @@ const MileCountLocations = {
 };
 
 
+
+const mileCountGeoCache=new Map();
+async function resolveMileCountLocation(value){
+ const q=String(value||"").trim();if(!q)throw new Error("Location required");
+ if(mileCountGeoCache.has(q))return mileCountGeoCache.get(q);
+ if(MileCountLocations[q]){const x={lon:MileCountLocations[q][0],lat:MileCountLocations[q][1],label:q,source:"MileCount verified city table"};mileCountGeoCache.set(q,x);return x}
+ let query=q;
+ if(/^\d{5}$/.test(q)){const z=await fetch("https://api.zippopotam.us/us/"+q);if(z.ok){const j=await z.json(),p=j.places?.[0];if(p)query=(p["place name"]||"")+", "+(p["state abbreviation"]||"")+" "+q}}
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2200);
+ try{
+  const r=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q="+encodeURIComponent(query),{headers:{"Accept":"application/json"},signal:controller.signal});
+  if(!r.ok)throw new Error("Geocoder "+r.status);
+  const j=await r.json(),p=j?.[0];if(!p)throw new Error("Location not found: "+q);
+  const x={lon:Number(p.lon),lat:Number(p.lat),label:p.display_name||q,source:"OpenStreetMap Nominatim"};mileCountGeoCache.set(q,x);return x
+ }finally{clearTimeout(timer)}
+}
+async function buildResolvedCoordinates(stops){
+ const points=await Promise.all(stops.map(resolveMileCountLocation));
+ return{points,coordinateString:points.map(p=>p.lon+","+p.lat).join(";")};
+}
+
 /*
 ------------------------------
 CONVERSIONS
@@ -232,11 +253,8 @@ async function getMileCountRoadRoute(
   }
 
 
-  const coordinateString =
-    buildMileCountCoordinates(
-      stops
-    );
-
+  const resolved=await buildResolvedCoordinates(stops);
+  const coordinateString=resolved.coordinateString;
 
   if (!coordinateString) {
 
@@ -331,7 +349,9 @@ async function getMileCountRoadRoute(
       route.legs,
 
     source:
-      "OSRM / OpenStreetMap"
+      "OSRM road route / OpenStreetMap geography",
+
+    resolvedLocations: resolved.points
 
   };
 
