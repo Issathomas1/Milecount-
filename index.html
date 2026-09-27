@@ -1,451 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>MileCount</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#f4f7f5;
+color:#102019;
+}
+
+.app{
+max-width:650px;
+margin:auto;
+}
+
+header{
+background:white;
+padding:16px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.logo{
+font-size:26px;
+font-weight:900;
+}
+
+.green{color:#18a568}
+
+.demo{
+background:#fff0bf;
+padding:6px 9px;
+border-radius:20px;
+font-size:10px;
+font-weight:bold;
+}
+
+.hero{
+background:#102c21;
+color:white;
+padding:22px 16px;
+}
+
+.hero h1{
+margin:4px 0;
+font-size:30px;
+}
+
+.hero p{
+color:#c7d8d0;
+}
+
+.screen{
+display:none;
+padding:12px;
+}
+
+.screen.active{
+display:block;
+}
+
+.card{
+background:white;
+border:1px solid #dce5e0;
+border-radius:16px;
+padding:16px;
+margin-bottom:12px;
+}
+
+label{
+display:block;
+font-size:11px;
+font-weight:bold;
+color:#697b72;
+margin-bottom:12px;
+}
+
+input,select{
+width:100%;
+padding:13px;
+font-size:17px;
+border:1px solid #ccd8d2;
+border-radius:10px;
+margin-top:5px;
+background:white;
+}
+
+button{
+width:100%;
+padding:16px;
+border:0;
+border-radius:11px;
+background:#18b66d;
+color:white;
+font-size:16px;
+font-weight:900;
+margin-top:10px;
+}
+
+.money{
+font-size:38px;
+font-weight:900;
+color:#15975f;
+}
+
+.row{
+display:flex;
+justify-content:space-between;
+gap:10px;
+}
+
+.metric{
+background:#f0f5f2;
+padding:12px;
+border-radius:11px;
+width:100%;
+}
+
+.metric small{
+display:block;
+font-size:9px;
+color:#74867d;
+margin-bottom:4px;
+}
+
+.metric b{
+font-size:18px;
+}
+
+.pro{
+background:#102c21;
+color:white;
+}
+
+.pro p{
+color:#c7d8d0;
+}
+
+.hidden{
+display:none;
+}
+
+footer{
+text-align:center;
+padding:25px;
+font-size:11px;
+color:#718279;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<header>
+<div class="logo">MileCount<span class="green">.</span></div>
+<div class="demo">SIMULATION</div>
+</header>
+
+<div class="hero">
+<small>BOX-TRUCK MONEY</small>
+<h1>Make every mile count.</h1>
+<p>Find more money. Reduce empty miles. Get home paid.</p>
+</div>
+
+
+<!-- SCREEN 1 -->
+
+<section id="screen1" class="screen active">
+
+<div class="card">
+
+<h2>Where are you going?</h2>
+
+<label>
+FROM
+<select id="from">
+<option>Atlanta, GA</option>
+<option>Charlotte, NC</option>
+</select>
+</label>
+
+<label>
+TO
+<select id="to">
+<option>Charlotte, NC</option>
+<option>Nashville, TN</option>
+</select>
+</label>
+
+<label>
+CURRENT LOAD PAY
+<input id="pay" type="number" value="1400">
+</label>
+
+<label>
+SPACE LEFT
+<input id="space" type="number" value="14">
+</label>
+
+<label>
+WEIGHT LEFT
+<input id="weight" type="number" value="6200">
+</label>
+
+<button id="find">
+FIND ME MONEY
+</button>
+
+</div>
+
+</section>
+
+
+<!-- SCREEN 2 -->
+
+<section id="screen2" class="screen">
+
+<div class="card">
+
+<small>MILECOUNT FOUND</small>
+
+<div id="added" class="money">
++$475
+</div>
+
+<div class="row">
+
+<div class="metric">
+<small>CURRENT TRIP</small>
+<b id="current">$1,400</b>
+</div>
+
+<div class="metric">
+<small>NEW TRIP</small>
+<b id="newTotal">$1,875</b>
+</div>
+
+</div>
+
+<p>
+MileCount found compatible simulated freight along your route.
+</p>
+
+<button id="addTrip">
+ADD TO MY TRIP
+</button>
+
+</div>
+
+</section>
+
+
+<!-- SCREEN 3 -->
+
+<section id="screen3" class="screen">
+
+<div class="card">
+
+<h2>Your trip</h2>
+
+<p>
+🚚 Atlanta
+<br><br>
+⬇️
+<br><br>
+📦 Greenville — MileCount partial
+<br><br>
+⬇️
+<br><br>
+🏁 Charlotte — Original delivery
+</p>
+
+<div class="row">
+
+<div class="metric">
+<small>TRIP PAY</small>
+<b id="tripPay">$1,875</b>
+</div>
+
+<div class="metric">
+<small>MILECOUNT ADDED</small>
+<b class="green">+$475</b>
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>⚠️ Don't drive home empty.</h2>
+
+<p>
+MileCount found simulated freight heading toward home.
+</p>
+
+<button id="protect">
+PROTECT MY RETURN
+</button>
+
+</div>
+
+</section>
+
+
+<!-- SCREEN 4 -->
+
+<section id="screen4" class="screen">
+
+<div class="card pro">
+
+<small>MILECOUNT PRO</small>
+
+<h2>Backhaul Finder</h2>
+
+<p>
+BEST WAY HOME
+</p>
+
+<div style="background:white;color:#102019;padding:14px;border-radius:12px">
+
+<h3>Charlotte → Atlanta</h3>
+
+<div class="green" style="font-size:25px;font-weight:900">
++$740
+</div>
+
+<p style="color:#60736a">
+Simulated return load
+</p>
+
+</div>
+
+<button id="getHome">
+GET ME HOME PAID
+</button>
+
+</div>
+
+
+<div id="homeResult" class="card hidden">
+
+<small>HOMEBOUND LOAD ADDED ✓</small>
+
+<h2>Total Round Trip</h2>
+
+<div id="roundPay" class="money">
+$2,615
+</div>
+
+<div class="row">
+
+<div class="metric">
+<small>ROUND TRIP MILES</small>
+<b>524</b>
+</div>
+
+<div class="metric">
+<small>ROUND TRIP RPM</small>
+<b id="roundRPM">$4.99</b>
+</div>
+
+</div>
+
+<br>
+
+<div class="row">
+
+<div class="metric">
+<small>EST FUEL</small>
+<b>$201</b>
+</div>
+
+<div class="metric">
+<small>EST AFTER FUEL</small>
+<b id="afterFuel">$2,414</b>
+</div>
+
+</div>
+
+<button id="restart">
+START NEW TRIP
+</button>
+
+</div>
+
+</section>
+
+
+<footer>
+SIMULATION — LOADS ARE NOT BOOKABLE
+<br><br>
+MileCount • Make every mile count.
+</footer>
+
+</div>
+
+
 <script>
-(function () {
-  "use strict";
-
-  const screens = document.querySelectorAll(".screen");
-  const navButtons = document.querySelectorAll("nav button");
-
-  function showScreen(index) {
-    screens.forEach(function (screen, i) {
-      screen.classList.toggle("active", i === index);
-    });
-
-    navButtons.forEach(function (button, i) {
-      button.classList.toggle("active", i === index);
-    });
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  navButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      const index = Number(button.dataset.screen);
-      showScreen(index);
-    });
-  });
-
-  function getNumber(id, fallback) {
-    const element = document.getElementById(id);
-
-    if (!element) {
-      return fallback || 0;
-    }
-
-    const value = Number(element.value);
-
-    if (!Number.isFinite(value)) {
-      return fallback || 0;
-    }
-
-    return value;
-  }
-
-  function money(value) {
-    return "$" + Math.round(value).toLocaleString();
-  }
-
-  /*
-   * SIMULATION SETTINGS
-   *
-   * Later:
-   * - MPG comes from Truck Profile
-   * - diesel comes from EIA/public fuel data
-   * - freight comes from authorized sources
-   */
-
-  const TRUCK_LENGTH = 26;
-  const DEFAULT_MPG = 9;
-  const SIMULATED_DIESEL_PRICE = 3.45;
-
-  let tripState = {
-    primaryPay: 1400,
-    addedRevenue: 0,
-    totalRevenue: 1400,
-
-    startingSpace: 14,
-    startingWeight: 6200,
-
-    remainingSpace: 14,
-    remainingWeight: 6200,
-
-    extraMiles: 0,
-    extraFuel: 0,
-
-    returnAdded: false,
-    returnPay: 740,
-
-    roundTripMiles: 524,
-    roundTripRevenue: 0
-  };
-
-  /*
-   * FIND ME MONEY
-   */
-
-  const findMoneyButton = document.getElementById("findMoney");
-
-  if (findMoneyButton) {
-    findMoneyButton.addEventListener("click", function () {
-      const pay = Math.max(0, getNumber("loadPay", 1400));
-      const space = Math.max(0, getNumber("spaceLeft", 14));
-      const weight = Math.max(0, getNumber("weightLeft", 6200));
-
-      let addedRevenue = 0;
-      let spaceUsed = 0;
-      let weightUsed = 0;
-      let extraMiles = 0;
-
-      /*
-       * Simulated AutoStack.
-       *
-       * Enough capacity:
-       * Greenville partial + Spartanburg partial.
-       */
-
-      if (space >= 7 && weight >= 2450) {
-        addedRevenue = 475;
-        spaceUsed = 7;
-        weightUsed = 2450;
-        extraMiles = 30;
-      } else if (space >= 4 && weight >= 1800) {
-        addedRevenue = 290;
-        spaceUsed = 4;
-        weightUsed = 1800;
-        extraMiles = 18;
-      } else {
-        addedRevenue = 0;
-        spaceUsed = 0;
-        weightUsed = 0;
-        extraMiles = 0;
-      }
-
-      const remainingSpace = Math.max(0, space - spaceUsed);
-      const remainingWeight = Math.max(0, weight - weightUsed);
-
-      const extraGallons = extraMiles / DEFAULT_MPG;
-      const extraFuel = extraGallons * SIMULATED_DIESEL_PRICE;
-
-      tripState.primaryPay = pay;
-      tripState.addedRevenue = addedRevenue;
-      tripState.totalRevenue = pay + addedRevenue;
-
-      tripState.startingSpace = space;
-      tripState.startingWeight = weight;
-
-      tripState.remainingSpace = remainingSpace;
-      tripState.remainingWeight = remainingWeight;
-
-      tripState.extraMiles = extraMiles;
-      tripState.extraFuel = extraFuel;
-
-      tripState.returnAdded = false;
-
-      const extraMoney = document.getElementById("extraMoney");
-      const currentTrip = document.getElementById("currentTrip");
-      const newTrip = document.getElementById("newTrip");
-      const drivePay = document.getElementById("drivePay");
-
-      if (extraMoney) {
-        extraMoney.textContent =
-          addedRevenue > 0
-            ? "+" + money(addedRevenue)
-            : "$0";
-      }
-
-      if (currentTrip) {
-        currentTrip.textContent = money(pay);
-      }
-
-      if (newTrip) {
-        newTrip.textContent = money(pay + addedRevenue);
-      }
-
-      if (drivePay) {
-        drivePay.textContent = money(pay + addedRevenue);
-      }
-
-      const afterSpace = document.getElementById("afterSpace");
-      const afterWeight = document.getElementById("afterWeight");
-
-      if (afterSpace) {
-        afterSpace.textContent =
-          remainingSpace + " ft remaining";
-      }
-
-      if (afterWeight) {
-        afterWeight.textContent =
-          remainingWeight.toLocaleString() + " lb remaining";
-      }
-
-      const capacityText = document.getElementById("capacityText");
-      const payloadText = document.getElementById("payloadText");
-
-      if (capacityText) {
-        capacityText.textContent =
-          space + " ft available";
-      }
-
-      if (payloadText) {
-        payloadText.textContent =
-          weight.toLocaleString() + " lb left";
-      }
-
-      const capacityBar = document.getElementById("capacityBar");
-
-      if (capacityBar) {
-        const occupiedBefore =
-          Math.max(0, TRUCK_LENGTH - space);
-
-        const beforePercent =
-          Math.min(
-            100,
-            Math.max(
-              0,
-              (occupiedBefore / TRUCK_LENGTH) * 100
-            )
-          );
-
-        capacityBar.style.width = beforePercent + "%";
-      }
-
-      const afterBar = document.getElementById("afterBar");
-
-      if (afterBar) {
-        const occupiedAfter =
-          Math.max(0, TRUCK_LENGTH - remainingSpace);
-
-        const afterPercent =
-          Math.min(
-            100,
-            Math.max(
-              0,
-              (occupiedAfter / TRUCK_LENGTH) * 100
-            )
-          );
-
-        afterBar.style.width = afterPercent + "%";
-      }
-
-      const extraFuelElement =
-        document.getElementById("extraFuel");
-
-      if (extraFuelElement) {
-        extraFuelElement.textContent =
-          money(extraFuel);
-      }
-
-      /*
-       * Go automatically to MileCount's recommendation.
-       */
-      showScreen(1);
-    });
-  }
-
-  /*
-   * SEE OTHER OPTIONS
-   */
-
-  const otherOptionsButton =
-    document.getElementById("otherOptions");
-
-  if (otherOptionsButton) {
-    otherOptionsButton.addEventListener(
-      "click",
-      function () {
-        const options =
-          document.getElementById("options");
-
-        if (!options) {
-          return;
-        }
-
-        const currentlyHidden =
-          options.classList.contains("hidden");
-
-        options.classList.toggle(
-          "hidden",
-          !currentlyHidden
-        );
-
-        otherOptionsButton.textContent =
-          currentlyHidden
-            ? "HIDE OTHER OPTIONS"
-            : "SEE OTHER OPTIONS";
-      }
-    );
-  }
-
-  /*
-   * ADD TO MY TRIP
-   */
-
-  const addTripButton =
-    document.getElementById("addTrip");
-
-  if (addTripButton) {
-    addTripButton.addEventListener(
-      "click",
-      function () {
-        const drivePay =
-          document.getElementById("drivePay");
-
-        if (drivePay) {
-          drivePay.textContent =
-            money(tripState.totalRevenue);
-        }
-
-        showScreen(2);
-      }
-    );
-  }
-
-  /*
-   * PROTECT MY RETURN
-   */
-
-  const protectReturnButton =
-    document.getElementById("protectReturn");
-
-  if (protectReturnButton) {
-    protectReturnButton.addEventListener(
-      "click",
-      function () {
-        updateBackhaulNumbers();
-        showScreen(3);
-      }
-    );
-  }
-
-  /*
-   * BACKHAUL / ROUND-TRIP CALCULATIONS
-   */
-
-  function updateBackhaulNumbers() {
-    const outboundRevenue =
-      tripState.totalRevenue;
-
-    const returnPay =
-      tripState.returnPay;
-
-    const roundTripRevenue =
-      outboundRevenue + returnPay;
-
-    tripState.roundTripRevenue =
-      roundTripRevenue;
-
-    /*
-     * Simulated round-trip mileage for prototype.
-     * Later this will come from the route engine.
-     */
-
-    const miles =
-      tripState.roundTripMiles;
-
-    const gallons =
-      miles / DEFAULT_MPG;
-
-    const fuel =
-      gallons * SIMULATED_DIESEL_PRICE;
-
-    const afterFuel =
-      roundTripRevenue - fuel;
-
-    const roundFuel =
-      document.getElementById("roundFuel");
-
-    const afterFuelElement =
-      document.getElementById("afterFuel");
-
-    if (roundFuel) {
-      roundFuel.textContent =
-        money(fuel);
-    }
-
-    if (afterFuelElement) {
-      afterFuelElement.textContent =
-        money(afterFuel);
-    }
-  }
-
-  /*
-   * GET ME HOME PAID
-   */
-
-  const getHomeButton =
-    document.getElementById("getHome");
-
-  if (getHomeButton) {
-    getHomeButton.addEventListener(
-      "click",
-      function () {
-        tripState.returnAdded = true;
-
-        updateBackhaulNumbers();
-
-        const homeResult =
-          document.getElementById("homeResult");
-
-        if (homeResult) {
-          homeResult.classList.remove("hidden");
-          homeResult.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-          });
-        }
-
-        /*
-         * Update Drive screen total.
-         */
-
-        const drivePay =
-          document.getElementById("drivePay");
-
-        if (drivePay) {
-          drivePay.textContent =
-            money(tripState.roundTripRevenue);
-        }
-
-        getHomeButton.textContent =
-          "HOMEBOUND LOAD ADDED ✓";
-
-        getHomeButton.disabled = true;
-      }
-    );
-  }
-
-  /*
-   * VIEW UPDATED TRIP
-   */
-
-  const updatedTripButton =
-    document.getElementById("updatedTrip");
-
-  if (updatedTripButton) {
-    updatedTripButton.addEventListener(
-      "click",
-      function () {
-        const drivePay =
-          document.getElementById("drivePay");
-
-        if (drivePay) {
-          drivePay.textContent =
-            money(
-              tripState.returnAdded
-                ? tripState.roundTripRevenue
-                : tripState.totalRevenue
-            );
-        }
-
-        showScreen(2);
-      }
-    );
-  }
-
-  /*
-   * INITIAL VALUES
-   */
-
-  updateBackhaulNumbers();
-
-})();
+
+var primaryPay = 1400;
+var addedPay = 475;
+var totalPay = 1875;
+
+function showScreen(number){
+
+document.getElementById("screen1").classList.remove("active");
+document.getElementById("screen2").classList.remove("active");
+document.getElementById("screen3").classList.remove("active");
+document.getElementById("screen4").classList.remove("active");
+
+document.getElementById("screen" + number).classList.add("active");
+
+window.scrollTo(0,0);
+
+}
+
+
+document.getElementById("find").onclick = function(){
+
+primaryPay =
+Number(document.getElementById("pay").value) || 0;
+
+var space =
+Number(document.getElementById("space").value) || 0;
+
+var weight =
+Number(document.getElementById("weight").value) || 0;
+
+
+/* simple simulated capacity check */
+
+if(space >= 7 && weight >= 2450){
+
+addedPay = 475;
+
+}else if(space >= 4 && weight >= 1800){
+
+addedPay = 290;
+
+}else{
+
+addedPay = 0;
+
+}
+
+
+totalPay = primaryPay + addedPay;
+
+
+document.getElementById("added").innerText =
+"+$" + addedPay.toLocaleString();
+
+document.getElementById("current").innerText =
+"$" + primaryPay.toLocaleString();
+
+document.getElementById("newTotal").innerText =
+"$" + totalPay.toLocaleString();
+
+document.getElementById("tripPay").innerText =
+"$" + totalPay.toLocaleString();
+
+
+showScreen(2);
+
+};
+
+
+document.getElementById("addTrip").onclick = function(){
+
+showScreen(3);
+
+};
+
+
+document.getElementById("protect").onclick = function(){
+
+showScreen(4);
+
+};
+
+
+document.getElementById("getHome").onclick = function(){
+
+var returnPay = 740;
+
+var roundTripPay =
+totalPay + returnPay;
+
+var roundTripMiles = 524;
+
+var roundTripRPM =
+roundTripPay / roundTripMiles;
+
+var estimatedFuel = 201;
+
+var afterFuel =
+roundTripPay - estimatedFuel;
+
+
+document.getElementById("roundPay").innerText =
+"$" + roundTripPay.toLocaleString();
+
+document.getElementById("roundRPM").innerText =
+"$" + roundTripRPM.toFixed(2);
+
+document.getElementById("afterFuel").innerText =
+"$" + afterFuel.toLocaleString();
+
+
+document.getElementById("homeResult").classList.remove("hidden");
+
+document.getElementById("getHome").innerText =
+"HOMEBOUND LOAD ADDED ✓";
+
+document.getElementById("getHome").disabled = true;
+
+};
+
+
+document.getElementById("restart").onclick = function(){
+
+document.getElementById("homeResult").classList.add("hidden");
+
+document.getElementById("getHome").disabled = false;
+
+document.getElementById("getHome").innerText =
+"GET ME HOME PAID";
+
+showScreen(1);
+
+};
+
 </script>
+
+</body>
+</html>
