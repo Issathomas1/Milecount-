@@ -1042,6 +1042,7 @@ START NEW TRIP
 <div class="metric"><small>EST SAVED MARGIN</small><b id="dashMargin">$0</b></div>
 <div class="metric"><small>SAVED MILES</small><b id="dashMiles">0</b></div>
 </div>
+<div id="planFeatures" class="card" style="margin-top:14px;background:#0a1510"><b>YOUR PLAN</b><div id="planFeatureText" class="details" style="margin-top:7px">Loading plan access...</div></div>
 <div style="margin-top:18px"><b style="font-size:18px">MY VEHICLES</b><div id="vehicleHistory" class="details" style="margin-top:10px">No saved vehicles yet.</div></div>
 <div style="margin-top:18px"><b style="font-size:18px">MY TRIPS</b><div id="tripHistory" class="details" style="margin-top:10px">No saved trips yet.</div></div>
 <button id="signOut" type="button" style="background:#15271f;border:1px solid #2b4438">SIGN OUT</button>
@@ -1082,11 +1083,11 @@ map
 fuel
 app
 ===================== -->
-<script src="cloud.js?v=36"></script>
+<script src="cloud.js?v=37"></script>
 <script src="routing.js"></script>
 <script src="map.js"></script>
 <script src="fuel.js"></script>
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 <script>
 async function mileCountCloudTest(){
  const m=document.getElementById("authMessage"); if(m)m.textContent="Testing...";
