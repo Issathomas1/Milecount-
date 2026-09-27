@@ -81,17 +81,25 @@ async function findMoney(){
  if(providerResponded&&!loads.length&&el("loadCandidates"))el("loadCandidates").innerHTML='<div class="details" style="padding:14px;border:1px solid #5f4d18;border-radius:12px">LIVE SEARCH COMPLETE • '+providerLiveFound+' provider loads found, but none fit the remaining '+space+' ft / '+weight.toLocaleString()+' lb capacity and current filters. No simulation was substituted.</div>';
 
  for(const l of loads){
-  const d=await routeDetour(l.stop,l.fallback);
-  l.extraMiles=Number.isFinite(d.extraMiles)?d.extraMiles:l.fallback;
-  l.extraDriveTime=d.extraDriveTime||"Estimated";
-  l.fuel=fuelFor(l.extraMiles);
-  l.afterFuel=l.pay-(l.fuel.fuelCost||0);
+  if(l.provider){
+   l.extraMiles=Math.max(0,Number(l.deadhead||0));
+   l.extraDriveTime=l.extraMiles>0?"Provider deadhead":"0 mi";
+   const economicMiles=Math.max(0,Number(l.loadedMiles||0))+l.extraMiles;
+   l.fuel=fuelFor(economicMiles);
+   l.afterFuel=l.pay-(l.fuel.fuelCost||0);
+  }else{
+   const d=await routeDetour(l.stop,l.fallback);
+   l.extraMiles=Number.isFinite(d.extraMiles)?d.extraMiles:l.fallback;
+   l.extraDriveTime=d.extraDriveTime||"Estimated";
+   l.fuel=fuelFor(l.extraMiles);
+   l.afterFuel=l.pay-(l.fuel.fuelCost||0);
+  }
  }
  const maxDH=Math.max(0,val("maxDeadhead",100)),minRPM=Math.max(0,val("minRPM",0));
  loads=loads.filter(l=>Number(l.extraMiles||0)<=maxDH && (Number(l.extraMiles||0)<=0 || Number(l.pay||0)/Number(l.extraMiles||1)>=minRPM));
  loads.sort((a,b)=>b.afterFuel-a.afterFuel);
  const best=loads[0]||{pay:0,space:0,weight:0,stop:S.destination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
- S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
+ if(best.provider){S.primaryPay=0;S.addedPay=best.pay;S.totalPay=best.pay;S.origin=best.pickup||([best.origin?.city,best.origin?.state].filter(Boolean).join(", "));S.destination=best.delivery||([best.destination?.city,best.destination?.state].filter(Boolean).join(", "));S.selectedStop=S.destination;S.tripMode="live";S.returnPay=0;S.homeAdded=false}else{S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.selectedStop=best.stop;S.tripMode="simulation";S.homeAdded=false}S.extraMiles=best.extraMiles;
 
  S.candidateLoads=loads;S.selectedCandidate=best;
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
@@ -119,12 +127,12 @@ async function findMoney(){
  if(el("extraFuel"))el("extraFuel").textContent=money(best.fuel.fuelCost);
  if(el("extraFuelDetails"))el("extraFuelDetails").textContent=best.fuel.gallons.toFixed(1)+" gal • $"+best.fuel.dieselPrice.toFixed(2)+"/gal • "+best.fuel.source;
  if(el("addedAfterFuel"))el("addedAfterFuel").textContent="+"+money(best.afterFuel);
- const addedRPM=best.extraMiles>0?best.pay/best.extraMiles:0;
+ const addedMiles=best.provider?(Number(best.loadedMiles||0)+Number(best.deadhead||0)):best.extraMiles;const addedRPM=addedMiles>0?best.pay/addedMiles:0;
  if(el("loadVerdict")){
    el("loadVerdict").textContent=!best.pay?"NO FIT":(addedRPM>=profile.target?"STRONG ✓":addedRPM>=profile.breakEven?"WORKS":"PASS");
    el("loadVerdict").style.color=!best.pay?"#93a79d":(addedRPM>=profile.target?"#31bf72":addedRPM>=profile.breakEven?"#f1c75b":"#ff7777");
  }
- if(el("autoStackReason"))el("autoStackReason").textContent=best.pay?"Adds "+best.extraMiles.toFixed(1)+" road miles and about "+money(best.fuel.fuelCost)+" in diesel. Estimated +"+money(best.afterFuel)+" after added fuel. Your break-even is $"+profile.breakEven.toFixed(2)+"/mi.":"No compatible freight fits the remaining truck capacity.";
+ if(el("autoStackReason"))el("autoStackReason").textContent=best.pay?(best.provider?"LIVE "+best.provider+" load • "+Number(best.loadedMiles||0).toFixed(0)+" loaded mi + "+Number(best.deadhead||0).toFixed(0)+" deadhead mi • estimated "+money(best.fuel.fuelCost)+" fuel.":"SIMULATION • Adds "+best.extraMiles.toFixed(1)+" road miles and about "+money(best.fuel.fuelCost)+" in diesel."):"No compatible freight fits the remaining truck capacity.";
  showScreen(2);
 }
 
