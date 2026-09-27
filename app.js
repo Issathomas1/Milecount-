@@ -153,10 +153,20 @@ async function getHomePaid(){
  el("homeResult")?.classList.remove("hidden");if(el("getHome")){el("getHome").textContent="HOMEBOUND LOAD ADDED ✓";el("getHome").disabled=true}
 }
 
-function viewUpdatedTrip(){
+async function viewUpdatedTrip(){
  const total=S.totalPay+(S.homeAdded?S.returnPay:0);if(el("tripPay"))el("tripPay").textContent=money(total);
  if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>START / PRIMARY CARGO</div>'+(S.selectedStop!==S.destination?'<div class="stop">📦 <b>'+S.selectedStop+'</b><br>MileCount partial delivery</div>':'')+'<div class="stop">🏁 <b>'+S.destination+'</b><br>Original delivery</div>'+(S.homeAdded?'<div class="stop">💰 <b>'+S.destination+'</b><br>Return load pickup • +$740</div><div class="stop">🏠 <b>'+S.home+'</b><br>HOME ✓</div>':'');
+ await saveCurrentTrip();
  showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
+}
+async function saveCurrentTrip(){
+ try{
+  const s=await MileCountCloud.session();if(!s)return false;
+  const miles=S.roundTripMiles||0,total=S.totalPay+(S.homeAdded?S.returnPay:0),fuel=fuelFor(miles),p=costProfile();
+  const estimatedCost=miles*p.breakEven;
+  await MileCountCloud.saveTrip({origin:S.origin,destination:S.destination,home_city:S.home,primary_pay:S.primaryPay,added_pay:S.addedPay,return_pay:S.homeAdded?S.returnPay:0,road_miles:miles,fuel_cost:fuel.fuelCost,all_miles_rpm:miles?total/miles:0,break_even_rpm:p.breakEven,estimated_trip_cost:estimatedCost,estimated_margin:total-estimatedCost,status:"saved"});
+  return true;
+ }catch(e){console.warn("Trip cloud save failed",e);return false}
 }
 function startNewTrip(){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="GET ME HOME PAID"}showScreen(1)}
 async function analyzeManualLoad(){
@@ -179,9 +189,16 @@ async function analyzeManualLoad(){
  if(el("autoStackReason"))el("autoStackReason").textContent="Manual load analysis: estimated +"+money(load.afterFuel)+" after incremental fuel. Break-even is $"+p.breakEven.toFixed(2)+"/mi.";
  showScreen(2);
 }
-function saveProfile(){
+async function saveProfile(){
  const data={vehicleType:el("vehicleType")?.value,monthlyPayment:val("monthlyPayment",0),monthlyInsurance:val("monthlyInsurance",0),maintenanceCPM:val("maintenanceCPM",0),monthlyOther:val("monthlyOther",0),monthlyMiles:val("monthlyMiles",0)};
- try{localStorage.setItem("milecountProfile",JSON.stringify(data));if(el("saveStatus"))el("saveStatus").textContent="Saved on this device ✓"}catch(e){if(el("saveStatus"))el("saveStatus").textContent="Could not save on this device."}
+ try{localStorage.setItem("milecountProfile",JSON.stringify(data))}catch(e){}
+ try{
+   const s=await MileCountCloud.session();
+   if(!s){if(el("saveStatus"))el("saveStatus").textContent="Saved on this device. Sign in to sync to cloud.";return}
+   const v=activeVehicle;
+   await MileCountCloud.saveVehicle({name:v.name,vehicle_type:data.vehicleType,mpg:v.mpg,cargo_length_ft:v.cargoLength,payload_lb:v.payload,monthly_payment:data.monthlyPayment,monthly_insurance:data.monthlyInsurance,maintenance_cpm:data.maintenanceCPM,monthly_other:data.monthlyOther,expected_monthly_miles:data.monthlyMiles,is_default:true});
+   if(el("saveStatus"))el("saveStatus").textContent="Saved to MileCount Cloud ✓";
+ }catch(e){if(el("saveStatus"))el("saveStatus").textContent="Local save worked • Cloud: "+e.message}
 }
 function loadProfile(){
  try{const d=JSON.parse(localStorage.getItem("milecountProfile")||"null");if(!d)return;if(el("vehicleType")&&d.vehicleType)el("vehicleType").value=d.vehicleType;["monthlyPayment","monthlyInsurance","maintenanceCPM","monthlyOther","monthlyMiles"].forEach(id=>{if(el(id)&&d[id]!=null)el(id).value=d[id]});applyVehicle(d.vehicleType||"box26",false);updateCostUI()}catch(e){}
