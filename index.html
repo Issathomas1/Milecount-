@@ -26,17 +26,19 @@ box-sizing:border-box;
 :root{
 --green:#18a568;
 --green2:#18b66d;
---dark:#102c21;
---bg:#f4f7f5;
---border:#dce5e0;
---muted:#718279;
+--dark:#07110d;
+--bg:#050a08;
+--surface:#0c1712;
+--surface2:#111f19;
+--border:#20352b;
+--muted:#93a79d;
 }
 
 body{
 margin:0;
 font-family:Arial,sans-serif;
 background:var(--bg);
-color:#102019;
+color:#f3f8f5;
 }
 
 .app{
@@ -46,7 +48,7 @@ min-height:100vh;
 }
 
 header{
-background:white;
+background:#07110d;
 padding:16px;
 display:flex;
 justify-content:space-between;
@@ -69,6 +71,24 @@ padding:7px 10px;
 border-radius:20px;
 font-size:10px;
 font-weight:900;
+}
+
+.photoHero{
+position:relative;
+height:230px;
+overflow:hidden;
+}
+.photoHero img{
+width:100%;
+height:100%;
+object-fit:cover;
+display:block;
+filter:brightness(.58) saturate(.85);
+}
+.photoOverlay{
+position:absolute;
+inset:0;
+background:linear-gradient(180deg,rgba(5,10,8,.05),rgba(5,10,8,.95));
 }
 
 .hero{
@@ -103,7 +123,7 @@ display:block;
 }
 
 .card{
-background:white;
+background:var(--surface);
 border:1px solid var(--border);
 border-radius:17px;
 padding:16px;
@@ -130,7 +150,8 @@ font-size:17px;
 border:1px solid #ccd8d2;
 border-radius:11px;
 margin-top:5px;
-background:white;
+background:var(--surface2);
+color:#f3f8f5;
 }
 
 button{
@@ -161,7 +182,7 @@ gap:9px;
 }
 
 .metric{
-background:#f0f5f2;
+background:var(--surface2);
 padding:12px;
 border-radius:12px;
 width:100%;
@@ -206,7 +227,7 @@ color:#c7d8d0;
 }
 
 .proBox{
-background:white;
+background:#f4f7f5;
 color:#102019;
 padding:15px;
 border-radius:13px;
@@ -241,8 +262,8 @@ border-bottom:0;
 }
 
 .fuelBox{
-background:#edf7f1;
-border:1px solid #cce7d8;
+background:#0d2118;
+border:1px solid #1e5138;
 border-radius:13px;
 padding:13px;
 margin-top:12px;
@@ -255,12 +276,19 @@ color:var(--green);
 }
 
 .alert{
-background:#fff3d2;
-border:1px solid #efd58c;
+background:#211b0c;
+border:1px solid #5f4d18;
 border-radius:15px;
 padding:15px;
 margin-bottom:12px;
 }
+
+input,select{
+color:#f3f8f5;
+background:#0a1510;
+border-color:#2b4438;
+}
+select option{background:#0a1510;color:#f3f8f5}
 
 footer{
 text-align:center;
@@ -291,6 +319,10 @@ SIMULATION
 
 </header>
 
+<div class="photoHero">
+  <img src="https://images.pexels.com/photos/6170458/pexels-photo-6170458.jpeg?auto=compress&cs=tinysrgb&w=1200" alt="Box truck freight ready for delivery">
+  <div class="photoOverlay"></div>
+</div>
 
 <div class="hero">
 
