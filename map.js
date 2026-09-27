@@ -458,7 +458,7 @@ async function showMileCountRoute(
                 0.95,
 
               dashArray:
-                "4, 10",
+                null,
 
               lineCap:
                 "round",
@@ -513,6 +513,11 @@ async function showMileCountRoute(
   This means MileCount still works
   even if OSRM is unavailable.
   */
+
+  const sourceElement = document.getElementById("routeSource");
+  if (sourceElement) {
+    sourceElement.textContent = "Fallback route • live road routing unavailable";
+  }
 
   return showMileCountFallbackRoute(
     stops
@@ -733,15 +738,27 @@ HOMEBOUND ROUTE
 ==================================================
 */
 
-async function showHomeboundRoute() {
+async function showHomeboundRoute(origin, destination, home) {
 
-  return await
-    showMileCountRoute([
-      "Atlanta, GA",
-      "Greenville, SC",
-      "Charlotte, NC",
-      "Atlanta, GA"
-    ]);
+  origin = origin || "Atlanta, GA";
+  destination = destination || "Charlotte, NC";
+  home = home || "Atlanta, GA";
+
+  const stops = [origin];
+
+  if (origin === "Atlanta, GA" && destination !== "Greenville, SC") {
+    stops.push("Greenville, SC");
+  }
+
+  if (stops[stops.length - 1] !== destination) {
+    stops.push(destination);
+  }
+
+  if (stops[stops.length - 1] !== home) {
+    stops.push(home);
+  }
+
+  return await showMileCountRoute(stops);
 
 }
 
