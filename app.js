@@ -127,7 +127,28 @@ async function updateOutboundMap(){
  const stops=[S.origin]; if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop); if(stops.at(-1)!==S.destination)stops.push(S.destination);
  return await showMileCountRoute(stops);
 }
-async function addToTrip(){showScreen(3);await updateOutboundMap()}
+async function addToTrip(){
+ const l=S.selectedCandidate;
+ if(l){
+  const raw=localStorage.getItem("mcOriginalTrips")||"[]";
+  const trips=JSON.parse(raw);
+  const today=new Date().toISOString().slice(0,10);
+  const trip=trips.find(t=>t.date>=today&&t.from===S.origin&&t.to===S.destination);
+  if(trip){
+   if(!Array.isArray(trip.partials))trip.partials=[];
+   const exists=trip.partials.some(p=>p.name===l.name&&Number(p.pay)===Number(l.pay));
+   if(!exists){
+    trip.partials.push({name:l.name,stop:l.stop,pay:l.pay,space:l.space,weight:l.weight});
+    trip.addedPay=Number(trip.addedPay||0)+Number(l.pay||0);
+    trip.used=Number(trip.used||0)+Number(l.space||0);
+    trip.weight=Number(trip.weight||0)+Number(l.weight||0);
+    localStorage.setItem("mcOriginalTrips",JSON.stringify(trips));
+   }
+  }
+ }
+ showScreen(3);
+ await updateOutboundMap();
+}
 function protectReturn(){if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay)+" total round trip";showScreen(4)}
 
 async function getHomePaid(){
