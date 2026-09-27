@@ -168,15 +168,8 @@ function initMileCountMap() {
   );
 
 
-  /*
-  Initial outbound route.
-  */
-
-  showMileCountRoute([
-    "Atlanta, GA",
-    "Greenville, SC",
-    "Charlotte, NC"
-  ]);
+  // Route is drawn only after the user selects/analyzes a trip.
+  // Never preload demo geography into a real search session.
 
 }
 
@@ -732,6 +725,25 @@ function getMileCountCurrentDriveTime() {
 }
 
 
+
+async function showMileCountProviderRoute(load){
+  if(!mileCountMap||!load)return null;
+  clearMileCountMap();
+  const coords=Array.isArray(load.routeCoordinates)?load.routeCoordinates:[];
+  const leaflet=coords.filter(c=>Array.isArray(c)&&c.length>=2).map(c=>[Number(c[1]),Number(c[0])]).filter(c=>Number.isFinite(c[0])&&Number.isFinite(c[1]));
+  if(leaflet.length>1){
+    mileCountRoute=L.polyline(leaflet,{color:"#18a568",weight:6,opacity:.95,lineCap:"round",lineJoin:"round"}).addTo(mileCountMap);
+    const start=leaflet[0],end=leaflet[leaflet.length-1];
+    [start,end].forEach((pt,i)=>{const icon=L.divIcon({html:i===0?'<div style="font-size:28px">🚚</div>':'<div style="width:30px;height:30px;border-radius:50%;background:#102c21;color:white;border:3px solid white;display:flex;align-items:center;justify-content:center;font-weight:900">✓</div>',className:"",iconSize:[34,34],iconAnchor:[17,17]});mileCountMarkers.push(L.marker(pt,{icon}).addTo(mileCountMap))});
+    mileCountMap.fitBounds(mileCountRoute.getBounds(),{padding:[30,30]});
+    const miles=Number(load.loadedMiles||0),hours=miles>0?miles/55:0;
+    mileCountLastRoute={miles,driveTime:hours?Math.floor(hours)+" hr "+Math.round((hours%1)*60)+" min":"Provider route",source:(load.provider||"Provider")+" route geometry"};
+    updateMileCountRouteInfo(mileCountLastRoute);
+    return mileCountLastRoute;
+  }
+  return showMileCountRoute([load.pickup||load.originLabel,load.delivery||load.destinationLabel].filter(Boolean));
+}
+
 /*
 ==================================================
 HOMEBOUND ROUTE
@@ -745,10 +757,6 @@ async function showHomeboundRoute(origin, destination, home) {
   home = home || "Atlanta, GA";
 
   const stops = [origin];
-
-  if (origin === "Atlanta, GA" && destination !== "Greenville, SC") {
-    stops.push("Greenville, SC");
-  }
 
   if (stops[stops.length - 1] !== destination) {
     stops.push(destination);
