@@ -1,6 +1,4 @@
-window.mcTripStorageKey="mcO
- if(S.tripMode==="live"||S.selectedCandidate?.provider){if(!S.confirmedReturnLoad){await searchLiveBackhaul();return}S.homeAdded=true;S.returnPay=Number(S.confirmedReturnLoad.pay||0);if(el("confirmedReturnPay"))el("confirmedReturnPay").textContent="+"+money(S.returnPay);if(el("homeResultBadge"))el("homeResultBadge").textContent="LIVE BACKHAUL ADDED";}
-riginalTrips:guest";(async()=>{try{const s=await window.MileCountCloud?.session?.();if(s?.user?.id)window.mcTripStorageKey="mcOriginalTrips:"+s.user.id}catch(e){}})();
+window.mcTripStorageKey="mcOriginalTrips:guest";(async()=>{try{const s=await window.MileCountCloud?.session?.();if(s?.user?.id)window.mcTripStorageKey="mcOriginalTrips:"+s.user.id}catch(e){}})();
 /*
 MileCount App Engine V2
 Stable buttons + simulated AutoStack optimizer + routing + fuel
