@@ -521,6 +521,10 @@ FIND ME MONEY
 <div class="metric"><small>STATUS</small><b id="marketQuoteStatus">READY</b></div>
 </div>
 <div class="row" style="margin-top:10px">
+<label style="width:100%">FROM ZIP<input id="marketFromZip" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="30349" autocomplete="postal-code"></label>
+<label style="width:100%">TO ZIP<input id="marketToZip" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="28202" autocomplete="postal-code"></label>
+</div>
+<div class="row" style="margin-top:10px">
 <label style="width:100%">PALLETS<input id="marketPallets" type="number" min="1" max="12" value="1"></label>
 <label style="width:100%">LBS / PALLET<input id="marketWeightPerPallet" type="number" min="50" max="10000" value="500"></label>
 </div>
@@ -1107,7 +1111,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260927-loadmap1"></script>
-<script src="app.js?v=20260927-warpquote-fix1"></script>
+<script src="app.js?v=20260927-warpzip-fix1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
