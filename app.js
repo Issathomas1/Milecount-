@@ -9,6 +9,48 @@ const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:0,extraMiles:0,round
 const el=id=>document.getElementById(id);
 const val=(id,f=0)=>{const n=Number(el(id)?.value);return Number.isFinite(n)?n:f};
 const money=v=>{const n=Math.round(Number(v)||0);return (n<0?"-$":"$")+Math.abs(n).toLocaleString()};
+const SEARCH_KEY="milecount:driver-search:v1";
+function saveDriverSearch(){
+ try{
+  localStorage.setItem(SEARCH_KEY,JSON.stringify({
+   from:el("from")?.value||"",
+   to:el("to")?.value||"",
+   vehicleType:el("vehicleType")?.value||"box26",
+   maxDeadhead:el("maxDeadhead")?.value||"100",
+   minRPM:el("minRPM")?.value||"1.75",
+   pickupDate:el("pickupDate")?.value||""
+  }));
+ }catch(e){}
+}
+function restoreDriverSearch(){
+ try{
+  const x=JSON.parse(localStorage.getItem(SEARCH_KEY)||"null");
+  if(!x)return;
+  if(el("from")&&x.from)el("from").value=x.from;
+  if(el("to")&&x.to)el("to").value=x.to;
+  if(el("vehicleType")&&x.vehicleType)el("vehicleType").value=x.vehicleType;
+  if(el("maxDeadhead")&&x.maxDeadhead!=null)el("maxDeadhead").value=x.maxDeadhead;
+  if(el("minRPM")&&x.minRPM!=null)el("minRPM").value=x.minRPM;
+  if(el("pickupDate")&&x.pickupDate)el("pickupDate").value=x.pickupDate;
+ }catch(e){}
+}
+async function roadMilesBetween(a,b){
+ if(!a||!b||a===b)return 0;
+ try{
+  if(typeof getMileCountRoadRoute==="function"){
+   const r=await getMileCountRoadRoute([a,b]);
+   if(Number.isFinite(Number(r?.miles)))return Number(r.miles);
+  }
+ }catch(e){}
+ try{
+  if(typeof calculateMileCountDetour==="function"){
+   const r=await calculateMileCountDetour(a,b,[]);
+   if(Number.isFinite(Number(r?.routeMiles)))return Number(r.routeMiles);
+  }
+ }catch(e){}
+ return null;
+}
+
 const VEHICLES={
  cargo:{name:"Cargo Van",mpg:18,cargoLength:10,payload:3500,costPerMile:.35,defaultSpace:10,defaultWeight:3000},
  sprinter:{name:"Sprinter / High-Roof Van",mpg:16,cargoLength:14,payload:4000,costPerMile:.40,defaultSpace:14,defaultWeight:3500},
@@ -92,16 +134,40 @@ async function findMoney(){
 }
 
  for(const l of loads){
-  if(S.liveOnlyBrowse&&l.provider){
-   l.extraMiles=Math.max(0,Number(l.deadhead||l.fallback||0));
-   l.extraDriveTime="Provider deadhead";
+  if(l.provider){
+   const pickup=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));
+   const delivery=l.delivery||([l.destination?.city,l.destination?.state].filter(Boolean).join(", "));
+   let dh=null,loaded=Number(l.loadedMiles||0);
+
+   // Provider o2oDist is not assumed to be driver deadhead. Driver deadhead is FROM -> pickup.
+   if(S.liveOnlyBrowse){
+     dh=0; // nationwide board has no driver-origin economics until a user searches/selects a FROM location
+   }else{
+     dh=await roadMilesBetween(S.origin,pickup);
+     if(!Number.isFinite(dh))dh=Math.max(0,Number(l.deadhead||0));
+   }
+
+   if(!(loaded>0)){
+     const routedLoaded=await roadMilesBetween(pickup,delivery);
+     if(Number.isFinite(routedLoaded))loaded=routedLoaded;
+   }
+
+   l.deadheadMiles=Math.max(0,Number(dh||0));
+   l.loadedMiles=Math.max(0,Number(loaded||0));
+   l.extraMiles=l.deadheadMiles;
+   l.extraDriveTime=l.deadheadMiles>0?"Deadhead to pickup":"At/near pickup";
+   l.tripMiles=l.deadheadMiles+l.loadedMiles;
+   l.fuel=fuelFor(l.tripMiles);
+   l.afterFuel=l.pay-(l.fuel.fuelCost||0);
   }else{
    const d=await routeDetour(l.stop,l.fallback);
    l.extraMiles=Number.isFinite(d.extraMiles)?d.extraMiles:l.fallback;
    l.extraDriveTime=d.extraDriveTime||"Estimated";
+   l.deadheadMiles=l.extraMiles;
+   l.tripMiles=l.extraMiles;
+   l.fuel=fuelFor(l.extraMiles);
+   l.afterFuel=l.pay-(l.fuel.fuelCost||0);
   }
-  l.fuel=fuelFor(l.extraMiles);
-  l.afterFuel=l.pay-(l.fuel.fuelCost||0);
  }
  const maxDH=Math.max(0,val("maxDeadhead",100)),minRPM=Math.max(0,val("minRPM",0));
  if(!S.liveOnlyBrowse){
@@ -114,7 +180,7 @@ async function findMoney(){
  S.candidateLoads=loads;S.selectedCandidate=best;
  if(typeof window.renderMileCountLoadMap==="function")window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
- const miles=Math.max(0,Number(l.loadedMiles||l.loaded_miles||0)),dh=Math.max(0,Number(l.deadhead||l.deadhead_miles||l.extraMiles||0));
+ const miles=Math.max(0,Number(l.loadedMiles||l.loaded_miles||0)),dh=Math.max(0,Number(l.deadheadMiles??l.deadhead_miles??l.extraMiles??0));
  const allMiles=miles+dh,rpm=allMiles>0?Number(l.pay||0)/allMiles:(dh>0?Number(l.pay||0)/dh:0);
  const margin=Number(l.afterFuel||0),verdict=rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS";
  const origin=l.origin?.city?l.origin.city+", "+(l.origin.state||""):S.origin,destination=l.destination?.city?l.destination.city+", "+(l.destination.state||""):l.stop;
@@ -122,7 +188,7 @@ async function findMoney(){
  return `<button type="button" class="candidateLoad loadResult ${i===0?"selected":""}" data-load-index="${i}">
  <div class="loadTop"><div><div class="loadLane">${origin} → ${destination}</div><div class="loadMeta">${l.name||"Available load"} • ${activeVehicle.name}</div></div><div class="loadPay">${money(l.pay)}</div></div>
  <div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>${rpm?"$"+rpm.toFixed(2):"—"}</b></div><div class="loadMetric"><small>DEADHEAD</small><b>${dh.toFixed(0)} mi</b></div><div class="loadMetric"><small>WEIGHT</small><b>${Number(l.weight||0).toLocaleString()} lb</b></div><div class="loadMetric"><small>EST. AFTER FUEL*</small><b>${money(margin)}</b></div></div>
- <div class="loadFoot"><span class="sourceTag">${source}</span><span class="verdictTag">${i===0?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">No compatible freight matched these filters. Adjust deadhead/RPM or use simulation mode for the demo.</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ <div class="loadFoot"><span class="sourceTag">${source}</span><span class="verdictTag">${i===0&&verdict!=="PASS"?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">No compatible freight matched these filters. Adjust deadhead/RPM or use simulation mode for the demo.</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
 
  if(el("added"))el("added").textContent="+"+money(best.pay);
  if(el("current"))el("current").textContent=money(pay);
@@ -150,11 +216,15 @@ async function findMoney(){
 function selectCandidate(i){
  const l=(S.candidateLoads||[])[i];if(!l)return;S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  if(l.provider){
-  S.tripMode="live";S.primaryPay=0;S.addedPay=l.pay;S.totalPay=l.pay;S.origin=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));S.destination=l.delivery||([l.destination?.city,l.destination?.state].filter(Boolean).join(", "));S.selectedStop=S.destination;S.extraMiles=Math.max(0,Number(l.deadhead||0));
+  S.tripMode="live";S.primaryPay=0;S.addedPay=l.pay;S.totalPay=l.pay;
+  S.selectedLoadPickup=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));
+  S.selectedLoadDelivery=l.delivery||([l.destination?.city,l.destination?.state].filter(Boolean).join(", "));
+  S.selectedStop=S.selectedLoadDelivery;
+  S.extraMiles=Math.max(0,Number(l.deadheadMiles??l.extraMiles??0));
  }else{
   S.tripMode="simulation";S.primaryPay=Math.max(0,val("pay",1400));S.addedPay=l.pay;S.totalPay=S.primaryPay+l.pay;S.extraMiles=l.extraMiles;S.selectedStop=l.stop;
  }
- const economicMiles=l.provider?Math.max(0,Number(l.loadedMiles||0))+Math.max(0,Number(l.deadhead||0)):Math.max(0,Number(l.extraMiles||0));
+ const economicMiles=l.provider?Math.max(0,Number(l.loadedMiles||0))+Math.max(0,Number(l.deadheadMiles??l.extraMiles??0)):Math.max(0,Number(l.extraMiles||0));
  const fuel=l.provider?fuelFor(economicMiles):l.fuel;const afterFuel=l.pay-(fuel?.fuelCost||0);
  if(el("added"))el("added").textContent="+"+money(l.pay);if(el("current"))el("current").textContent=money(S.primaryPay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(l.pay);
  if(el("remainingSpace"))el("remainingSpace").textContent=Math.max(0,val("space",0)-l.space)+" ft remaining";if(el("remainingWeight"))el("remainingWeight").textContent=Math.max(0,val("weight",0)-l.weight).toLocaleString()+" lb remaining";
@@ -167,7 +237,7 @@ async function updateOutboundMap(){
  const l=S.selectedCandidate;
  if(l?.provider&&Array.isArray(l.routeCoordinates)&&l.routeCoordinates.length>1&&typeof showMileCountProviderRoute==="function")return await showMileCountProviderRoute(l);
  if(typeof showMileCountRoute!=="function")return null;
- if(l?.provider)return await showMileCountRoute([l.pickup||S.origin,l.delivery||S.destination]);
+ if(l?.provider)return await showMileCountRoute([S.origin,l.pickup||S.origin,l.delivery||S.destination].filter((x,i,a)=>x&&a.indexOf(x)===i));
  const stops=[S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);return await showMileCountRoute(stops);
 }
 async function addToTrip(){
@@ -376,7 +446,7 @@ async function checkWarpMarketQuote(){
  }
 }
 
-async function runNormalLoadSearch(){S.liveOnlyBrowse=false;await findMoney()}
+async function runNormalLoadSearch(){S.liveOnlyBrowse=false;saveDriverSearch();await findMoney()}
 async function browseLiveLoadBoard(stayHome=false){
  S.liveOnlyBrowse=true;
  S.stayHomeAfterSearch=!!stayHome;
@@ -396,6 +466,9 @@ bind("refreshLiveMap",async()=>{await Promise.all([browseLiveLoadBoard(true),ref
 bind("viewLoadList",()=>showScreen(2));
 bind("addTrip",addToTrip);
 bind("checkMarketQuote",checkWarpMarketQuote);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
+restoreDriverSearch();
+applyVehicle(el("vehicleType")?.value||"box26",false);
+["from","to","vehicleType","maxDeadhead","minRPM","pickupDate"].forEach(id=>el(id)?.addEventListener("change",saveDriverSearch));
 setTimeout(()=>browseLiveLoadBoard(true),250);
 
 async function refreshLiveLoadCount(){
