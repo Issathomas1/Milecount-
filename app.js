@@ -617,7 +617,7 @@ let route=null;
 }
 
 async function viewUpdatedTrip(){
- S.home=(el("from")?.value||S.origin||S.home||"").trim();
+ S.home=(S.home||el("from")?.value||S.origin||"").trim();
  const total=S.totalPay+(S.homeAdded?S.returnPay:0);if(el("tripPay"))el("tripPay").textContent=money(total);
  if(el("tripHomeStart"))el("tripHomeStart").textContent=S.home||"—";
  if(el("tripFinalDestination"))el("tripFinalDestination").textContent=S.homeAdded?(S.home||"—"):(S.destination||"—");
@@ -629,7 +629,7 @@ async function viewUpdatedTrip(){
  showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
 }
 async function saveCurrentTrip(showStatus=false){
- S.home=(el("from")?.value||S.origin||S.home||"").trim();
+ S.home=(S.home||el("from")?.value||S.origin||"").trim();
  if(S.demoTrip||S.demoReturn){if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent="TEST / SANDBOX trips are not saved as live trip history.";return false}
  try{
   const s=await MileCountCloud.session();if(!s)return false;
@@ -806,6 +806,39 @@ async function browseLiveLoadBoard(stayHome=false){
    setBusy(false);
  }
 }
+bind("applyTripHome",async function(){
+ const home=(el("tripHomeChoice")?.value||"").trim();
+ if(!home){alert("Enter the city and state where you want the trip to end.");return}
+ S.home=home;
+ if(el("tripFinalDestination"))el("tripFinalDestination").textContent=home;
+ setBusy(true,"Recalculating route to your end location…");
+ try{
+  const p=S.stackPlan;
+  const currentEnd=(p?.routeStops?.at(-1)||S.destination||S.origin);
+  let route=null;
+  if(typeof getMileCountRoadRoute==="function"&&isRoutableLocation(currentEnd)&&isRoutableLocation(home)){
+    route=await withTimeout(getMileCountRoadRoute([currentEnd,home]),5000,null);
+  }
+  const extra=Number(route?.miles||0);
+  const baseMiles=Number(p?.miles||S.roundTripMiles||0);
+  S.roundTripMiles=baseMiles+extra;
+  if(p){
+    p.endLocation=home;
+    p.miles=S.roundTripMiles;
+    if(p.routeStops.at(-1)!==home)p.routeStops.push(home);
+    p.fuel=fuelFor(p.miles);
+    const total=Number(p.livePay||0)+Number(p.testPay||0)+Number(S.returnPay||0);
+    p.rpm=p.miles?total/p.miles:0;
+  }
+  if(el("roadMiles"))el("roadMiles").textContent=Math.round(S.roundTripMiles).toLocaleString()+" mi";
+  if(el("tripStops"))el("tripStops").insertAdjacentHTML("beforeend",'<div class="stop">🏠 <b>'+escHtml(home)+'</b><br>CHOSEN END LOCATION ✓</div>');
+  if(typeof showMileCountRoute==="function"&&p?.routeStops)await showMileCountRoute(p.routeStops);
+  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="End location updated. Trip miles recalculated.";
+ }catch(e){
+  console.warn("End location route update failed",e);
+  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="End location saved. Road-mile verification is temporarily unavailable.";
+ }finally{setBusy(false)}
+});
 bind("saveTripButton",()=>saveCurrentTrip(true));
 bind("find",runNormalLoadSearch);
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
