@@ -1148,7 +1148,12 @@ async function smartAutoStack(){
     '<div class="stackRoute">'+state.events.map(e=>'<div><b>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
     (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY and live RPM.</p>':'');
-   el("stackPlanResult")?.scrollIntoView({behavior:"smooth",block:"center"});
+   // AutoStack is a two-step flow: optimize first, then DONE opens the actual route/trip screen.
+   if(el("stackPlanResult")){
+     el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="finishAutoStack" type="button" style="margin-top:12px">DONE • SHOW ROUTE</button>');
+     el("finishAutoStack")?.addEventListener("click",finishAutoStack);
+     el("stackPlanResult").scrollIntoView({behavior:"smooth",block:"center"});
+   }
  }catch(e){
    console.error("Smart AutoStack failed",e);
    const box=el("stackPlanResult");
@@ -1157,6 +1162,39 @@ async function smartAutoStack(){
      box.scrollIntoView({behavior:"smooth",block:"center"});
    }
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
+}
+async function finishAutoStack(){
+ const p=S.stackPlan;
+ if(!p||!Array.isArray(p.routeStops)||p.routeStops.length<2){
+   alert("Build the Smart AutoStack first.");
+   return;
+ }
+ const loads=Array.isArray(p.loads)?p.loads:[];
+ const first=loads[0]||S.basePlanLoad||{};
+ const last=loads[loads.length-1]||S.basePlanLoad||{};
+ S.origin=p.routeStops[0]||first.pickup||S.origin;
+ S.destination=p.routeStops[p.routeStops.length-1]||last.delivery||last.stop||S.destination;
+ S.primaryPay=Number(S.basePlanLoad?.pay||0);
+ S.addedPay=Math.max(0,Number(p.livePay||0)+Number(p.testPay||0)-S.primaryPay);
+ S.totalPay=Number(p.livePay||0)+Number(p.testPay||0);
+ S.roundTripMiles=Number(p.miles||0);
+ S.selectedStop=S.destination;
+ if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);
+ if(el("tripAdded"))el("tripAdded").textContent="+"+money(S.addedPay).replace("-$","-$");
+ if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
+ if(el("routeSource"))el("routeSource").textContent=p.routeVerified?"Smart AutoStack • verified road route":"Smart AutoStack • estimated road route";
+ if(el("tripStops")){
+   const events=Array.isArray(p.events)?p.events:[];
+   el("tripStops").innerHTML=events.length?events.map((e,i)=>'<div class="stop">'+(e.type==="pickup"?"📦":"🏁")+' <b>'+escHtml(e.location||"Stop")+'</b><br>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+' • '+money(e.load?.pay||0)+'</div>').join(""):p.routeStops.map((s,i)=>'<div class="stop">'+(i===0?"🚚":i===p.routeStops.length-1?"🏁":"📍")+' <b>'+escHtml(s)+'</b></div>').join("");
+ }
+ showScreen(3);
+ setTimeout(async()=>{
+   try{
+     if(typeof initMileCountMap==="function")initMileCountMap();
+     if(typeof showMileCountRoute==="function")await showMileCountRoute(p.routeStops);
+     else if(typeof updateOutboundMap==="function")await updateOutboundMap();
+   }catch(e){console.warn("AutoStack route display",e)}
+ },250);
 }
 function escHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\\"":"&quot;","'":"&#39;"}[c]))}
 
