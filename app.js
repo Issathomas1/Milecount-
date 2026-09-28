@@ -177,6 +177,7 @@ async function findMoney(){
  const best=loads[0]||{pay:0,space:0,weight:0,stop:S.destination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
  S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
 
+ if(S.liveOnlyBrowse)S.liveBoardLoads=[...loads];
  S.candidateLoads=loads;S.selectedCandidate=best;
  if(typeof window.renderMileCountLoadMap==="function")window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
@@ -458,11 +459,11 @@ async function browseLiveLoadBoard(stayHome=false){
  if(el("pickupDate"))el("pickupDate").value="";
  if(el("space"))el("space").value=activeVehicle.cargoLength;
  if(el("weight"))el("weight").value=activeVehicle.payload;
- try{await findMoney()}finally{S.stayHomeAfterSearch=false}
+ try{await findMoney();await refreshUnifiedFreightBoard(false)}finally{S.stayHomeAfterSearch=false}
 }
 bind("find",runNormalLoadSearch);
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
-bind("refreshLiveMap",async()=>{await Promise.all([browseLiveLoadBoard(true),refreshLiveLoadCount()])});
+bind("refreshLiveMap",async()=>{await browseLiveLoadBoard(true);await Promise.all([refreshLiveLoadCount(),refreshUnifiedFreightBoard(true)])});
 bind("viewLoadList",()=>showScreen(2));
 bind("addTrip",addToTrip);
 bind("checkMarketQuote",checkWarpMarketQuote);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
@@ -564,6 +565,39 @@ async function fetchLoadBootSandbox(force=false){
    return [];
  }
 }
+
+function unifiedSourceLabel(l){
+ return l.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • "+(l.provider||"Provider");
+}
+function renderUnifiedLoadList(loads){
+ const profile=updateCostUI();
+ if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
+   const loaded=Math.max(0,Number(l.loadedMiles||0));
+   const dh=Math.max(0,Number(l.deadheadMiles??l.extraMiles??0));
+   const all=loaded+dh;
+   const rpm=Number(l.rpm||0)||(all>0?Number(l.pay||0)/all:0);
+   const verdict=l.isSandbox?"TEST DATA":(rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS");
+   return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
+    '<div class="loadTop"><div><div class="loadLane">'+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</div><div class="loadMeta">'+unifiedSourceLabel(l)+' • '+(l.equipment||activeVehicle.name)+(l.commodity?" • "+l.commodity:"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
+    '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+Number(l.weight||0).toLocaleString()+' lb</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(l.isSandbox?"via LoadBoot":(l.provider||"LIVE"))+'</b></div></div>'+
+    '<div class="loadFoot"><span class="sourceTag">'+(l.isSandbox?"LOADBOOT SANDBOX":"LIVE • "+(l.provider||"PROVIDER"))+'</span><span class="verdictTag">'+verdict+'</span></div></button>';
+ }).join(""):'<div class="details">No freight is currently available from connected sources.</div>';
+ document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+}
+async function refreshUnifiedFreightBoard(forceSandbox=false){
+ const sandbox=await fetchLoadBootSandbox(forceSandbox);
+ const live=Array.isArray(S.liveBoardLoads)?S.liveBoardLoads:[];
+ const all=[...live,...sandbox];
+ S.candidateLoads=all;
+ const profile=updateCostUI();
+ if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(all,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
+ renderUnifiedLoadList(all);
+ const total=el("unifiedFreightCount");
+ if(total)total.textContent=all.length.toLocaleString();
+ const split=el("unifiedFreightSplit");
+ if(split)split.textContent=live.length+" LIVE • "+sandbox.length+" SANDBOX TEST";
+}
+
 async function showLoadBootSandbox(){
  const loads=await fetchLoadBootSandbox(true);
  if(!loads.length){alert("LoadBoot sandbox returned no test loads.");return}
