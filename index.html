@@ -495,7 +495,7 @@ class="screen active"
 <div class="row" style="margin-top:8px">
 <button id="viewLoadList" type="button" style="background:#15271f;border:1px solid #2b4438">SEE ALL LOADS</button>
 </div>
-<div class="reviewNote"><b>Provider review note</b><span>LIVE results are current provider/public freight. SANDBOX TEST results are LoadBoot test data for integration review and are never presented as bookable freight or added to live revenue.</span></div>
+<div class="reviewNote"><b>Provider review note</b><span>LIVE results are current provider/public freight. SANDBOX TEST results are LoadBoot test data for integration review. They can run through the full Milecount demo workflow, but are never presented as actually booked or provider-confirmed freight.</span></div>
 <div class="sandboxStrip">
  <div><span>LOADBOOT SANDBOX</span><strong id="loadBootSandboxStatus">Checking sandbox…</strong><small>Test freight appears on the same board • clearly labeled and excluded only from the LIVE NOW production count</small></div>
  <button id="viewLoadBootSandbox" type="button">LOADBOOT TEST LOADS</button>
@@ -1175,7 +1175,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260928-silentaudit1"></script>
+<script src="app.js?v=20260928-demo-workflow2"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
