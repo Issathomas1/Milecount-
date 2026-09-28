@@ -5,7 +5,7 @@ Stable buttons + simulated AutoStack optimizer + routing + fuel
 */
 (function(){
 "use strict";
-const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:0,extraMiles:0,roundTripMiles:0,homeAdded:false,origin:"Atlanta, GA",destination:"Charlotte, NC",home:"Atlanta, GA",selectedStop:"Greenville, SC",liveOnlyBrowse:false};
+const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:0,extraMiles:0,roundTripMiles:0,homeAdded:false,origin:"Atlanta, GA",destination:"Charlotte, NC",home:"Atlanta, GA",selectedStop:"Greenville, SC",liveOnlyBrowse:false,stayHomeAfterSearch:false};
 const el=id=>document.getElementById(id);
 const val=(id,f=0)=>{const n=Number(el(id)?.value);return Number.isFinite(n)?n:f};
 const money=v=>{const n=Math.round(Number(v)||0);return (n<0?"-$":"$")+Math.abs(n).toLocaleString()};
@@ -92,9 +92,14 @@ async function findMoney(){
 }
 
  for(const l of loads){
-  const d=await routeDetour(l.stop,l.fallback);
-  l.extraMiles=Number.isFinite(d.extraMiles)?d.extraMiles:l.fallback;
-  l.extraDriveTime=d.extraDriveTime||"Estimated";
+  if(S.liveOnlyBrowse&&l.provider){
+   l.extraMiles=Math.max(0,Number(l.deadhead||l.fallback||0));
+   l.extraDriveTime="Provider deadhead";
+  }else{
+   const d=await routeDetour(l.stop,l.fallback);
+   l.extraMiles=Number.isFinite(d.extraMiles)?d.extraMiles:l.fallback;
+   l.extraDriveTime=d.extraDriveTime||"Estimated";
+  }
   l.fuel=fuelFor(l.extraMiles);
   l.afterFuel=l.pay-(l.fuel.fuelCost||0);
  }
@@ -137,7 +142,7 @@ async function findMoney(){
    el("loadVerdict").style.color=!best.pay?"#93a79d":(addedRPM>=profile.target?"#31bf72":addedRPM>=profile.breakEven?"#f1c75b":"#ff7777");
  }
  if(el("autoStackReason"))el("autoStackReason").textContent=best.pay?"Adds "+best.extraMiles.toFixed(1)+" road miles and about "+money(best.fuel.fuelCost)+" in diesel. Estimated +"+money(best.afterFuel)+" after added fuel. Your break-even is $"+profile.breakEven.toFixed(2)+"/mi.":"No compatible freight fits the remaining truck capacity.";
- showScreen(2);
+ if(!S.stayHomeAfterSearch)showScreen(2);
 }
 
 function selectCandidate(i){
@@ -370,15 +375,19 @@ async function checkWarpMarketQuote(){
 }
 
 async function runNormalLoadSearch(){S.liveOnlyBrowse=false;await findMoney()}
-async function browseLiveLoadBoard(){
+async function browseLiveLoadBoard(stayHome=false){
  S.liveOnlyBrowse=true;
+ S.stayHomeAfterSearch=!!stayHome;
  if(el("to"))el("to").value="Anywhere, USA";
  if(el("pay"))el("pay").value=0;
- await findMoney();
+ try{await findMoney()}finally{S.stayHomeAfterSearch=false}
 }
 bind("find",runNormalLoadSearch);
-bind("browseLiveLoads",browseLiveLoadBoard);
+bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
+bind("refreshLiveMap",()=>browseLiveLoadBoard(true));
+bind("viewLoadList",()=>showScreen(2));
 bind("addTrip",addToTrip);
 bind("checkMarketQuote",checkWarpMarketQuote);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
+setTimeout(()=>browseLiveLoadBoard(true),250);
 console.log("MileCount App Engine V2 Ready");
 })();
