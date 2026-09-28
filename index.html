@@ -396,7 +396,7 @@ color:var(--muted);
 
 
 <body>
-<div id="stackTray" class="stackTray"><div><small>AUTOSTACK SELECTED</small><b><span id="stackCount">0</span> loads • <span id="stackSelectedPay">$0</span></b><small id="stackBaseLabel"></small></div><button id="clearStack" type="button">CLEAR</button><button id="smartAutoStack" type="button">SMART AUTOSTACK</button></div>
+<div id="stackTray" class="stackTray"><div><small>AUTOSTACK SELECTED</small><b><span id="stackCount">0</span> loads • <span id="stackSelectedPay">$0</span></b><small id="stackBaseLabel"></small></div><button id="clearStack" type="button">CLEAR</button><button id="smartAutoStack" type="button">SMART AUTOSTACK</button><button id="doneStack" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">DONE • SHOW ROUTE</button></div>
 <div id="globalBusy" class="globalBusy" role="status" aria-live="polite"><div class="busySpinner"></div><span id="globalBusyText">One moment — finding loads…</span></div>
 
 <div class="app">
@@ -1175,7 +1175,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260928-autostackdone1"></script>
+<script src="app.js?v=20260928-donevisible2"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
