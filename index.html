@@ -396,6 +396,7 @@ color:var(--muted);
 
 
 <body>
+<div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 style="margin:14px 0 6px">Sign in to continue</h1><p class="details">Your trips, truck setup and Smart AutoStack plans stay tied to your MileCount account.</p><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><button id="gateSignIn" type="button">SIGN IN</button><button id="gateCreate" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">CREATE ACCOUNT</button><div id="gateMessage" class="details" style="margin-top:10px"></div></div></div>
 <div id="stackTray" class="stackTray"><div><small>AUTOSTACK SELECTED</small><b><span id="stackCount">0</span> loads • <span id="stackSelectedPay">$0</span></b><small id="stackBaseLabel"></small></div><button id="clearStack" type="button">CLEAR</button><button id="doneStack" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">DONE • USE MY PICKS</button><button id="smartAutoStack" type="button">SMART AUTOSTACK</button></div>
 <div id="globalBusy" class="globalBusy" role="status" aria-live="polite"><div class="busySpinner"></div><span id="globalBusyText">One moment — finding loads…</span></div>
 
@@ -1183,7 +1184,31 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260928-tripdetails1"></script>
+<script src="app.js?v=20260928-loginfirst1"></script>
+<script>
+(async function mileCountRequireLogin(){
+ const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
+ try{
+  const session=await window.MileCountCloud?.session?.();
+  if(session?.user){gate.style.display="none";return}
+ }catch(e){}
+ gate.style.display="flex";
+ document.body.style.overflow="hidden";
+ document.getElementById("gateSignIn")?.addEventListener("click",async()=>{
+  try{
+   msg.textContent="Signing in…";
+   await window.MileCountCloud.signIn(document.getElementById("gateEmail").value.trim(),document.getElementById("gatePassword").value);
+   msg.textContent="SIGNED IN ✓";
+   location.reload();
+  }catch(e){msg.textContent=e.message}
+ });
+ document.getElementById("gateCreate")?.addEventListener("click",()=>{
+  gate.style.display="none";
+  document.body.style.overflow="";
+  document.getElementById("accountButton")?.click();
+ });
+})();
+</script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="trips"){window.location.href="trips.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
