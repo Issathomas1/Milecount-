@@ -449,6 +449,8 @@ async function addToTrip(){
 
 async function protectReturn(){
  if(el("protect")?.disabled)return;
+ // FROM is always the driver's lane start/home for this trip.
+ S.home=(el("from")?.value||S.origin||"").trim();
  setBusy(true,"One moment — dispatching your way home…");
  setButtonBusy("protect",true,"SEARCHING 0–3 DAYS…","FIND MY WAY HOME");
  const selected=S.selectedCandidate;
@@ -615,20 +617,28 @@ let route=null;
 }
 
 async function viewUpdatedTrip(){
+ S.home=(el("from")?.value||S.origin||S.home||"").trim();
  const total=S.totalPay+(S.homeAdded?S.returnPay:0);if(el("tripPay"))el("tripPay").textContent=money(total);
+ if(el("tripHomeStart"))el("tripHomeStart").textContent=S.home||"—";
+ if(el("tripFinalDestination"))el("tripFinalDestination").textContent=S.homeAdded?(S.home||"—"):(S.destination||"—");
+ if(el("tripDetailPay"))el("tripDetailPay").textContent=money(total);
+ if(el("tripDetailReturn"))el("tripDetailReturn").textContent=S.homeAdded&&S.returnPay>0?money(S.returnPay):"$0";
+ if(el("tripSaveStatus"))el("tripSaveStatus").textContent="";
  if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>START / PRIMARY CARGO</div>'+(S.selectedStop!==S.destination?'<div class="stop">📦 <b>'+S.selectedStop+'</b><br>MileCount partial delivery</div>':'')+'<div class="stop">🏁 <b>'+S.destination+'</b><br>Original delivery</div>'+(S.homeAdded&&S.returnPay>0?'<div class="stop">💰 <b>'+S.destination+'</b><br>Confirmed return load • +'+money(S.returnPay)+'</div><div class="stop">🏠 <b>'+S.home+'</b><br>HOME ✓</div>':'');
  await saveCurrentTrip();
  showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
 }
-async function saveCurrentTrip(){
- if(S.demoTrip||S.demoReturn)return false;
+async function saveCurrentTrip(showStatus=false){
+ S.home=(el("from")?.value||S.origin||S.home||"").trim();
+ if(S.demoTrip||S.demoReturn){if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent="TEST / SANDBOX trips are not saved as live trip history.";return false}
  try{
   const s=await MileCountCloud.session();if(!s)return false;
   const miles=S.roundTripMiles||0,total=S.totalPay+(S.homeAdded?S.returnPay:0),fuel=fuelFor(miles),p=costProfile();
   const estimatedCost=miles*p.breakEven;
   await MileCountCloud.saveTrip({origin:S.origin,destination:S.destination,home_city:S.home,primary_pay:S.primaryPay,added_pay:S.addedPay,return_pay:S.homeAdded?S.returnPay:0,road_miles:miles,fuel_cost:fuel.fuelCost,all_miles_rpm:miles?total/miles:0,break_even_rpm:p.breakEven,estimated_trip_cost:estimatedCost,estimated_margin:total-estimatedCost,status:"saved"});
+  if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").innerHTML='SAVED ✓ <a href="trips.html" style="color:#8adbb5">VIEW MY TRIPS</a>';
   return true;
- }catch(e){console.warn("Trip cloud save failed",e);return false}
+ }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
 function startNewTrip(){S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
@@ -796,6 +806,7 @@ async function browseLiveLoadBoard(stayHome=false){
    setBusy(false);
  }
 }
+bind("saveTripButton",()=>saveCurrentTrip(true));
 bind("find",runNormalLoadSearch);
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
 bind("refreshLiveMap",async()=>{await browseLiveLoadBoard(true);await Promise.all([refreshLiveLoadCount(),refreshUnifiedFreightBoard(true)])});
