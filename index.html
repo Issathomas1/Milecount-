@@ -447,8 +447,9 @@ class="screen active"
 <div>
   <span class="badge">LIVE LOAD BOARD</span>
   <h2>Live freight map</h2>
-  <div class="liveNowStrip"><span>LIVE NOW</span><strong id="liveLoadCount">Checking…</strong><small id="liveLoadCountSource">TrukTek connected</small></div>
-  <p class="details">Authorized provider loads appear here automatically. The homepage starts broad; use filters when you want to narrow the board.</p>
+  <div class="liveNowStrip"><span>FREIGHT ON BOARD</span><strong id="unifiedFreightCount">Checking…</strong><small id="unifiedFreightSplit">Live + clearly labeled sandbox/test</small></div>
+<div class="liveNowStrip"><span>LIVE NOW</span><strong id="liveLoadCount">Checking…</strong><small id="liveLoadCountSource">Production/public live freight only</small></div>
+  <p class="details">All connected freight appears together on this board. Production/live freight and sandbox/test freight are clearly labeled so you can tell the difference at a glance.</p>
 </div>
 <button id="refreshLiveMap" type="button">REFRESH</button>
 </div>
@@ -471,8 +472,8 @@ class="screen active"
 <button id="viewLoadList" type="button" style="background:#15271f;border:1px solid #2b4438">VIEW LOAD LIST</button>
 </div>
 <div class="sandboxStrip">
- <div><span>LOADBOOT SANDBOX</span><strong id="loadBootSandboxStatus">Checking sandbox…</strong><small>Test freight only • excluded from LIVE NOW</small></div>
- <button id="viewLoadBootSandbox" type="button">VIEW TEST LOADS</button>
+ <div><span>LOADBOOT SANDBOX</span><strong id="loadBootSandboxStatus">Checking sandbox…</strong><small>Test freight appears on the same board • clearly labeled and excluded only from the LIVE NOW production count</small></div>
+ <button id="viewLoadBootSandbox" type="button">SHOW TEST LOADS ONLY</button>
 </div>
 </div>
 
@@ -1142,7 +1143,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-mapfix2"></script>
-<script src="app.js?v=20260928-deadhead-state-fix1"></script>
+<script src="app.js?v=20260928-unified-board1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
