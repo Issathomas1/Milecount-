@@ -14,6 +14,7 @@ let sourceLoads=[];
 let sourceProfile={};
 let selectedIndex=-1;
 let mapMode="pins";
+let areaSearchActive=false;
 
 const fallbackLocations={
  "Atlanta, GA":[33.7490,-84.3880],
@@ -250,6 +251,48 @@ function fitItems(items){
  if(pts.length===1)loadMap.setView(pts[0],8);
  else loadMap.fitBounds(pts,{padding:[32,32],maxZoom:8});
 }
+
+function visibleArea(){
+ const map=ensureMap(); if(!map)return null;
+ const b=map.getBounds(),c=map.getCenter();
+ return {
+   north:Number(b.getNorth().toFixed(5)),
+   south:Number(b.getSouth().toFixed(5)),
+   east:Number(b.getEast().toFixed(5)),
+   west:Number(b.getWest().toFixed(5)),
+   center:{lat:Number(c.lat.toFixed(5)),lon:Number(c.lng.toFixed(5))},
+   zoom:map.getZoom()
+ };
+}
+function pointInside(pt,area){
+ if(!pt||!area)return true;
+ const lat=Number(pt[0]),lon=Number(pt[1]);
+ const latOk=lat>=Number(area.south)&&lat<=Number(area.north);
+ const wraps=Number(area.west)>Number(area.east);
+ const lonOk=wraps?(lon>=Number(area.west)||lon<=Number(area.east)):(lon>=Number(area.west)&&lon<=Number(area.east));
+ return latOk&&lonOk;
+}
+window.getMileCountVisibleArea=visibleArea;
+window.MileCountLoadInArea=function(load,area){return pointInside(loadPoint(load),area)};
+window.clearMileCountAreaSearch=function(){
+ areaSearchActive=false;
+ window.MileCountActiveMapArea=null;
+ const s=document.getElementById("loadAreaStatus");
+ if(s)s.textContent="Map area search off";
+ const b=document.getElementById("searchMapArea");
+ if(b)b.classList.remove("active");
+};
+window.searchMileCountVisibleArea=function(){
+ const area=visibleArea(); if(!area)return;
+ areaSearchActive=true;
+ window.MileCountActiveMapArea=area;
+ const s=document.getElementById("loadAreaStatus");
+ if(s)s.textContent="Searching visible area • provider coverage varies";
+ const b=document.getElementById("searchMapArea");
+ if(b)b.classList.add("active");
+ document.dispatchEvent(new CustomEvent("milecount:search-area",{detail:area}));
+};
+
 window.renderMileCountLoadMap=function(loads,profile){
  sourceLoads=Array.isArray(loads)?loads:[];
  sourceProfile=profile||{};
@@ -286,8 +329,9 @@ window.setMileCountLoadMapMode=function(mode){
  redraw();
 };
 document.addEventListener("click",e=>{
- const b=e.target.closest("[data-load-map-mode]");
- if(!b)return;
- window.setMileCountLoadMapMode(b.dataset.loadMapMode);
+ const mode=e.target.closest("[data-load-map-mode]");
+ if(mode){window.setMileCountLoadMapMode(mode.dataset.loadMapMode);return}
+ if(e.target.closest("#searchMapArea")){window.searchMileCountVisibleArea();return}
+ if(e.target.closest("#clearMapArea")){window.clearMileCountAreaSearch();return}
 });
 })();
