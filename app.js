@@ -295,6 +295,70 @@ async function loadPlannerAutoStack(){try{const q=new URLSearchParams(location.s
 document.querySelectorAll(".quickLane").forEach(b=>b.addEventListener("click",()=>{if(el("to"))el("to").value=b.dataset.dest||"Anywhere, USA"}));
  if(el("pickupDate")&&!el("pickupDate").value){const d=new Date();el("pickupDate").value=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")}
 document.addEventListener("milecount:search-area",()=>findMoney());
-bind("find",findMoney);bind("addTrip",addToTrip);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
+
+async function checkWarpMarketQuote(){
+ const priceEl=el("marketQuotePrice"),statusEl=el("marketQuoteStatus"),detailsEl=el("marketQuoteDetails"),btn=el("checkMarketQuote");
+ const origin=String(el("from")?.value||"").trim(),destination=String(el("to")?.value||"").trim();
+ const pallets=Math.max(1,Math.min(12,Math.round(val("marketPallets",1))));
+ const weight=Math.max(50,Math.round(val("marketWeightPerPallet",500)));
+ const pickup=el("pickupDate")?.value||"";
+ const zip=/^\d{5}$/;
+ if(!zip.test(origin)||!zip.test(destination)){
+   if(statusEl)statusEl.textContent="NEED ZIPS";
+   if(priceEl)priceEl.textContent="Enter ZIPs";
+   if(detailsEl)detailsEl.textContent="Enter 5-digit ZIP codes in FROM and TO, then try again.";
+   return;
+ }
+ if(!pickup){
+   if(statusEl)statusEl.textContent="NEED DATE";
+   if(detailsEl)detailsEl.textContent="Choose a pickup date first.";
+   return;
+ }
+ if(pallets*weight>10000){
+   if(statusEl)statusEl.textContent="TOO HEAVY";
+   if(detailsEl)detailsEl.textContent="WARP's 26-ft box-truck quote supports up to 10,000 lb total. Reduce pallets or weight per pallet.";
+   return;
+ }
+ try{
+   if(btn){btn.disabled=true;btn.textContent="CHECKING LIVE WARP RATE..."}
+   if(statusEl)statusEl.textContent="CHECKING";
+   if(priceEl)priceEl.textContent="...";
+   if(detailsEl)detailsEl.textContent="Requesting a live 26-ft box-truck quote from WARP.";
+   const r=await fetch("https://www.wearewarp.com/api/v1/box-truck/quote",{
+     method:"POST",
+     headers:{"Content-Type":"application/json"},
+     body:JSON.stringify({
+       origin_zip:origin,
+       destination_zip:destination,
+       pickup_date:pickup,
+       pallets,
+       weight_lbs_per_pallet:weight
+     })
+   });
+   const text=await r.text();
+   let j={};try{j=text?JSON.parse(text):{}}catch(e){j={message:text}}
+   if(!r.ok)throw new Error(j.message||j.error||("WARP returned "+r.status));
+   const quote=Number(j.price_usd);
+   if(!Number.isFinite(quote))throw new Error("WARP returned a quote without a price.");
+   if(priceEl)priceEl.textContent=money(quote);
+   if(statusEl)statusEl.textContent=(j.quote_tier||"LIVE").toUpperCase();
+   const parts=[
+     "Live WARP 26-ft box-truck shipper quote",
+     j.transit_days!=null?j.transit_days+" day transit":null,
+     j.delivery_date?"delivery "+j.delivery_date:null,
+     j.quote_id?"Quote ID "+j.quote_id:null
+   ].filter(Boolean);
+   if(detailsEl)detailsEl.textContent=parts.join(" • ")+". Pricing intelligence only — not a load offered to your truck.";
+ }catch(e){
+   if(statusEl)statusEl.textContent="ERROR";
+   if(priceEl)priceEl.textContent="Unavailable";
+   if(detailsEl)detailsEl.textContent="WARP quote failed: "+(e?.message||"Unknown error")+".";
+ }finally{
+   if(btn){btn.disabled=false;btn.textContent="CHECK LIVE WARP QUOTE"}
+ }
+}
+
+bind("find",findMoney);bind("addTrip",addToTrip);
+bind("checkMarketQuote",checkWarpMarketQuote);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 console.log("MileCount App Engine V2 Ready");
 })();
