@@ -251,7 +251,10 @@ async function findMoney(){
  return `<button type="button" class="candidateLoad loadResult ${i===0?"selected":""}" data-load-index="${i}">
  <div class="loadTop"><div><div class="loadLane">${origin} → ${destination}</div><div class="loadMeta">${l.name||"Available load"} • ${activeVehicle.name}</div></div><div class="loadPay">${money(l.pay)}</div></div>
  <div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>${rpm?"$"+rpm.toFixed(2):"—"}</b></div><div class="loadMetric"><small>DEADHEAD</small><b>${dh.toFixed(0)} mi</b></div><div class="loadMetric"><small>WEIGHT</small><b>${Number(l.weight||0).toLocaleString()} lb</b></div><div class="loadMetric"><small>EST. AFTER FUEL*</small><b>${money(margin)}</b></div></div>
- <div class="loadFoot"><span class="sourceTag">${source}</span><span class="verdictTag">${i===0&&verdict!=="PASS"?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">No compatible freight matched these filters. Adjust deadhead/RPM or use simulation mode for the demo.</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ <div class="loadFoot"><span class="sourceTag">${source}</span><span class="stackPick" data-stack-index="${i}">＋ STACK</span><span class="verdictTag">${i===0&&verdict!=="PASS"?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">No compatible freight matched these filters. Adjust deadhead/RPM or use simulation mode for the demo.</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
+ document.querySelectorAll(".candidateLoad").forEach((b,i)=>{const l=(S.candidateLoads||[])[i];b.classList.toggle("stackChosen",!!l&&selectedStackKeys.has(loadKey(l)))});
+ updateStackTray();
 
  if(el("added"))el("added").textContent="+"+money(best.pay);
  if(el("current"))el("current").textContent=money(pay);
@@ -839,6 +842,85 @@ async function applyProviderFilter(){
  if(showing)showing.textContent="Showing "+filtered.length+" of "+all.length+" freight opportunities";
 }
 
+
+const selectedStackKeys=new Set();
+function loadKey(l){
+ return String(l.providerLoadId||l.bookingReference||l.name||"")+"|"+String(l.provider||"");
+}
+function stackSelectedLoads(){
+ const all=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:(S.candidateLoads||[]);
+ return all.filter(l=>selectedStackKeys.has(loadKey(l)));
+}
+function updateStackTray(){
+ const chosen=stackSelectedLoads(),tray=el("stackTray"),count=el("stackCount"),pay=el("stackSelectedPay");
+ if(count)count.textContent=chosen.length;
+ if(pay)pay.textContent=money(chosen.reduce((s,l)=>s+Number(l.pay||0),0));
+ if(tray)tray.classList.toggle("active",chosen.length>0);
+}
+function toggleStackLoad(index){
+ const loads=S.candidateLoads||[],l=loads[index];if(!l)return;
+ const key=loadKey(l);
+ if(selectedStackKeys.has(key))selectedStackKeys.delete(key);else selectedStackKeys.add(key);
+ document.querySelectorAll(".candidateLoad").forEach((b,i)=>{
+   const x=loads[i];b.classList.toggle("stackChosen",!!x&&selectedStackKeys.has(loadKey(x)));
+ });
+ updateStackTray();
+}
+async function smartAutoStack(){
+ const chosen=stackSelectedLoads();
+ if(chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
+ setBusy(true,"One moment — optimizing your selected freight…");
+ setButtonBusy("smartAutoStack",true,"OPTIMIZING…","SMART AUTOSTACK");
+ try{
+   const start=(el("from")?.value||S.origin||"").trim();
+   const live=chosen.filter(l=>!l.isSandbox),test=chosen.filter(l=>l.isSandbox);
+   const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+   const knownWeight=chosen.reduce((s,l)=>s+Math.max(0,Number(l.weight||0)),0);
+   const knownSpace=chosen.reduce((s,l)=>s+Math.max(0,Number(l.space||0)),0);
+   const weightOK=knownWeight<=maxPayload;
+   const spaceOK=knownSpace<=activeVehicle.cargoLength;
+
+   // Greedy nearest-pickup ordering, with every pickup before its matching delivery.
+   const remaining=[...chosen],ordered=[],stops=[];
+   let cursor=start;
+   while(remaining.length){
+     let bestIndex=0,bestMiles=Infinity;
+     for(let i=0;i<remaining.length;i++){
+       const p=remaining[i].pickup;
+       if(!isRoutableLocation(p))continue;
+       const m=await withTimeout(roadMilesBetween(cursor,p),1800,null);
+       if(Number.isFinite(m)&&m<bestMiles){bestMiles=m;bestIndex=i}
+     }
+     const l=remaining.splice(bestIndex,1)[0];
+     ordered.push(l);
+     if(isRoutableLocation(l.pickup)&&stops.at(-1)!==l.pickup)stops.push(l.pickup);
+     if(isRoutableLocation(l.delivery)&&stops.at(-1)!==l.delivery)stops.push(l.delivery);
+     cursor=l.delivery||cursor;
+   }
+   const routeStops=[start,...stops].filter(isRoutableLocation).filter((x,i,a)=>i===0||x!==a[i-1]);
+   const route=routeStops.length>=2?await withTimeout(getMileCountRoadRoute(routeStops),6500,null):null;
+   const miles=Number(route?.miles||ordered.reduce((s,l)=>s+Number(l.loadedMiles||0),0));
+   const livePay=live.reduce((s,l)=>s+Number(l.pay||0),0);
+   const testPay=test.reduce((s,l)=>s+Number(l.pay||0),0);
+   const fuel=fuelFor(miles);
+   const rpm=miles>0?livePay/miles:0;
+   const profile=updateCostUI();
+   const valid=weightOK&&spaceOK&&routeStops.length>=2;
+   S.stackPlan={loads:ordered,routeStops,miles,livePay,testPay,fuel,rpm,valid,knownWeight,knownSpace};
+
+   if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
+    '<div class="stackPlanStatus '+(valid?"good":"bad")+'">'+(valid?"STACK PLAN READY":"STACK NEEDS CHANGES")+'</div>'+
+    '<div class="stackPlanMetrics"><div><small>SELECTED</small><b>'+chosen.length+' loads</b></div><div><small>LIVE PAY</small><b>'+money(livePay)+'</b></div><div><small>TEST PAY</small><b>'+money(testPay)+'</b></div><div><small>ROUTE</small><b>'+Math.round(miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
+    '<div class="stackRoute">'+ordered.map((l,i)=>'<div><b>'+(i+1)+'. '+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</b><span>'+money(l.pay)+' • '+(l.isSandbox?"SANDBOX TEST":"LIVE")+'</span></div>').join("")+'</div>'+
+    (!weightOK?'<p class="stackWarn">Known selected weight exceeds '+maxPayload.toLocaleString()+' lb.</p>':'')+
+    (!spaceOK?'<p class="stackWarn">Known selected cargo length exceeds '+activeVehicle.cargoLength+' ft.</p>':'')+
+    (test.length?'<p class="stackWarn">Sandbox/test pay is shown for testing only and is excluded from LIVE PAY and live RPM.</p>':'');
+   el("stackPlanResult")?.scrollIntoView({behavior:"smooth",block:"center"});
+ }finally{
+   setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false);
+ }
+}
+
 function unifiedSourceLabel(l){
  return l.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • "+(l.provider||"Provider");
 }
@@ -853,9 +935,12 @@ function renderUnifiedLoadList(loads){
    return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
     '<div class="loadTop"><div><div class="loadLane">'+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</div><div class="loadMeta">'+unifiedSourceLabel(l)+' • '+(l.equipment||activeVehicle.name)+(l.commodity?" • "+l.commodity:"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
     '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+(Number(l.weight||0)>0?Number(l.weight).toLocaleString()+" lb":"UNKNOWN")+'</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(l.isSandbox?"via LoadBoot":(l.provider||"LIVE"))+'</b></div></div>'+
-    '<div class="loadFoot"><span class="sourceTag">'+(l.isSandbox?"LOADBOOT SANDBOX":"LIVE • "+(l.provider||"PROVIDER"))+'</span><span class="verdictTag">'+verdict+'</span></div></button>';
+    '<div class="loadFoot"><span class="sourceTag">'+(l.isSandbox?"LOADBOOT SANDBOX":"LIVE • "+(l.provider||"PROVIDER"))+'</span><span class="stackPick" data-stack-index="'+i+'">＋ STACK</span><span class="verdictTag">'+verdict+'</span></div></button>';
  }).join(""):'<div class="details">No freight is currently available from connected sources.</div>';
  document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
+ document.querySelectorAll(".candidateLoad").forEach((b,i)=>{const l=(S.candidateLoads||[])[i];b.classList.toggle("stackChosen",!!l&&selectedStackKeys.has(loadKey(l)))});
+ updateStackTray();
 }
 async function refreshUnifiedFreightBoard(forceSandbox=false){
  const sandbox=await fetchLoadBootSandbox(forceSandbox);
@@ -891,6 +976,9 @@ async function showLoadBootSandbox(){
     '<div class="loadFoot"><span class="sourceTag">LOADBOOT SANDBOX</span><span class="verdictTag">TEST DATA</span></div></button>';
  }).join("");
  document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
+ document.querySelectorAll(".candidateLoad").forEach((b,i)=>{const l=(S.candidateLoads||[])[i];b.classList.toggle("stackChosen",!!l&&selectedStackKeys.has(loadKey(l)))});
+ updateStackTray();
  showScreen(2);
 }
 bind("viewLoadBootSandbox",showLoadBootSandbox);
@@ -898,5 +986,7 @@ fetchLoadBootSandbox(false);
 
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
+bind("smartAutoStack",smartAutoStack);
+bind("clearStack",()=>{selectedStackKeys.clear();updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
 console.log("MileCount App Engine V2 Ready");
 })();
