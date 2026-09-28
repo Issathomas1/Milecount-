@@ -378,8 +378,14 @@ async function runNormalLoadSearch(){S.liveOnlyBrowse=false;await findMoney()}
 async function browseLiveLoadBoard(stayHome=false){
  S.liveOnlyBrowse=true;
  S.stayHomeAfterSearch=!!stayHome;
+ applyVehicle(el("vehicleType")?.value||"box26",false);
  if(el("to"))el("to").value="Anywhere, USA";
  if(el("pay"))el("pay").value=0;
+ if(el("maxDeadhead"))el("maxDeadhead").value=500;
+ if(el("minRPM"))el("minRPM").value=0;
+ if(el("pickupDate"))el("pickupDate").value="";
+ if(el("space"))el("space").value=activeVehicle.cargoLength;
+ if(el("weight"))el("weight").value=activeVehicle.payload;
  try{await findMoney()}finally{S.stayHomeAfterSearch=false}
 }
 bind("find",runNormalLoadSearch);

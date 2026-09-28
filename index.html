@@ -443,7 +443,7 @@ class="screen active"
 >
 
 <div class="card homeMapCard">
-<div class="homeMapTitleRow"><div><span class="badge">LIVE LOAD BOARD</span><h2>Live freight map</h2><p class="details">Authorized provider loads appear here automatically when available.</p></div><button id="refreshLiveMap" type="button">REFRESH</button></div>
+<div class="homeMapTitleRow"><div><span class="badge">LIVE LOAD BOARD</span><h2>Live freight map</h2><p class="details">Authorized provider loads appear here automatically. The homepage starts broad; use filters when you want to narrow the board.</p></div><button id="refreshLiveMap" type="button">REFRESH</button></div>
 <div class="loadMapShell">
 <div class="loadMapHead"><div><span class="badge">LOAD MAP</span><h3>Loads around your search</h3></div><div class="loadMapStats"><b id="loadMapTotal">0 RESULTS</b><b id="loadMapCount">0 MAPPED</b></div></div>
 <div class="loadMapToolbar">
@@ -1130,7 +1130,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260927-loadmap1"></script>
-<script src="app.js?v=20260928-home-live-map1"></script>
+<script src="app.js?v=20260928-broad-live-board1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
