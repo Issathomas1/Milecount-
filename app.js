@@ -228,7 +228,7 @@ async function findMoney(){
    try{
      const sb=await fetchLoadBootSandbox(false);
      const requestedDate=el("pickupDate")?.value||"";
-     const matching=enforceWeightCap(sb.filter(l=>laneMatches(l,S.origin,S.destination)&&pickupDateMatches(l,requestedDate)));
+     const matching=enforceWeightCap(sb.filter(l=>laneMatches(l,S.origin,S.destination))).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),demoWorkflow:true}));
      if(matching.length){
        loads=[...loads,...matching];
        providerResponded=true;
@@ -354,8 +354,9 @@ S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  if(l.provider){
   S.tripMode=l.isSandbox?"sandbox":"live";
   S.primaryPay=0;
-  S.addedPay=l.isSandbox?0:l.pay;
-  S.totalPay=l.isSandbox?0:l.pay;
+  S.addedPay=l.pay;
+  S.totalPay=l.pay;
+  S.demoTrip=!!l.isSandbox;
   S.selectedLoadPickup=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));
   S.selectedLoadDelivery=l.delivery||([l.destination?.city,l.destination?.state].filter(Boolean).join(", "));
   S.selectedStop=S.selectedLoadDelivery;
@@ -399,17 +400,9 @@ async function updateOutboundMap(){
 }
 async function addToTrip(){
  const l=S.selectedCandidate;
- if(l?.isSandbox){
-   if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🧪 <b>'+(l.pickup||"Pickup")+'</b><br>LOADBOOT SANDBOX PICKUP • TEST ONLY</div><div class="stop">🏁 <b>'+(l.delivery||"Delivery")+'</b><br>LOADBOOT SANDBOX DELIVERY • NOT BOOKABLE</div>';
-   showScreen(3);
-   if(el("roadMiles"))el("roadMiles").textContent=Number(l.loadedMiles||0)?Math.round(Number(l.loadedMiles)).toLocaleString()+" mi":"Route preview";
-   if(el("driveTime"))el("driveTime").textContent="TEST DATA";
-   if(el("routeSource"))el("routeSource").textContent="LoadBoot sandbox preview. Test freight is never added to live trip revenue.";
-   await withTimeout(updateOutboundMap(),5000,null);
-   return;
- }
+ if(l?.isSandbox)S.demoTrip=true;
 
- if(l&&S.plannerTripId&&window.MileCountCloud){
+ if(l&&!l.isSandbox&&S.plannerTripId&&window.MileCountCloud){
   try{
    const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);
    if(t){
@@ -421,7 +414,7 @@ async function addToTrip(){
    }
   }catch(e){console.warn("Planner AutoStack cloud update failed",e)}
  }
- if(l?.provider&&el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+(l.pickup||S.selectedLoadPickup||S.origin)+'</b><br>LIVE LOAD PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+(l.delivery||S.selectedLoadDelivery||S.destination)+'</b><br>LIVE LOAD DELIVERY</div>';
+ if(l?.provider&&el("tripStops")){const status=l.isSandbox?"SANDBOX TEST • DEMO":"LIVE SOURCE";el("tripStops").innerHTML='<div class="stop">🚚 <b>'+(l.pickup||S.selectedLoadPickup||S.origin)+'</b><br>'+status+' PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+(l.delivery||S.selectedLoadDelivery||S.destination)+'</b><br>'+status+' DELIVERY</div>';}
  showScreen(3);
  // Never leave the route card spinning forever.
  if(el("roadMiles"))el("roadMiles").textContent="Calculating…";
@@ -515,21 +508,21 @@ async function protectReturn(){
  const best=bestLive||useful[0];
 
  if(best){
-   S.returnPay=best.isSandbox?0:Number(best.pay||0);
+   S.returnPay=Number(best.pay||0); S.demoReturn=!!best.isSandbox;
    S.returnSelected=best;
    if(el("returnPay"))el("returnPay").textContent=best.isSandbox?("TEST "+money(best.pay)):money(best.pay);
    if(el("returnSource"))el("returnSource").textContent=best.isSandbox?"LoadBoot TEST":"TrukTek";
    if(el("returnStatus"))el("returnStatus").textContent=(best.pickupDate||("+"+best.daysOut+" day"))+(best.isSandbox?" • TEST":" • LIVE");
    if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • TrukTek";
-   if(el("previewRoundPay"))el("previewRoundPay").textContent=best.isSandbox?"NO LIVE REVENUE":money(S.totalPay+S.returnPay);
+   if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay)+(best.isSandbox?" TEST":"");
    if(el("returnMilesPreview"))el("returnMilesPreview").textContent=directMiles?Math.round(directMiles).toLocaleString()+" mi toward home":"Route found";
    if(el("returnLead"))el("returnLead").textContent="Best homebound option: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
  if(el("homeboundAlternatives")){
    el("homeboundAlternatives").innerHTML=useful.slice(0,5).map((c,i)=>'<div class="homeAlt"><b>'+(i+1)+'. '+(c.pickup||delivery)+' → '+(c.delivery||home)+'</b><span>'+money(c.pay)+' • '+(c.dispatchRPM?("$"+c.dispatchRPM.toFixed(2)+"/mi"):"RPM —")+' • '+Math.round(c.dispatchDeadhead||0)+' mi DH • '+(c.pickupDate||"date n/a")+(c.isSandbox?" • TEST":" • LIVE")+'</span></div>').join("");
  }
    if(el("getHome")){
-     el("getHome").disabled=!!best.isSandbox;
-     el("getHome").textContent=best.isSandbox?"TEST OPTION • NOT ADDABLE":"ADD BEST HOMEBOUND LOAD";
+     el("getHome").disabled=false;
+     el("getHome").textContent=best.isSandbox?"ADD TO DEMO TRIP":"ADD BEST HOMEBOUND LOAD";
    }
  }else{
    S.returnPay=0;S.returnSelected=null;
@@ -546,10 +539,10 @@ async function protectReturn(){
 }
 
 async function getHomePaid(){
- if(S.returnSelected?.isSandbox){alert("This is LoadBoot sandbox test freight. MileCount will not confirm it or add it to real trip revenue.");return}
+ if(S.returnSelected?.isSandbox)S.demoReturn=true;
  if(!(S.returnPay>0)){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO RETURN LOAD SELECTED"}alert("No return load has been selected. MileCount will not add return revenue until a real or manually entered return load exists.");return}
  S.homeAdded=true;
- if(S.plannerTripId&&window.MileCountCloud){try{const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);if(t)await MileCountCloud.updatePlannerTrip(t.id,{return_pay:Number(S.returnPay||0),expected_revenue:Number(t.original_pay||0)+Number(t.autostack_pay||0)+Number(S.returnPay||0)})}catch(e){console.warn("Planner return cloud update failed",e)}}
+ if(S.plannerTripId&&!S.demoReturn&&window.MileCountCloud){try{const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);if(t)await MileCountCloud.updatePlannerTrip(t.id,{return_pay:Number(S.returnPay||0),expected_revenue:Number(t.original_pay||0)+Number(t.autostack_pay||0)+Number(S.returnPay||0)})}catch(e){console.warn("Planner return cloud update failed",e)}}
 let route=null;
  if(typeof showMileCountRoute==="function"){
    try{
@@ -587,7 +580,8 @@ let route=null;
   if(el("fuelDetails"))el("fuelDetails").textContent=r.gallons.toFixed(1)+" gallons • $"+r.dieselPrice.toFixed(2)+"/gal • "+r.fuelSource+(r.fuelUpdated?" • "+r.fuelUpdated:"");
   if(el("afterFuel"))el("afterFuel").textContent=money(tripMargin);
  }
- el("homeResult")?.classList.remove("hidden");if(el("getHome")){el("getHome").textContent="HOMEBOUND LOAD ADDED ✓";el("getHome").disabled=true}
+ if(el("returnConfirmationBadge"))el("returnConfirmationBadge").textContent=S.demoReturn?"SANDBOX RETURN ADDED • DEMO ONLY":"LIVE RETURN LOAD ADDED";
+ el("homeResult")?.classList.remove("hidden");if(el("getHome")){el("getHome").textContent=S.demoReturn?"DEMO RETURN ADDED ✓":"HOMEBOUND LOAD ADDED ✓";el("getHome").disabled=true}
 }
 
 async function viewUpdatedTrip(){
@@ -597,6 +591,7 @@ async function viewUpdatedTrip(){
  showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
 }
 async function saveCurrentTrip(){
+ if(S.demoTrip||S.demoReturn)return false;
  try{
   const s=await MileCountCloud.session();if(!s)return false;
   const miles=S.roundTripMiles||0,total=S.totalPay+(S.homeAdded?S.returnPay:0),fuel=fuelFor(miles),p=costProfile();
