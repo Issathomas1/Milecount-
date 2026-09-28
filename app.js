@@ -399,34 +399,52 @@ async function updateOutboundMap(){
  const stops=[S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);return await showMileCountRoute(stops);
 }
 async function addToTrip(){
- const l=S.selectedCandidate;
- if(l?.isSandbox)S.demoTrip=true;
+ const l=S.selectedCandidate;if(!l)return;
+ // Add the selected freight as the BASE PLAN. Do not force route preview yet.
+ S.basePlanLoad=l;
+ S.demoTrip=!!l.isSandbox||!l.provider;
+ selectedStackKeys.add(loadKey(l));
 
- if(l&&!l.isSandbox&&S.plannerTripId&&window.MileCountCloud){
-  try{
-   const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);
-   if(t){
-    const parts=Array.isArray(t.autostack_json)?t.autostack_json:[];
-    const exists=parts.some(p=>p.name===l.name&&Number(p.pay)===Number(l.pay));
-    if(!exists){parts.push({name:l.name,stop:l.stop,pay:Number(l.pay||0),space:Number(l.space||0),weight:Number(l.weight||0)});
-     await MileCountCloud.updatePlannerTrip(t.id,{autostack_json:parts,autostack_pay:Number(t.autostack_pay||0)+Number(l.pay||0),expected_revenue:Number(t.original_pay||0)+Number(t.autostack_pay||0)+Number(l.pay||0)+Number(t.return_pay||0),cargo_used_ft:Number(t.cargo_used_ft||0)+Number(l.space||0),weight_used_lb:Number(t.weight_used_lb||0)+Number(l.weight||0)});
-    }
-   }
-  }catch(e){console.warn("Planner AutoStack cloud update failed",e)}
+ // Persist only genuinely live/provider planner data; test/demo remains local.
+ if(!l.isSandbox&&l.provider&&S.plannerTripId&&window.MileCountCloud){
+   try{
+     const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);
+     if(t){
+       const parts=Array.isArray(t.autostack_json)?t.autostack_json:[];
+       const exists=parts.some(p=>p.name===l.name&&Number(p.pay)===Number(l.pay));
+       if(!exists){
+         parts.push({name:l.name,pickup:l.pickup,delivery:l.delivery,stop:l.stop,pay:Number(l.pay||0),space:Number(l.space||0),weight:Number(l.weight||0),provider:l.provider});
+         await MileCountCloud.updatePlannerTrip(t.id,{autostack_json:parts});
+       }
+     }
+   }catch(e){console.warn("Planner base-load save failed",e)}
  }
- if(l?.provider&&el("tripStops")){const status=l.isSandbox?"SANDBOX TEST • DEMO":"LIVE SOURCE";el("tripStops").innerHTML='<div class="stop">🚚 <b>'+(l.pickup||S.selectedLoadPickup||S.origin)+'</b><br>'+status+' PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+(l.delivery||S.selectedLoadDelivery||S.destination)+'</b><br>'+status+' DELIVERY</div>';}
- showScreen(3);
- // Never leave the route card spinning forever.
- if(el("roadMiles"))el("roadMiles").textContent="Calculating…";
- if(el("driveTime"))el("driveTime").textContent="Calculating…";
- if(el("routeSource"))el("routeSource").textContent="Calculating road route…";
- const route=await withTimeout(updateOutboundMap(),6500,null);
- if(!route){
-   if(el("roadMiles"))el("roadMiles").textContent="Route unavailable";
-   if(el("driveTime"))el("driveTime").textContent="—";
-   if(el("routeSource"))el("routeSource").textContent="Routing timed out. Load details are still usable; retry from the trip screen.";
- }
+
+ // Rebuild a broad stack candidate pool: keep current connected board + current
+ // lane results + sandbox. Simulation stays available as demo candidates.
+ setBusy(true,"One moment — finding loads that can stack with this trip…");
+ try{
+   const current=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[];
+   const lane=Array.isArray(S.candidateLoads)?S.candidateLoads:[];
+   const sandbox=await fetchLoadBootSandbox(false);
+   const merged=[l,...current,...lane,...sandbox];
+   const seen=new Set(),unique=enforceWeightCap(merged.filter(x=>{
+     const k=loadKey(x);if(!k||seen.has(k))return false;seen.add(k);return true;
+   }));
+   S.allUnifiedLoads=unique;
+   S.candidateLoads=unique;
+   updateProviderFilterOptions(unique);
+   renderUnifiedLoadList(unique);
+   const profile=updateCostUI();
+   if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(unique,{breakEven:profile.breakEven,target:profile.target,origin:l.pickup||S.origin,destination:l.delivery||S.destination});
+   updateStackTray();
+
+   if(el("selectedLoadSummary"))el("selectedLoadSummary").innerHTML='<b>BASE TRIP • '+(l.pickup||"Pickup")+' → '+(l.delivery||l.stop||"Delivery")+'</b><span>'+money(l.pay)+' • Select more loads with + STACK, then press SMART AUTOSTACK.</span>';
+   showScreen(2);
+   setTimeout(()=>el("loadCandidates")?.scrollIntoView({behavior:"smooth",block:"start"}),80);
+ }finally{setBusy(false)}
 }
+
 async function protectReturn(){
  if(el("protect")?.disabled)return;
  setBusy(true,"One moment — dispatching your way home…");
@@ -600,7 +618,7 @@ async function saveCurrentTrip(){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);return false}
 }
-function startNewTrip(){S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -997,7 +1015,8 @@ function toggleStackLoad(index){
  updateStackTray();
 }
 async function smartAutoStack(){
- const chosen=stackSelectedLoads();
+ let chosen=stackSelectedLoads();
+ if(S.basePlanLoad&&!chosen.some(x=>loadKey(x)===loadKey(S.basePlanLoad)))chosen=[S.basePlanLoad,...chosen];
  if(chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
  setBusy(true,"One moment — building the smartest feasible trip…");
  setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
@@ -1039,12 +1058,13 @@ async function smartAutoStack(){
    }
 
    const route=routeStops.length>=2?await withTimeout(getMileCountRoadRoute(routeStops),6500,null):null;
+   const routeVerified=!!(route&&Number(route.miles)>0);
    if(Number(route?.miles)>0)state.miles=Number(route.miles);
    const fuel=fuelFor(state.miles);
    const rpm=state.miles>0?state.liveRevenue/state.miles:0;
    const snapshot=tripSnapshot(state);
    S.tripState=state;
-   S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot};
+   S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot,routeVerified};
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
     '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+
