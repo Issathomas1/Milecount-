@@ -416,5 +416,100 @@ async function refreshLiveLoadCount(){
 
 refreshLiveLoadCount();
 setInterval(refreshLiveLoadCount,60000);
+
+let loadBootSandboxLoads=[];
+let loadBootSandboxLastFetch=0;
+
+function loadBootText(v){
+ if(v==null)return "";
+ if(typeof v==="string")return v;
+ return [v.city,v.state].filter(Boolean).join(", ");
+}
+function normalizeLoadBootSandbox(x){
+ const ref=String(x.ref??x.id??x.load_ref??"");
+ const origin=loadBootText(x.origin??x.origin_city??x.pickup);
+ const destination=loadBootText(x.destination??x.destination_city??x.delivery);
+ const rate=Number(x.rate??x.pay??x.amount??0);
+ const miles=Number(x.miles??x.loaded_miles??x.distance??0);
+ const rpm=Number(x.rpm??(miles>0?rate/miles:0));
+ const equipment=String(x.equipment??x.equipment_type??"");
+ const commodity=String(x.commodity??"SANDBOX TEST");
+ return {
+   name:(origin||"Pickup")+" → "+(destination||"Delivery")+" • LoadBoot SANDBOX",
+   provider:"LoadBoot SANDBOX",
+   providerLoadId:ref,
+   bookingReference:ref,
+   pickup:origin,
+   delivery:destination,
+   origin:typeof x.origin==="object"?x.origin:{city:(origin.split(",")[0]||"").trim(),state:(origin.split(",")[1]||"").trim()},
+   destination:typeof x.destination==="object"?x.destination:{city:(destination.split(",")[0]||"").trim(),state:(destination.split(",")[1]||"").trim()},
+   pay:rate,
+   loadedMiles:miles,
+   rpm,
+   deadhead:0,
+   equipment,
+   pickupDate:x.pickup_date??x.pickupDate??null,
+   posted:x.posted??null,
+   expiresAt:x.expires_at??null,
+   commodity,
+   weight:Number(x.weight??0),
+   space:0,
+   broker:x.posted_by??null,
+   routeCoordinates:[],
+   sourceUrl:"https://loadboot.com/app/carrier/?src=milecount&ref="+encodeURIComponent(ref),
+   isSandbox:true,
+   sandboxLabel:"SANDBOX TEST"
+ };
+}
+function extractLoadBootArray(data){
+ if(Array.isArray(data))return data;
+ if(Array.isArray(data?.loads))return data.loads;
+ if(Array.isArray(data?.data))return data.data;
+ if(Array.isArray(data?.items))return data.items;
+ if(Array.isArray(data?.results))return data.results;
+ return [];
+}
+async function fetchLoadBootSandbox(force=false){
+ const now=Date.now();
+ if(!force&&loadBootSandboxLoads.length&&now-loadBootSandboxLastFetch<300000)return loadBootSandboxLoads;
+ const badge=el("loadBootSandboxStatus");
+ try{
+   if(badge)badge.textContent="Checking sandbox…";
+   const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/loadboot-sandbox?resource=loads&limit=50",{cache:"no-store"});
+   const j=await r.json();
+   if(!r.ok||j.ok===false)throw new Error(j.error?.message||j.error||("Sandbox "+r.status));
+   const raw=extractLoadBootArray(j.data);
+   loadBootSandboxLoads=raw.map(normalizeLoadBootSandbox);
+   loadBootSandboxLastFetch=now;
+   if(badge)badge.textContent=loadBootSandboxLoads.length+" TEST LOAD"+(loadBootSandboxLoads.length===1?"":"S");
+   const count=el("loadBootSandboxCount");
+   if(count)count.textContent=loadBootSandboxLoads.length.toLocaleString();
+   return loadBootSandboxLoads;
+ }catch(e){
+   console.warn("LoadBoot sandbox unavailable",e);
+   if(badge)badge.textContent="Sandbox unavailable";
+   return [];
+ }
+}
+async function showLoadBootSandbox(){
+ const loads=await fetchLoadBootSandbox(true);
+ if(!loads.length){alert("LoadBoot sandbox returned no test loads.");return}
+ S.liveOnlyBrowse=false;
+ S.candidateLoads=loads;
+ const profile=updateCostUI();
+ if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:"",destination:""});
+ if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.map((l,i)=>{
+   const rpm=Number(l.rpm||0);
+   return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
+    '<div class="loadTop"><div><div class="loadLane">'+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</div><div class="loadMeta">SANDBOX TEST • '+(l.equipment||"Equipment not specified")+' • '+(l.commodity||"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
+    '<div class="loadMetrics"><div class="loadMetric"><small>RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>MILES</small><b>'+Number(l.loadedMiles||0).toLocaleString()+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+Number(l.weight||0).toLocaleString()+' lb</b></div><div class="loadMetric"><small>SOURCE</small><b>via LoadBoot</b></div></div>'+
+    '<div class="loadFoot"><span class="sourceTag">LOADBOOT SANDBOX</span><span class="verdictTag">TEST DATA</span></div></button>';
+ }).join("");
+ document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ showScreen(2);
+}
+bind("viewLoadBootSandbox",showLoadBootSandbox);
+fetchLoadBootSandbox(false);
+
 console.log("MileCount App Engine V2 Ready");
 })();
