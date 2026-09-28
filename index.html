@@ -785,7 +785,7 @@ Truck after loading
 <div class="row"><button id="requestLoad" type="button">REQUEST LOAD</button><button id="contactBroker" type="button" style="background:#15271f;border:1px solid #2b4438">BROKER DETAILS</button></div>
 <div id="bookingStatus" class="details">STATUS • NOT REQUESTED</div>
 </div>
-<button id="addTrip">ADD TO TRIP PLAN</button>
+<button id="addTrip">ADD TO PLAN + FIND STACKS PLAN</button>
 
 </div>
 
@@ -1175,7 +1175,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260928-demo-workflow2"></script>
+<script src="app.js?v=20260928-planfirst1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
