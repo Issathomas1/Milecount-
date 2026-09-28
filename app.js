@@ -1015,9 +1015,10 @@ function toggleStackLoad(index){
  updateStackTray();
 }
 async function smartAutoStack(){
- let chosen=stackSelectedLoads();
- if(S.basePlanLoad&&!chosen.some(x=>loadKey(x)===loadKey(S.basePlanLoad)))chosen=[S.basePlanLoad,...chosen];
- if(chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
+ const base=S.basePlanLoad||null;
+ let chosen=stackSelectedLoads().filter(x=>!base||loadKey(x)!==loadKey(base));
+ if(!base&&chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
+ if(base&&chosen.length<1){alert("Your base trip is saved. Select at least 1 additional load to stack.");return}
  setBusy(true,"One moment — building the smartest feasible trip…");
  setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
  try{
@@ -1025,6 +1026,34 @@ async function smartAutoStack(){
    const state=createTripState(start);
    const remaining=[...chosen],routeStops=[start].filter(isRoutableLocation);
    let cursor=start;
+   if(base){
+     const bp=base.pickup||start,bd=base.delivery||base.stop||S.destination;
+     if(isRoutableLocation(bp)&&routeStops.at(-1)!==bp)routeStops.push(bp);
+     applyTripPickup(state,base);
+     // Candidate freight at/near the base pickup can be loaded before the base delivery
+     // if it fits and follows the same general destination corridor.
+     const samePickup=[];
+     for(let i=remaining.length-1;i>=0;i--){
+       const l=remaining[i];
+       if(laneCity(l.pickup)===laneCity(bp)){
+         const w=Math.max(0,Number(l.weight||0)),sp=Math.max(0,Number(l.space||0));
+         const cap=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+         if(state.onboardWeight+w<=cap&&state.onboardSpace+sp<=activeVehicle.cargoLength){
+           samePickup.unshift(remaining.splice(i,1)[0]);
+         }
+       }
+     }
+     for(const l of samePickup){applyTripPickup(state,l)}
+     const baseMiles=await withTimeout(roadMilesBetween(bp,bd),2200,Number(base.loadedMiles||0));
+     if(Number.isFinite(baseMiles))state.miles+=Number(baseMiles);
+     if(isRoutableLocation(bd)&&routeStops.at(-1)!==bd)routeStops.push(bd);
+     applyTripDrop(state,base);
+     // Drop any co-loaded freight whose delivery is Charlotte/base-delivery market.
+     for(const l of [...state.onboard]){
+       if(laneCity(l.delivery||l.stop)===laneCity(bd))applyTripDrop(state,l);
+     }
+     cursor=bd||start;
+   }
 
    // Dispatch iteratively. Pick the nearest feasible pickup from the truck's
    // CURRENT state, deliver it, release capacity, then evaluate the next load.
@@ -1067,7 +1096,7 @@ async function smartAutoStack(){
    S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot,routeVerified};
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
-    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+
+    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+ (base?'<div class="baseStateLine">BASE CARGO • '+escHtml(base.pickup||start)+' → '+escHtml(base.delivery||base.stop||"Delivery")+' • '+money(base.pay)+'</div>':'')+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
     '<div class="tripStateNow"><b>TRUCK STATE AFTER PLAN</b><span>'+snapshot.onboardCount+' onboard • '+Math.round(snapshot.availableWeight).toLocaleString()+' lb available • '+snapshot.availableSpace.toFixed(1)+' ft available • '+snapshot.completedCount+' delivered</span></div>'+
     '<div class="stackRoute">'+state.events.map(e=>'<div><b>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
