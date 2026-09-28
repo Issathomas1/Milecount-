@@ -490,6 +490,8 @@ class="screen active"
 </label>
 
 <button id="find" class="simpleSearchBtn">FIND LOADS</button>
+<button id="browseLiveLoads" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">BROWSE LIVE LOAD BOARD</button>
+<p class="details" style="margin-bottom:0">Shows live loads available from MileCount’s connected/authorized freight providers. No demo loads are mixed into this view.</p>
 
 <details class="simpleDetails">
 <summary>Optional search filters</summary>
@@ -1119,7 +1121,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260927-loadmap1"></script>
-<script src="app.js?v=20260927-warpzip-fix1"></script>
+<script src="app.js?v=20260928-liveloadboard1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
