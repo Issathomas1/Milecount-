@@ -279,7 +279,7 @@ async function findMoney(){
 function selectCandidate(i){
  const l=(S.candidateLoads||[])[i];if(!l)return;
  const e=loadEconomics(l);
- if(el("selectedLoadSummary"))el("selectedLoadSummary").innerHTML='<b>'+(l.pickup||"Pickup")+' → '+(l.delivery||l.stop||"Delivery")+'</b><span>'+money(l.pay)+' • '+(e.rpm?("$"+e.rpm.toFixed(2)+"/all-mile"):"RPM —")+' • '+Math.round(e.deadhead)+' mi deadhead • '+(l.isSandbox?"SANDBOX TEST":"LIVE")+'</span>';
+ if(el("selectedLoadSummary"))el("selectedLoadSummary").innerHTML='<b>'+(l.pickup||"Pickup")+' → '+(l.delivery||l.stop||"Delivery")+'</b><span>'+money(l.pay)+' • '+(e.rpm?("$"+e.rpm.toFixed(2)+"/all-mile"):"RPM —")+' • '+Math.round(e.deadhead)+' mi deadhead • '+(l.isSandbox?"SANDBOX TEST • preview only":"LIVE • ready for trip analysis")+'</span>';
 S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  if(l.provider){
   S.tripMode=l.isSandbox?"sandbox":"live";
@@ -668,7 +668,7 @@ async function runNormalLoadSearch(){
 async function browseLiveLoadBoard(stayHome=false){
  if(el("browseLiveLoads")?.disabled&&!stayHome)return;
  setBusy(true,"One moment — refreshing connected freight…");
- if(!stayHome)setButtonBusy("browseLiveLoads",true,"REFRESHING BOARD…","BROWSE LIVE LOAD BOARD");
+ if(!stayHome)setButtonBusy("browseLiveLoads",true,"REFRESHING BOARD…","SHOW ALL FREIGHT");
  S.liveOnlyBrowse=true;
  S.stayHomeAfterSearch=!!stayHome;
  applyVehicle(el("vehicleType")?.value||"box26",false);
@@ -689,7 +689,7 @@ async function browseLiveLoadBoard(stayHome=false){
    if(typeof savedBrowse!=="undefined"){
      ["to","pay","maxDeadhead","minRPM","pickupDate","space","weight"].forEach(k=>{if(el(k))el(k).value=savedBrowse[k]});
    }
-   if(!stayHome)setButtonBusy("browseLiveLoads",false,"","BROWSE LIVE LOAD BOARD");
+   if(!stayHome)setButtonBusy("browseLiveLoads",false,"","SHOW ALL FREIGHT");
    setBusy(false);
  }
 }
