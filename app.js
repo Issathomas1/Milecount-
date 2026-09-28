@@ -154,6 +154,55 @@ function setBoardStatus(kind,text){
  s.className="boardHealth "+kind;
  s.textContent=text;
 }
+
+function validateLoadFacts(l){
+ const issues=[],e=loadEconomics(l),w=Number(l.weight||0),pay=Number(l.pay||0);
+ if(w>MAX_LOAD_WEIGHT_LB)issues.push("OVER 9,999 LB");
+ if(pay<0)issues.push("NEGATIVE PAY");
+ if(e.deadhead<0||e.loaded<0||e.allMiles<0)issues.push("INVALID MILES");
+ if(e.allMiles>0&&Math.abs(e.rpm-(pay/e.allMiles))>.02)issues.push("RPM MISMATCH");
+ if(l.isSandbox&&l.provider!=="LoadBoot SANDBOX")issues.push("TEST SOURCE MISMATCH");
+ return {ok:issues.length===0,issues,e};
+}
+function validateTripFacts(state){
+ const issues=[];
+ if(!state)return {ok:true,issues};
+ const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+ if(Number(state.onboardWeight||0)>maxPayload)issues.push("ONBOARD WEIGHT OVER LIMIT");
+ if(Number(state.onboardSpace||0)>activeVehicle.cargoLength)issues.push("CARGO SPACE OVER LIMIT");
+ if(Number(state.liveRevenue||0)<0)issues.push("INVALID LIVE REVENUE");
+ if((state.completed||[]).some(l=>l.isSandbox)&&Number(state.liveRevenue||0)>0){
+   const expected=(state.completed||[]).filter(l=>!l.isSandbox).reduce((s,l)=>s+Number(l.pay||0),0);
+   if(Math.abs(expected-Number(state.liveRevenue||0))>.01)issues.push("TEST REVENUE LEAK");
+ }
+ return {ok:issues.length===0,issues};
+}
+function runCalculationAudit(){
+ const loads=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:(S.candidateLoads||[]);
+ let bad=0,issueSet=new Set();
+ loads.forEach(l=>{const v=validateLoadFacts(l);if(!v.ok){bad++;v.issues.forEach(x=>issueSet.add(x))}});
+ const trip=validateTripFacts(S.tripState);if(!trip.ok)trip.issues.forEach(x=>issueSet.add(x));
+ const status=el("calcHealth"),detail=el("calcHealthDetail");
+ if(status){
+   status.textContent=(bad||!trip.ok)?"CHECK DATA":"VERIFIED";
+   status.className="calcHealth "+((bad||!trip.ok)?"warn":"ok");
+ }
+ if(detail)detail.textContent=(bad||!trip.ok)
+   ?bad+" load(s) flagged • "+[...issueSet].join(" • ")
+   :"Revenue, RPM, mileage and capacity checks passed • "+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+ return {ok:bad===0&&trip.ok,bad,issues:[...issueSet]};
+}
+function refreshDecisionNumbers(){
+ const l=S.selectedCandidate;
+ if(l){
+   const v=validateLoadFacts(l);
+   const e=v.e;
+   if(el("detourMiles"))el("detourMiles").textContent=v.ok?e.deadhead.toFixed(1)+" mi":"CHECK DATA";
+   if(el("loadVerdict")&&!v.ok){el("loadVerdict").textContent="CHECK DATA";el("loadVerdict").style.color="#f0cb62"}
+ }
+ runCalculationAudit();
+}
+
 function qualityScore(l,profile){
  const e=loadEconomics(l);
  if(l.isSandbox)return -100000+(Number(l.pay||0));
@@ -1018,6 +1067,7 @@ async function smartAutoStack(){
    const rpm=state.miles>0?state.liveRevenue/state.miles:0;
    const snapshot=tripSnapshot(state);
    S.tripState=state;
+   runCalculationAudit();
    S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot};
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
@@ -1070,6 +1120,7 @@ async function refreshUnifiedFreightBoard(forceSandbox=false){
  if(total)total.textContent=all.length.toLocaleString();
  const split=el("unifiedFreightSplit");
  if(split)split.textContent=live.length+" LIVE • "+sandbox.length+" SANDBOX TEST";
+ runCalculationAudit();
 }
 
 async function showLoadBootSandbox(){
@@ -1099,5 +1150,15 @@ el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 bind("smartAutoStack",smartAutoStack);
 bind("clearStack",()=>{selectedStackKeys.clear();updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
+runCalculationAudit();
+setInterval(()=>{
+ try{
+   refreshDecisionNumbers();
+   refreshLiveLoadCount();
+   // This uses LoadBoot's 5-minute cache and therefore does not poll LoadBoot every minute.
+   fetchLoadBootSandbox(false).then(()=>{if(S.liveOnlyBrowse)refreshUnifiedFreightBoard(false)}).catch(()=>{});
+ }catch(e){console.warn("MileCount minute audit",e)}
+},60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshDecisionNumbers();refreshLiveLoadCount()}});
 console.log("MileCount App Engine V2 Ready");
 })();
