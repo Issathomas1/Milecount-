@@ -77,6 +77,7 @@ function cityState(v){
  return [v.city,v.state].filter(Boolean).join(", ");
 }
 function loadPoint(load){
+ if(Array.isArray(load._milecountMapPoint)&&load._milecountMapPoint.length===2)return load._milecountMapPoint;
  const c=Array.isArray(load.routeCoordinates)?load.routeCoordinates:[];
  if(c.length){
    const p=c[0];
@@ -87,6 +88,31 @@ function loadPoint(load){
  }
  const pickup=load.pickup||cityState(load.origin);
  return fallbackLocations[pickup]||null;
+}
+
+async function hydrateMissingLoadPoints(loads){
+ if(typeof resolveMileCountLocation!=="function")return;
+ const unresolved=(Array.isArray(loads)?loads:[]).filter(l=>!loadPoint(l));
+ const byPickup=new Map();
+ unresolved.forEach(l=>{
+   const pickup=l.pickup||cityState(l.origin);
+   if(pickup&&!byPickup.has(pickup))byPickup.set(pickup,[]);
+   if(pickup)byPickup.get(pickup).push(l);
+ });
+ const entries=[...byPickup.entries()];
+ const batchSize=5;
+ for(let i=0;i<entries.length;i+=batchSize){
+   await Promise.all(entries.slice(i,i+batchSize).map(async([pickup,list])=>{
+     try{
+       const p=await resolveMileCountLocation(pickup);
+       if(Number.isFinite(Number(p?.lat))&&Number.isFinite(Number(p?.lon))){
+         list.forEach(l=>{l._milecountMapPoint=[Number(p.lat),Number(p.lon)]});
+       }
+     }catch(e){
+       console.warn("Could not map live load pickup",pickup,e);
+     }
+   }));
+ }
 }
 function economics(load,profile){
  const loaded=Math.max(0,Number(load.loadedMiles||load.loaded_miles||0));
@@ -293,17 +319,24 @@ window.searchMileCountVisibleArea=function(){
  document.dispatchEvent(new CustomEvent("milecount:search-area",{detail:area}));
 };
 
-window.renderMileCountLoadMap=function(loads,profile){
+window.renderMileCountLoadMap=async function(loads,profile){
  sourceLoads=Array.isArray(loads)?loads:[];
  sourceProfile=profile||{};
  const map=ensureMap(); if(!map)return;
- const items=preparedLoads();
- const count=document.getElementById("loadMapCount");
- if(count)count.textContent=items.length+" MAPPED";
  const total=document.getElementById("loadMapTotal");
  if(total)total.textContent=sourceLoads.length+" RESULTS";
+ let items=preparedLoads();
+ const count=document.getElementById("loadMapCount");
+ if(count)count.textContent=items.length+" MAPPED";
  redraw();
  fitItems(items);
+ if(items.length<sourceLoads.length){
+   await hydrateMissingLoadPoints(sourceLoads);
+   items=preparedLoads();
+   if(count)count.textContent=items.length+" MAPPED";
+   redraw();
+   fitItems(items);
+ }
  setTimeout(()=>map.invalidateSize(),100);
 };
 window.focusMileCountLoadMarker=function(index){
