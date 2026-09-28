@@ -520,8 +520,12 @@ FIND ME MONEY
 <div class="metric"><small>WARP MARKET QUOTE</small><b id="marketQuotePrice">Enter ZIPs</b></div>
 <div class="metric"><small>STATUS</small><b id="marketQuoteStatus">READY</b></div>
 </div>
-<button id="checkMarketQuote" type="button" style="background:#15271f;border:1px solid #2b4438">CHECK MARKET QUOTE</button>
-<p id="marketQuoteDetails" class="details">Requires 5-digit FROM and TO ZIP codes.</p>
+<div class="row" style="margin-top:10px">
+<label style="width:100%">PALLETS<input id="marketPallets" type="number" min="1" max="12" value="1"></label>
+<label style="width:100%">LBS / PALLET<input id="marketWeightPerPallet" type="number" min="50" max="10000" value="500"></label>
+</div>
+<button id="checkMarketQuote" type="button" style="background:#15271f;border:1px solid #2b4438">CHECK LIVE WARP QUOTE</button>
+<p id="marketQuoteDetails" class="details">Use 5-digit FROM and TO ZIP codes. This returns a real shipper-side 26-ft box-truck quote from WARP; it is not a carrier load offer.</p>
 </div>
 
 </div>
@@ -1103,7 +1107,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260927-loadmap1"></script>
-<script src="app.js?v=20260927-loadmap1"></script>
+<script src="app.js?v=20260927-warpquote-fix1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
