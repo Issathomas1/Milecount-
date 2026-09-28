@@ -390,10 +390,29 @@ async function browseLiveLoadBoard(stayHome=false){
 }
 bind("find",runNormalLoadSearch);
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
-bind("refreshLiveMap",()=>browseLiveLoadBoard(true));
+bind("refreshLiveMap",async()=>{await Promise.all([browseLiveLoadBoard(true),refreshLiveLoadCount()])});
 bind("viewLoadList",()=>showScreen(2));
 bind("addTrip",addToTrip);
 bind("checkMarketQuote",checkWarpMarketQuote);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 setTimeout(()=>browseLiveLoadBoard(true),250);
+
+async function refreshLiveLoadCount(){
+ const countEl=el("liveLoadCount"),sourceEl=el("liveLoadCountSource");
+ if(countEl)countEl.textContent="Checking…";
+ try{
+   const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/milecount-live-count",{cache:"no-store"});
+   const j=await r.json();
+   if(!r.ok||j.ok===false)throw new Error(j.error||("Count service "+r.status));
+   const n=Number(j.count??j.total??0);
+   if(countEl)countEl.textContent=n.toLocaleString()+" LOAD"+(n===1?"":"S");
+   if(sourceEl)sourceEl.textContent="TrukTek live public feed";
+ }catch(e){
+   if(countEl)countEl.textContent="Unavailable";
+   if(sourceEl)sourceEl.textContent="Live count could not refresh";
+ }
+}
+
+refreshLiveLoadCount();
+setInterval(refreshLiveLoadCount,60000);
 console.log("MileCount App Engine V2 Ready");
 })();
