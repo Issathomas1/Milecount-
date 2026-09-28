@@ -350,6 +350,37 @@ color:var(--muted);
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}.dot.strong{background:#18b66d}.dot.works{background:#d5a62d}.dot.pass{background:#c95757}
 .mcMapPopup{font-family:Arial,sans-serif;color:#102019}.mcMapPopupTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.mcMapPopupTop b{font-size:13px;line-height:1.25}.mcMapPopupTop strong{color:#138858;font-size:18px;white-space:nowrap}.mcMapProvider{font-size:9px;font-weight:900;margin:5px 0 8px;color:#4f6c5e}.mcMapGrid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.mcMapGrid span{background:#eef5f1;border-radius:7px;padding:6px}.mcMapGrid small{display:block;font-size:7px;color:#708078;font-weight:900}.mcMapGrid b{font-size:11px}.mcMapFine{font-size:9px;color:#67776f;margin:7px 0}.mcMapSelect{padding:9px!important;margin:4px 0 0!important;font-size:10px!important;border-radius:8px!important;background:#18a568!important}.mcMapSource{display:block;text-align:center;text-decoration:none;background:#eef5f1;color:#13794e;font-weight:900;padding:8px;border-radius:8px;margin-top:5px;font-size:9px}.mcClusterPopup{font-family:Arial,sans-serif;color:#102019}.mcClusterPopup>b{display:block;margin-bottom:7px}.mcClusterPopup button{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;text-align:left;background:#eef5f1!important;color:#102019!important;padding:7px!important;margin:5px 0!important;border-radius:7px!important}.mcClusterPopup button span{font-size:9px;font-weight:800}.mcClusterPopup button strong{font-size:11px;color:#138858}.mcClusterPopup button small{grid-column:1/-1;font-size:8px;color:#67776f}.mcClusterMore,.mcHeatPopup{font-size:9px;color:#67776f;margin-top:6px}.mcHeatPopup b{display:block;color:#102019;font-size:12px;margin-bottom:5px}
 @media(max-width:520px){#loadDiscoveryMap{height:330px}.loadMapLegend em{width:100%;margin-left:0}}
+.simpleSearchCard{padding:18px}
+.simpleSearchTitle{margin:0 0 4px;font-size:28px;line-height:1.08}
+.simpleSearchSub{margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.45}
+.simplePrimaryGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.simplePrimaryGrid label{margin-bottom:0}
+.simpleSearchBtn{font-size:18px;padding:18px;margin-top:16px}
+.simpleDetails{margin-top:12px;border:1px solid var(--border);border-radius:13px;background:#09130f;overflow:hidden}
+.simpleDetails>summary{list-style:none;cursor:pointer;padding:14px 15px;font-weight:900;color:#8adbb5;display:flex;align-items:center;justify-content:space-between}
+.simpleDetails>summary::-webkit-details-marker{display:none}
+.simpleDetails>summary:after{content:"+";font-size:20px;color:#62d89a}
+.simpleDetails[open]>summary:after{content:"–"}
+.simpleDetailsBody{padding:0 15px 15px}
+.toolCard{margin:10px 0 0;background:#0a1510;border:0;padding:0}
+.compactVehicle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#09130f}
+.compactVehicle strong{font-size:14px}.compactVehicle span{font-size:11px;color:var(--muted)}
+.searchStatus.simpleStatus{margin:0 0 14px;padding:9px 11px}
+.searchStatus.simpleStatus strong{font-size:11px}.searchStatus.simpleStatus span{font-size:9px}
+@media(max-width:520px){
+ .photoHero{height:210px}
+ .featureStrip{display:none}
+ .hero{display:none}
+ #screen1{padding:10px}
+ #screen1>.card{margin-bottom:10px}
+ .simplePrimaryGrid{grid-template-columns:1fr}
+ .simpleSearchTitle{font-size:26px}
+ .quickPills{display:none}
+ .simpleDetails .filterGrid{grid-template-columns:1fr}
+ .compactVehicle{align-items:flex-start;flex-direction:column}
+ .simpleSearchCard input,.simpleSearchCard select{font-size:16px;padding:13px}
+}
+
 
 </style>
 
@@ -410,169 +441,146 @@ id="screen1"
 class="screen active"
 >
 
-<div class="card">
+<div class="card simpleSearchCard">
 
-<h2>
-Set up your vehicle
-</h2>
+<div class="sectionEyebrow">MILECOUNT LOAD FINDER</div>
+<h1 class="simpleSearchTitle">Find a load that makes sense.</h1>
+<p class="simpleSearchSub">Choose your truck and lane. MileCount handles the load economics after the search.</p>
 
-<label>VEHICLE TYPE
-<select id="vehicleType">
-<option value="cargo">Cargo Van</option>
-<option value="sprinter">Sprinter / High-Roof Van</option>
-<option value="box16">16-ft Box Truck</option>
-<option value="box20">20-ft Box Truck</option>
-<option value="box24">24-ft Box Truck</option>
-<option value="box26" selected>26-ft Box Truck</option>
-</select>
-</label>
-
-<div class="row" style="margin-bottom:14px">
-<div class="metric"><small>MPG</small><b id="vehicleMPG">9</b></div>
-<div class="metric"><small>PAYLOAD</small><b id="vehiclePayload">10,000 lb</b></div>
+<div class="compactVehicle">
+  <div>
+    <strong id="vehicleName">26-ft Box Truck</strong><br>
+    <span id="vehicleSummary">9 MPG • 26 ft cargo • Nationwide search ready</span>
+  </div>
+  <label style="min-width:180px;margin:0">TRUCK
+    <select id="vehicleType">
+      <option value="cargo">Cargo Van</option>
+      <option value="sprinter">Sprinter / High-Roof Van</option>
+      <option value="box16">16-ft Box Truck</option>
+      <option value="box20">20-ft Box Truck</option>
+      <option value="box24">24-ft Box Truck</option>
+      <option value="box26" selected>26-ft Box Truck</option>
+    </select>
+  </label>
 </div>
 
-<div class="sectionEyebrow">NATIONWIDE FREIGHT SEARCH</div>
-<h2>Find the money on your route</h2>
-<div class="searchStatus"><div><strong>Provider-ready search</strong><br><span>Live public/authorized freight only. MileCount does not fabricate load results.</span></div><span id="providerCount">API READY</span></div>
+<div style="display:none">
+  <b id="vehicleMPG">9</b>
+  <b id="vehiclePayload">10,000 lb</b>
+</div>
 
+<div class="searchStatus simpleStatus">
+  <div><strong>Authorized freight search</strong><br><span>Live provider freight when available. Simulation is labeled separately.</span></div>
+  <span id="providerCount">API READY</span>
+</div>
 
-<div class="searchGrid"><label>FROM<input id="from" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP" autocomplete="off">
+<div class="simplePrimaryGrid">
+<label>FROM
+<input id="from" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP" autocomplete="off">
 <datalist id="usLocations"><option>Anywhere, USA</option><option>Atlanta, GA</option><option>Augusta, GA</option><option>Savannah, GA</option><option>Macon, GA</option><option>Columbus, GA</option><option>Birmingham, AL</option><option>Mobile, AL</option><option>Montgomery, AL</option><option>Huntsville, AL</option><option>Charlotte, NC</option><option>Raleigh, NC</option><option>Greensboro, NC</option><option>Wilmington, NC</option><option>Nashville, TN</option><option>Memphis, TN</option><option>Knoxville, TN</option><option>Chattanooga, TN</option><option>Greenville, SC</option><option>Columbia, SC</option><option>Charleston, SC</option><option>Jacksonville, FL</option><option>Orlando, FL</option><option>Tampa, FL</option><option>Miami, FL</option><option>Fort Lauderdale, FL</option><option>Tallahassee, FL</option><option>Dallas, TX</option><option>Houston, TX</option><option>Austin, TX</option><option>San Antonio, TX</option><option>El Paso, TX</option><option>Oklahoma City, OK</option><option>Tulsa, OK</option><option>New Orleans, LA</option><option>Baton Rouge, LA</option><option>Jackson, MS</option><option>Little Rock, AR</option><option>Louisville, KY</option><option>Lexington, KY</option><option>Richmond, VA</option><option>Norfolk, VA</option><option>Washington, DC</option><option>Baltimore, MD</option><option>Philadelphia, PA</option><option>Pittsburgh, PA</option><option>Newark, NJ</option><option>New York, NY</option><option>Boston, MA</option><option>Providence, RI</option><option>Hartford, CT</option><option>Buffalo, NY</option><option>Cleveland, OH</option><option>Columbus, OH</option><option>Cincinnati, OH</option><option>Detroit, MI</option><option>Indianapolis, IN</option><option>Chicago, IL</option><option>Milwaukee, WI</option><option>Minneapolis, MN</option><option>St. Louis, MO</option><option>Kansas City, MO</option><option>Omaha, NE</option><option>Wichita, KS</option><option>Denver, CO</option><option>Albuquerque, NM</option><option>Phoenix, AZ</option><option>Las Vegas, NV</option><option>Salt Lake City, UT</option><option>Boise, ID</option><option>Seattle, WA</option><option>Portland, OR</option><option>Sacramento, CA</option><option>San Francisco, CA</option><option>Fresno, CA</option><option>Los Angeles, CA</option><option>San Diego, CA</option></datalist>
-
 </label>
 
-
-<label>TO<input id="to" list="usLocations" value="Charlotte, NC" placeholder="City, ST, ZIP or Anywhere, USA" autocomplete="off">
-
-</label></div>
-
-
-<div class="quickPills"><button type="button" class="quickLane" data-dest="Anywhere, USA">ANYWHERE</button><button type="button" class="quickLane" data-dest="Atlanta, GA">ATLANTA</button><button type="button" class="quickLane" data-dest="Dallas, TX">DALLAS</button><button type="button" class="quickLane" data-dest="Chicago, IL">CHICAGO</button><button type="button" class="quickLane" data-dest="Los Angeles, CA">LOS ANGELES</button></div>
-<div class="filterGrid">
-<label>MAX DEADHEAD (MI)<input id="maxDeadhead" type="number" min="0" value="100"></label>
-<label>MIN RPM ($/MI)<input id="minRPM" type="number" min="0" step="0.05" value="1.75"></label>
-<label>PICKUP DATE<input id="pickupDate" type="date"></label>
+<label>TO
+<input id="to" list="usLocations" value="Charlotte, NC" placeholder="City, ST, ZIP or Anywhere, USA" autocomplete="off">
+</label>
 </div>
-<label>
 
-CURRENT LOAD PAY
-
-<input
-id="pay"
-type="number"
-value="1400"
->
-
+<label style="margin-top:12px">PICKUP DATE
+<input id="pickupDate" type="date">
 </label>
 
+<button id="find" class="simpleSearchBtn">FIND LOADS</button>
 
-<label>
-
-SPACE LEFT
-
-<input
-id="space"
-type="number"
-value="14"
->
-
-</label>
-
-
-<label>
-
-WEIGHT LEFT
-
-<input
-id="weight"
-type="number"
-value="6200"
->
-
-</label>
-
-
-<div class="card" style="margin-top:14px;background:#0a1510">
-<span class="badge">REAL LOAD INPUT</span>
-<h3>Analyze a load you already found</h3>
-<label>LOAD NAME / REFERENCE<input id="manualName" type="text" placeholder="Example: Charlotte partial"></label>
-<label>PICKUP CITY<input id="manualPickup" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP"></label>
-<label>DELIVERY CITY<input id="manualDelivery" list="usLocations" value="Charlotte, NC" placeholder="City, ST or ZIP"></label>
-<div class="row">
-<label style="width:100%">LOAD PAY<input id="manualPay" type="number" value="475" placeholder="475"></label>
-<label style="width:100%">WEIGHT LB<input id="manualWeight" type="number" value="2450" placeholder="2450"></label>
+<details class="simpleDetails">
+<summary>Optional search filters</summary>
+<div class="simpleDetailsBody">
+  <div class="quickPills">
+    <button type="button" class="quickLane" data-dest="Anywhere, USA">ANYWHERE</button>
+    <button type="button" class="quickLane" data-dest="Atlanta, GA">ATLANTA</button>
+    <button type="button" class="quickLane" data-dest="Dallas, TX">DALLAS</button>
+    <button type="button" class="quickLane" data-dest="Chicago, IL">CHICAGO</button>
+    <button type="button" class="quickLane" data-dest="Los Angeles, CA">LOS ANGELES</button>
+  </div>
+  <div class="filterGrid">
+    <label>MAX DEADHEAD (MI)<input id="maxDeadhead" type="number" min="0" value="100"></label>
+    <label>MIN RPM ($/MI)<input id="minRPM" type="number" min="0" step="0.05" value="1.75"></label>
+  </div>
 </div>
-<label>CARGO SPACE NEEDED (FT)<input id="manualSpace" type="number" step="0.5" value="7" placeholder="7"></label>
-<button id="analyzeManual" type="button">ANALYZE THIS LOAD</button>
-<p class="details">Manual analysis only. MileCount does not book or verify this freight.</p>
+</details>
+
+<details class="simpleDetails">
+<summary>I already have cargo on the truck</summary>
+<div class="simpleDetailsBody">
+  <p class="details">Optional. Add your current trip so MileCount can rank partials and stacking opportunities around it.</p>
+  <label>CURRENT LOAD PAY<input id="pay" type="number" value="1400"></label>
+  <div class="row">
+    <label style="width:100%">SPACE LEFT (FT)<input id="space" type="number" value="14"></label>
+    <label style="width:100%">WEIGHT LEFT (LB)<input id="weight" type="number" value="6200"></label>
+  </div>
 </div>
+</details>
 
-<button id="find">
-FIND ME MONEY
-</button>
-
-<div class="card" id="marketIntelCard" style="margin-top:12px;background:#0a1510">
-<span class="badge">MARKET INTELLIGENCE • NOT A LOAD</span>
-<h3 style="margin-bottom:5px">26-ft Box Truck Lane Quote</h3>
-<p class="details">Compare the lane against a real current shipper-side WARP quote. This is pricing intelligence only — it is not freight offered to your truck.</p>
-<div class="row">
-<div class="metric"><small>WARP MARKET QUOTE</small><b id="marketQuotePrice">Enter ZIPs</b></div>
-<div class="metric"><small>STATUS</small><b id="marketQuoteStatus">READY</b></div>
+<details class="simpleDetails">
+<summary>Analyze a load I found somewhere else</summary>
+<div class="simpleDetailsBody">
+  <div class="toolCard">
+    <label>LOAD NAME / REFERENCE<input id="manualName" type="text" placeholder="Example: Charlotte partial"></label>
+    <label>PICKUP CITY<input id="manualPickup" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP"></label>
+    <label>DELIVERY CITY<input id="manualDelivery" list="usLocations" value="Charlotte, NC" placeholder="City, ST or ZIP"></label>
+    <div class="row">
+      <label style="width:100%">LOAD PAY<input id="manualPay" type="number" value="475"></label>
+      <label style="width:100%">WEIGHT LB<input id="manualWeight" type="number" value="2450"></label>
+    </div>
+    <label>CARGO SPACE NEEDED (FT)<input id="manualSpace" type="number" step="0.5" value="7"></label>
+    <button id="analyzeManual" type="button">ANALYZE LOAD</button>
+    <p class="details">Manual analysis only. MileCount does not book or verify this freight.</p>
+  </div>
 </div>
-<div class="row" style="margin-top:10px">
-<label style="width:100%">FROM ZIP<input id="marketFromZip" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="30349" autocomplete="postal-code"></label>
-<label style="width:100%">TO ZIP<input id="marketToZip" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="28202" autocomplete="postal-code"></label>
+</details>
+
+<details class="simpleDetails">
+<summary>Market rate tool</summary>
+<div class="simpleDetailsBody">
+  <div id="marketIntelCard" class="toolCard">
+    <span class="badge">WARP MARKET INTELLIGENCE</span>
+    <p class="details">Get a current shipper-side 26-ft box-truck lane quote. This is market pricing, not freight offered to your truck.</p>
+    <div class="row">
+      <div class="metric"><small>WARP QUOTE</small><b id="marketQuotePrice">Enter ZIPs</b></div>
+      <div class="metric"><small>STATUS</small><b id="marketQuoteStatus">READY</b></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label style="width:100%">FROM ZIP<input id="marketFromZip" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="30349" autocomplete="postal-code"></label>
+      <label style="width:100%">TO ZIP<input id="marketToZip" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="28202" autocomplete="postal-code"></label>
+    </div>
+    <div class="row">
+      <label style="width:100%">PALLETS<input id="marketPallets" type="number" min="1" max="12" value="1"></label>
+      <label style="width:100%">LBS / PALLET<input id="marketWeightPerPallet" type="number" min="50" max="10000" value="500"></label>
+    </div>
+    <button id="checkMarketQuote" type="button" style="background:#15271f;border:1px solid #2b4438">CHECK LIVE WARP QUOTE</button>
+    <p id="marketQuoteDetails" class="details">Use 5-digit ZIP codes.</p>
+  </div>
 </div>
-<div class="row" style="margin-top:10px">
-<label style="width:100%">PALLETS<input id="marketPallets" type="number" min="1" max="12" value="1"></label>
-<label style="width:100%">LBS / PALLET<input id="marketWeightPerPallet" type="number" min="50" max="10000" value="500"></label>
-</div>
-<button id="checkMarketQuote" type="button" style="background:#15271f;border:1px solid #2b4438">CHECK LIVE WARP QUOTE</button>
-<p id="marketQuoteDetails" class="details">Use 5-digit FROM and TO ZIP codes. This returns a real shipper-side 26-ft box-truck quote from WARP; it is not a carrier load offer.</p>
-</div>
+</details>
 
-</div>
-
-
-<div class="card">
-
-<span class="badge">
-VEHICLE PROFILE
-</span>
-
-<h3 id="vehicleName">
-26-ft Box Truck
-</h3>
-
-<p id="vehicleSummary">
-9 MPG • 26 ft cargo • Home: Atlanta, GA
-</p>
-
-<p class="details">
-Truck MPG is stored once instead of asking the driver every trip.
-</p>
-<button id="saveProfile" type="button" style="background:#15271f;border:1px solid #2b4438">SAVE MY VEHICLE + COSTS</button>
-<div id="saveStatus" class="details"></div>
-
-<details style="margin-top:14px">
-<summary style="cursor:pointer;font-weight:900;color:#8adbb5">PERSONAL COST PROFILE</summary>
-<div style="margin-top:14px">
-<label>VEHICLE PAYMENT / MONTH<input id="monthlyPayment" type="number" value="900"></label>
-<label>INSURANCE / MONTH<input id="monthlyInsurance" type="number" value="1800"></label>
-<label>MAINTENANCE RESERVE / MILE<input id="maintenanceCPM" type="number" step="0.01" value="0.20"></label>
-<label>OTHER FIXED COSTS / MONTH<input id="monthlyOther" type="number" value="300"></label>
-<label>EXPECTED MILES / MONTH<input id="monthlyMiles" type="number" value="8000"></label>
-<div class="row">
-<div class="metric"><small>BREAK-EVEN CPM</small><b id="breakEvenCPM">Calculating...</b></div>
-<div class="metric"><small>TARGET RPM</small><b id="targetRPM">Calculating...</b></div>
-</div>
-<p class="details">Planning estimate only. Taxes, tolls, unexpected repairs and personal compensation can vary.</p>
+<details class="simpleDetails">
+<summary>My truck costs</summary>
+<div class="simpleDetailsBody">
+  <p class="details">Optional. Save your real costs to improve break-even and margin estimates.</p>
+  <label>VEHICLE PAYMENT / MONTH<input id="monthlyPayment" type="number" value="900"></label>
+  <label>INSURANCE / MONTH<input id="monthlyInsurance" type="number" value="1800"></label>
+  <label>MAINTENANCE RESERVE / MILE<input id="maintenanceCPM" type="number" step="0.01" value="0.20"></label>
+  <label>OTHER FIXED COSTS / MONTH<input id="monthlyOther" type="number" value="300"></label>
+  <label>EXPECTED MILES / MONTH<input id="monthlyMiles" type="number" value="8000"></label>
+  <div class="row">
+    <div class="metric"><small>BREAK-EVEN CPM</small><b id="breakEvenCPM">Calculating...</b></div>
+    <div class="metric"><small>TARGET RPM</small><b id="targetRPM">Calculating...</b></div>
+  </div>
+  <button id="saveProfile" type="button" style="background:#15271f;border:1px solid #2b4438">SAVE TRUCK COSTS</button>
+  <div id="saveStatus" class="details"></div>
 </div>
 </details>
 
 </div>
-
 </section>
 
 
