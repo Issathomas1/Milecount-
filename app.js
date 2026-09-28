@@ -1127,7 +1127,12 @@ async function smartAutoStack(){
      cursor=state.location;
    }
 
-   const route=routeStops.length>=2?await withTimeout(getMileCountRoadRoute(routeStops),6500,null):null;
+   // Routing is an enhancement, not a blocker. On mobile/Safari or a slow provider,
+   // AutoStack must still finish using the per-leg miles already calculated above.
+   let route=null;
+   if(routeStops.length>=2&&typeof getMileCountRoadRoute==="function"){
+     try{route=await withTimeout(getMileCountRoadRoute(routeStops),4500,null)}catch(e){console.warn("AutoStack route verification",e)}
+   }
    const routeVerified=!!(route&&Number(route.miles)>0);
    if(Number(route?.miles)>0)state.miles=Number(route.miles);
    const fuel=fuelFor(state.miles);
@@ -1144,6 +1149,13 @@ async function smartAutoStack(){
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
     (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY and live RPM.</p>':'');
    el("stackPlanResult")?.scrollIntoView({behavior:"smooth",block:"center"});
+ }catch(e){
+   console.error("Smart AutoStack failed",e);
+   const box=el("stackPlanResult");
+   if(box){
+     box.innerHTML='<div class="stackPlanStatus bad">AUTOSTACK COULD NOT FINISH</div><p class="stackWarn">'+escHtml(e?.message||"A route service failed. Your selected loads are still saved — tap Smart AutoStack again.")+'</p>';
+     box.scrollIntoView({behavior:"smooth",block:"center"});
+   }
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
 }
 function escHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\\"":"&quot;","'":"&#39;"}[c]))}
