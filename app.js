@@ -1078,6 +1078,11 @@ function toggleStackLoad(index){
  });
  updateStackTray();
 }
+function laneCity(v){
+ return String(v||"").trim().toLowerCase()
+  .replace(/\s+/g," ")
+  .split(",").slice(0,2).join(",");
+}
 async function smartAutoStack(){
  const base=S.basePlanLoad||null;
  let chosen=stackSelectedLoads().filter(x=>!base||loadKey(x)!==loadKey(base));
