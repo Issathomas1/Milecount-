@@ -601,7 +601,17 @@ let route=null;
   if(el("afterFuel"))el("afterFuel").textContent=money(tripMargin);
  }
  if(el("returnConfirmationBadge"))el("returnConfirmationBadge").textContent=S.demoReturn?"SANDBOX RETURN ADDED • DEMO ONLY":"LIVE RETURN LOAD ADDED";
- el("homeResult")?.classList.remove("hidden");if(el("getHome")){el("getHome").textContent=S.demoReturn?"DEMO RETURN ADDED ✓":"HOMEBOUND LOAD ADDED ✓";el("getHome").disabled=true}
+ el("homeResult")?.classList.remove("hidden");
+ if(el("getHome")){el("getHome").textContent=S.demoReturn?"DEMO RETURN ADDED ✓":"HOMEBOUND LOAD ADDED ✓";el("getHome").disabled=true}
+ // The return is now part of the trip. Remove stale search CTA and selection tray.
+ const protectCard=el("protect")?.closest(".alert");
+ if(protectCard)protectCard.classList.add("hidden");
+ selectedStackKeys.clear();
+ S.stackPlan=null;
+ updateStackTray();
+ el("doneStack")?.classList.add("hidden");
+ // Return confirmation is complete; move straight back to the updated trip.
+ setTimeout(()=>viewUpdatedTrip(),250);
 }
 
 async function viewUpdatedTrip(){
