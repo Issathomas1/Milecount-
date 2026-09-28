@@ -828,7 +828,7 @@ Your trip
 <p id="routeSource" class="details">Checking road-routing service...</p>
 <div id="finalTripDetails" class="fuelBox" style="margin-bottom:12px">
   <small>TRIP DETAILS</small>
-  <div class="row" style="margin-top:9px"><div class="metric"><small>LANE START / HOME</small><b id="tripHomeStart">—</b></div><div class="metric"><small>FINAL DESTINATION</small><b id="tripFinalDestination">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>LANE START</small><b id="tripHomeStart">—</b></div><div class="metric"><small>FINAL DESTINATION</small><b id="tripFinalDestination">—</b></div></div><label style="margin-top:12px">HOME / END LOCATION<input id="tripHomeChoice" type="text" placeholder="City, State — e.g. Atlanta, GA" autocomplete="address-level2"></label><p class="details" style="margin-top:6px">Choose where you actually want this trip to end. It can be different from where the lane started.</p><button id="applyTripHome" type="button" style="background:#15271f;border:1px solid #2b4438">SET END LOCATION & RECALCULATE</button>
   <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL TRIP PAY</small><b id="tripDetailPay">—</b></div><div class="metric"><small>RETURN LOAD</small><b id="tripDetailReturn">—</b></div></div>
   <button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
   <div id="tripSaveStatus" class="details"></div>
@@ -1184,7 +1184,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260928-loginfirst1"></script>
+<script src="app.js?v=20260928-homechoice1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
