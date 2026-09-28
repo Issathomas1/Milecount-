@@ -705,6 +705,47 @@ async function fetchLoadBootSandbox(force=false){
  }
 }
 
+
+function providerFilterKey(l){
+ if(l.isSandbox)return "loadboot-sandbox";
+ return String(l.provider||"unknown").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+}
+function updateProviderFilterOptions(loads){
+ const sel=el("providerFilter");if(!sel)return;
+ const current=sel.value||"all";
+ const seen=new Map();
+ (loads||[]).forEach(l=>{
+   const key=providerFilterKey(l);
+   const label=l.isSandbox?"LoadBoot Sandbox":(l.provider||"Other Provider");
+   if(key&&!seen.has(key))seen.set(key,label);
+ });
+ const options=[
+  ["all","All Companies"],
+  ["live","Live Only"],
+  ["sandbox","Sandbox / Test Only"],
+  ...[...seen.entries()]
+ ];
+ sel.innerHTML=options.map(([v,label])=>'<option value="'+v+'">'+label+'</option>').join("");
+ sel.value=options.some(x=>x[0]===current)?current:"all";
+}
+function filteredUnifiedLoads(loads){
+ const mode=el("providerFilter")?.value||"all";
+ if(mode==="all")return loads;
+ if(mode==="live")return loads.filter(l=>!l.isSandbox);
+ if(mode==="sandbox")return loads.filter(l=>!!l.isSandbox);
+ return loads.filter(l=>providerFilterKey(l)===mode);
+}
+async function applyProviderFilter(){
+ const all=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[];
+ const filtered=filteredUnifiedLoads(all);
+ S.candidateLoads=filtered;
+ const profile=updateCostUI();
+ if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(filtered,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
+ renderUnifiedLoadList(filtered);
+ const showing=el("providerFilterShowing");
+ if(showing)showing.textContent="Showing "+filtered.length+" of "+all.length+" freight opportunities";
+}
+
 function unifiedSourceLabel(l){
  return l.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • "+(l.provider||"Provider");
 }
@@ -727,10 +768,15 @@ async function refreshUnifiedFreightBoard(forceSandbox=false){
  const sandbox=await fetchLoadBootSandbox(forceSandbox);
  const live=Array.isArray(S.liveBoardLoads)?S.liveBoardLoads:[];
  const all=[...live,...sandbox];
- S.candidateLoads=all;
+ S.allUnifiedLoads=all;
+ updateProviderFilterOptions(all);
+ const filtered=filteredUnifiedLoads(all);
+ S.candidateLoads=filtered;
  const profile=updateCostUI();
- if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(all,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
- renderUnifiedLoadList(all);
+ if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(filtered,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
+ renderUnifiedLoadList(filtered);
+ const showing=el("providerFilterShowing");
+ if(showing)showing.textContent="Showing "+filtered.length+" of "+all.length+" freight opportunities";
  const total=el("unifiedFreightCount");
  if(total)total.textContent=all.length.toLocaleString();
  const split=el("unifiedFreightSplit");
@@ -757,5 +803,6 @@ async function showLoadBootSandbox(){
 bind("viewLoadBootSandbox",showLoadBootSandbox);
 fetchLoadBootSandbox(false);
 
+el("providerFilter")?.addEventListener("change",applyProviderFilter);
 console.log("MileCount App Engine V2 Ready");
 })();
