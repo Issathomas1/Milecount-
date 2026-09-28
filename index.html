@@ -824,6 +824,13 @@ Your trip
   </div>
 </div>
 <p id="routeSource" class="details">Checking road-routing service...</p>
+<div id="finalTripDetails" class="fuelBox" style="margin-bottom:12px">
+  <small>TRIP DETAILS</small>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>LANE START / HOME</small><b id="tripHomeStart">—</b></div><div class="metric"><small>FINAL DESTINATION</small><b id="tripFinalDestination">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL TRIP PAY</small><b id="tripDetailPay">—</b></div><div class="metric"><small>RETURN LOAD</small><b id="tripDetailReturn">—</b></div></div>
+  <button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
+  <div id="tripSaveStatus" class="details"></div>
+</div>
 
 
 <div id="tripStops">
@@ -1175,7 +1182,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260928-returncleanup1"></script>
+<script src="app.js?v=20260928-tripdetails1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
