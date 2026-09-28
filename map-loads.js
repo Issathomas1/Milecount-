@@ -1,15 +1,19 @@
 /*
-Milecount Live Load Discovery Map
-- plots every returned load that has usable provider geometry or a known fallback city
-- click marker -> load details + synced result selection
-- click result -> focus marker
+Milecount Load Discovery Map V2
+- clickable load pins
+- zoom-aware lightweight clustering (no external clustering plugin)
+- nationwide density / heat view
+- result list <-> map synchronization
 */
 (function(){
 "use strict";
 
 let loadMap=null;
-let loadMarkers=[];
+let renderedLayers=[];
+let sourceLoads=[];
+let sourceProfile={};
 let selectedIndex=-1;
+let mapMode="pins";
 
 const fallbackLocations={
  "Atlanta, GA":[33.7490,-84.3880],
@@ -33,7 +37,33 @@ const fallbackLocations={
  "Columbus, OH":[39.9612,-82.9988],
  "Detroit, MI":[42.3314,-83.0458],
  "Louisville, KY":[38.2527,-85.7585],
- "Memphis, TN":[35.1495,-90.0490]
+ "Memphis, TN":[35.1495,-90.0490],
+ "Phoenix, AZ":[33.4484,-112.0740],
+ "Denver, CO":[39.7392,-104.9903],
+ "Seattle, WA":[47.6062,-122.3321],
+ "Portland, OR":[45.5152,-122.6784],
+ "San Francisco, CA":[37.7749,-122.4194],
+ "San Diego, CA":[32.7157,-117.1611],
+ "Las Vegas, NV":[36.1699,-115.1398],
+ "Salt Lake City, UT":[40.7608,-111.8910],
+ "Kansas City, MO":[39.0997,-94.5786],
+ "St. Louis, MO":[38.6270,-90.1994],
+ "Minneapolis, MN":[44.9778,-93.2650],
+ "Milwaukee, WI":[43.0389,-87.9065],
+ "Cleveland, OH":[41.4993,-81.6944],
+ "Pittsburgh, PA":[40.4406,-79.9959],
+ "Washington, DC":[38.9072,-77.0369],
+ "Richmond, VA":[37.5407,-77.4360],
+ "Raleigh, NC":[35.7796,-78.6382],
+ "Charleston, SC":[32.7765,-79.9311],
+ "Savannah, GA":[32.0809,-81.0912],
+ "Tampa, FL":[27.9506,-82.4572],
+ "Austin, TX":[30.2672,-97.7431],
+ "San Antonio, TX":[29.4241,-98.4936],
+ "New Orleans, LA":[29.9511,-90.0715],
+ "Little Rock, AR":[34.7465,-92.2896],
+ "Oklahoma City, OK":[35.4676,-97.5164],
+ "Omaha, NE":[41.2565,-95.9345]
 };
 
 function esc(v){
@@ -57,18 +87,22 @@ function loadPoint(load){
  const pickup=load.pickup||cityState(load.origin);
  return fallbackLocations[pickup]||null;
 }
-function verdict(load,profile){
+function economics(load,profile){
  const loaded=Math.max(0,Number(load.loadedMiles||load.loaded_miles||0));
  const dh=Math.max(0,Number(load.deadhead||load.deadhead_miles||load.extraMiles||0));
  const miles=loaded+dh;
  const rpm=miles>0?(Number(load.pay||0)/miles):0;
  const target=Number(profile?.target||0),be=Number(profile?.breakEven||0);
- if(rpm>=target&&target>0)return {label:"STRONG",tone:"strong",rpm};
- if(rpm>=be&&be>0)return {label:"WORKS",tone:"works",rpm};
- return {label:"PASS",tone:"pass",rpm};
+ let label="PASS",tone="pass";
+ if(rpm>=target&&target>0){label="STRONG";tone="strong"}
+ else if(rpm>=be&&be>0){label="WORKS";tone="works"}
+ return {label,tone,rpm,loaded,dh,miles};
+}
+function markerColor(tone){
+ return tone==="strong"?"#18b66d":tone==="works"?"#d5a62d":"#c95757";
 }
 function markerIcon(tone,index){
- const fill=tone==="strong"?"#18b66d":tone==="works"?"#d5a62d":"#c95757";
+ const fill=markerColor(tone);
  return L.divIcon({
    className:"",
    html:'<div style="width:34px;height:34px;border-radius:50% 50% 50% 8px;transform:rotate(-45deg);background:'+fill+';border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);font-size:10px;font-weight:900;color:#fff">'+(index+1)+'</span></div>',
@@ -78,68 +112,182 @@ function markerIcon(tone,index){
 function popupHtml(load,index,profile){
  const origin=cityState(load.origin)||load.pickup||"Pickup";
  const destination=cityState(load.destination)||load.delivery||load.stop||"Delivery";
- const loaded=Math.max(0,Number(load.loadedMiles||load.loaded_miles||0));
- const dh=Math.max(0,Number(load.deadhead||load.deadhead_miles||load.extraMiles||0));
- const v=verdict(load,profile);
+ const e=economics(load,profile);
  const provider=load.provider||((load.name||"").includes("SIMULATION")?"SIMULATION":"MILECOUNT");
  const pickup=load.pickupDate||load.pickup_at||"—";
  const after=Number(load.afterFuel||0);
+ const sourceLink=load.bookingUrl||load.booking_url||load.sourceUrl||load.source_url||"";
+ const sourceButton=sourceLink?'<a class="mcMapSource" href="'+esc(sourceLink)+'" target="_blank" rel="noopener">OPEN SOURCE</a>':"";
  return '<div class="mcMapPopup">'+
    '<div class="mcMapPopupTop"><b>'+esc(origin)+' → '+esc(destination)+'</b><strong>'+money(load.pay)+'</strong></div>'+
-   '<div class="mcMapProvider">'+esc(provider)+' • '+esc(v.label)+'</div>'+
+   '<div class="mcMapProvider">'+esc(provider)+' • '+esc(e.label)+'</div>'+
    '<div class="mcMapGrid">'+
-    '<span><small>ALL-MILE RPM</small><b>'+(v.rpm?"$"+v.rpm.toFixed(2):"—")+'</b></span>'+
-    '<span><small>DEADHEAD</small><b>'+dh.toFixed(0)+' mi</b></span>'+
-    '<span><small>LOADED</small><b>'+(loaded?loaded.toFixed(0)+" mi":"—")+'</b></span>'+
+    '<span><small>ALL-MILE RPM</small><b>'+(e.rpm?"$"+e.rpm.toFixed(2):"—")+'</b></span>'+
+    '<span><small>DEADHEAD</small><b>'+e.dh.toFixed(0)+' mi</b></span>'+
+    '<span><small>LOADED</small><b>'+(e.loaded?e.loaded.toFixed(0)+" mi":"—")+'</b></span>'+
     '<span><small>AFTER FUEL*</small><b>'+money(after)+'</b></span>'+
    '</div>'+
    '<div class="mcMapFine">Pickup: '+esc(pickup)+' • '+Number(load.weight||0).toLocaleString()+' lb'+(load.space?" • "+esc(load.space)+" ft":"")+'</div>'+
    '<button type="button" class="mcMapSelect" onclick="window.MileCountSelectCandidate && window.MileCountSelectCandidate('+index+')">VIEW THIS LOAD</button>'+
+   sourceButton+
   '</div>';
 }
 function ensureMap(){
  const el=document.getElementById("loadDiscoveryMap");
  if(!el||typeof L==="undefined")return null;
  if(loadMap){setTimeout(()=>loadMap.invalidateSize(),50);return loadMap}
- loadMap=L.map(el,{zoomControl:true,scrollWheelZoom:true}).setView([36.2,-86.0],5);
+ loadMap=L.map(el,{zoomControl:true,scrollWheelZoom:true,preferCanvas:true}).setView([39.5,-98.35],4);
  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(loadMap);
+ loadMap.on("zoomend moveend",()=>{ if(sourceLoads.length) redraw(); });
  return loadMap;
 }
-function clear(){
+function clearLayers(){
  if(!loadMap)return;
- loadMarkers.forEach(x=>loadMap.removeLayer(x.marker));
- loadMarkers=[];
+ renderedLayers.forEach(x=>{try{loadMap.removeLayer(x)}catch(e){}});
+ renderedLayers=[];
+}
+function preparedLoads(){
+ return sourceLoads.map((load,index)=>({load,index,pt:loadPoint(load)})).filter(x=>x.pt);
+}
+function clusterCellSize(zoom){
+ if(zoom<=4)return 6;
+ if(zoom===5)return 3.2;
+ if(zoom===6)return 1.8;
+ if(zoom===7)return .9;
+ if(zoom===8)return .45;
+ return .18;
+}
+function groupLoads(items){
+ const size=clusterCellSize(loadMap?.getZoom?.()||5);
+ const groups=new Map();
+ items.forEach(x=>{
+   const key=Math.floor(x.pt[0]/size)+"|"+Math.floor(x.pt[1]/size);
+   if(!groups.has(key))groups.set(key,[]);
+   groups.get(key).push(x);
+ });
+ return [...groups.values()];
+}
+function clusterIcon(count,strongCount){
+ const hot=strongCount/Math.max(1,count)>.5;
+ const bg=hot?"#18a568":"#15372a";
+ const size=Math.min(58,36+Math.log2(Math.max(2,count))*6);
+ return L.divIcon({
+  className:"",
+  html:'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:3px solid #fff;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;box-shadow:0 4px 14px rgba(0,0,0,.35)">'+count+'</div>',
+  iconSize:[size,size],iconAnchor:[size/2,size/2]
+ });
+}
+function clusterPopup(group){
+ const ranked=[...group].sort((a,b)=>Number(b.load.pay||0)-Number(a.load.pay||0)).slice(0,5);
+ return '<div class="mcClusterPopup"><b>'+group.length+' loads in this area</b>'+
+   ranked.map(x=>{
+     const e=economics(x.load,sourceProfile);
+     const lane=(cityState(x.load.origin)||x.load.pickup||"Pickup")+' → '+(cityState(x.load.destination)||x.load.delivery||x.load.stop||"Delivery");
+     return '<button type="button" onclick="window.MileCountSelectCandidate && window.MileCountSelectCandidate('+x.index+')"><span>'+esc(lane)+'</span><strong>'+money(x.load.pay)+'</strong><small>'+e.label+(e.rpm?" • $"+e.rpm.toFixed(2)+"/mi":"")+'</small></button>';
+   }).join("")+
+   (group.length>5?'<div class="mcClusterMore">+'+(group.length-5)+' more — zoom in to separate</div>':"")+
+  '</div>';
+}
+function renderPins(items){
+ const groups=groupLoads(items);
+ groups.forEach(group=>{
+   if(group.length===1){
+     const x=group[0],e=economics(x.load,sourceProfile);
+     const marker=L.marker(x.pt,{icon:markerIcon(e.tone,x.index),riseOnHover:true}).addTo(loadMap);
+     marker.bindPopup(popupHtml(x.load,x.index,sourceProfile),{maxWidth:330,minWidth:275});
+     marker.on("click",()=>{selectedIndex=x.index;if(window.MileCountSelectCandidate)window.MileCountSelectCandidate(x.index)});
+     renderedLayers.push(marker);
+   }else{
+     const lat=group.reduce((s,x)=>s+x.pt[0],0)/group.length;
+     const lon=group.reduce((s,x)=>s+x.pt[1],0)/group.length;
+     const strong=group.filter(x=>economics(x.load,sourceProfile).tone==="strong").length;
+     const marker=L.marker([lat,lon],{icon:clusterIcon(group.length,strong),riseOnHover:true}).addTo(loadMap);
+     marker.bindPopup(clusterPopup(group),{maxWidth:340,minWidth:280});
+     marker.on("dblclick",()=>loadMap.setView([lat,lon],Math.min(12,(loadMap.getZoom()||5)+2)));
+     renderedLayers.push(marker);
+   }
+ });
+}
+function heatGroups(items){
+ const zoom=loadMap?.getZoom?.()||4;
+ const size=zoom<=4?5:zoom<=6?2.5:1.2;
+ const m=new Map();
+ items.forEach(x=>{
+   const key=Math.floor(x.pt[0]/size)+"|"+Math.floor(x.pt[1]/size);
+   if(!m.has(key))m.set(key,[]);
+   m.get(key).push(x);
+ });
+ return [...m.values()];
+}
+function renderHeat(items){
+ const groups=heatGroups(items);
+ const max=Math.max(1,...groups.map(g=>g.length));
+ groups.forEach(group=>{
+   const lat=group.reduce((s,x)=>s+x.pt[0],0)/group.length;
+   const lon=group.reduce((s,x)=>s+x.pt[1],0)/group.length;
+   const avgPay=group.reduce((s,x)=>s+Number(x.load.pay||0),0)/group.length;
+   const strong=group.filter(x=>economics(x.load,sourceProfile).tone==="strong").length;
+   const intensity=group.length/max;
+   const radius=10+Math.round(30*Math.sqrt(intensity));
+   const fill=strong/group.length>=.5?"#18a568":group.length>=Math.max(3,max*.45)?"#d5a62d":"#c95757";
+   const circle=L.circleMarker([lat,lon],{radius,color:fill,weight:2,fillColor:fill,fillOpacity:.28+.45*intensity,opacity:.9}).addTo(loadMap);
+   circle.bindPopup('<div class="mcHeatPopup"><b>'+group.length+' loads nearby</b><div>Average pay '+money(avgPay)+'</div><div>'+strong+' strong-fit load'+(strong===1?"":"s")+'</div><div class="mcMapFine">Switch to Pins to inspect individual loads.</div></div>');
+   renderedLayers.push(circle);
+ });
+}
+function redraw(){
+ const map=ensureMap(); if(!map)return;
+ clearLayers();
+ const items=preparedLoads();
+ if(mapMode==="heat")renderHeat(items); else renderPins(items);
+ const modeLabel=document.getElementById("loadMapModeLabel");
+ if(modeLabel)modeLabel.textContent=mapMode==="heat"?"DENSITY VIEW":"CLUSTERED PINS";
+ document.querySelectorAll("[data-load-map-mode]").forEach(b=>b.classList.toggle("active",b.dataset.loadMapMode===mapMode));
+}
+function fitItems(items){
+ if(!loadMap||!items.length)return;
+ const pts=items.map(x=>x.pt);
+ if(pts.length===1)loadMap.setView(pts[0],8);
+ else loadMap.fitBounds(pts,{padding:[32,32],maxZoom:8});
 }
 window.renderMileCountLoadMap=function(loads,profile){
- const map=ensureMap();
+ sourceLoads=Array.isArray(loads)?loads:[];
+ sourceProfile=profile||{};
+ const map=ensureMap(); if(!map)return;
+ const items=preparedLoads();
  const count=document.getElementById("loadMapCount");
- if(!map)return;
- clear();
- const bounds=[];
- (Array.isArray(loads)?loads:[]).forEach((load,index)=>{
-   const pt=loadPoint(load); if(!pt)return;
-   const v=verdict(load,profile);
-   const marker=L.marker(pt,{icon:markerIcon(v.tone,index),riseOnHover:true}).addTo(map);
-   marker.bindPopup(popupHtml(load,index,profile),{maxWidth:330,minWidth:275});
-   marker.on("click",()=>{
-     selectedIndex=index;
-     if(window.MileCountSelectCandidate)window.MileCountSelectCandidate(index);
-   });
-   loadMarkers.push({index,marker,pt});
-   bounds.push(pt);
- });
- if(count)count.textContent=loadMarkers.length+" MAPPED";
- if(bounds.length===1)map.setView(bounds[0],8);
- else if(bounds.length>1)map.fitBounds(bounds,{padding:[32,32],maxZoom:9});
+ if(count)count.textContent=items.length+" MAPPED";
+ const total=document.getElementById("loadMapTotal");
+ if(total)total.textContent=sourceLoads.length+" RESULTS";
+ redraw();
+ fitItems(items);
  setTimeout(()=>map.invalidateSize(),100);
 };
 window.focusMileCountLoadMarker=function(index){
- selectedIndex=index;
- const x=loadMarkers.find(m=>m.index===Number(index));
+ selectedIndex=Number(index);
+ const x=preparedLoads().find(m=>m.index===selectedIndex);
  if(!x||!loadMap)return;
- loadMap.setView(x.pt,Math.max(loadMap.getZoom(),7),{animate:true});
- x.marker.openPopup();
- const card=document.querySelector('.candidateLoad[data-load-index="'+index+'"]');
+ if(mapMode!=="pins"){mapMode="pins";redraw()}
+ loadMap.setView(x.pt,Math.max(loadMap.getZoom(),8),{animate:true});
+ setTimeout(()=>{
+   const layers=[...renderedLayers];
+   for(const layer of layers){
+     if(layer.getLatLng){
+       const p=layer.getLatLng();
+       if(Math.abs(p.lat-x.pt[0])<.0001&&Math.abs(p.lng-x.pt[1])<.0001&&layer.openPopup){layer.openPopup();break}
+     }
+   }
+ },180);
+ const card=document.querySelector('.candidateLoad[data-load-index="'+selectedIndex+'"]');
  if(card)card.scrollIntoView({behavior:"smooth",block:"nearest"});
 };
+window.setMileCountLoadMapMode=function(mode){
+ mapMode=mode==="heat"?"heat":"pins";
+ redraw();
+};
+document.addEventListener("click",e=>{
+ const b=e.target.closest("[data-load-map-mode]");
+ if(!b)return;
+ window.setMileCountLoadMapMode(b.dataset.loadMapMode);
+});
 })();
