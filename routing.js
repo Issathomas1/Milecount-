@@ -99,6 +99,7 @@ const MileCountLocations = {
 
 
 const mileCountGeoCache=new Map();
+const mileCountRouteCache=new Map();
 async function resolveMileCountLocation(value){
  const q=String(value||"").trim();if(!q)throw new Error("Location required");
  if(mileCountGeoCache.has(q))return mileCountGeoCache.get(q);
@@ -253,6 +254,9 @@ async function getMileCountRoadRoute(
   }
 
 
+  const cacheKey=stops.map(x=>String(x||"").trim().toLowerCase()).join(" -> ");
+  const cached=mileCountRouteCache.get(cacheKey);
+  if(cached&&Date.now()-cached.at<15*60*1000)return cached.value;
   const resolved=await buildResolvedCoordinates(stops);
   const coordinateString=resolved.coordinateString;
 
@@ -320,7 +324,7 @@ async function getMileCountRoadRoute(
     );
 
 
-  return {
+  const result={
 
     stops:
       stops,
@@ -354,6 +358,8 @@ async function getMileCountRoadRoute(
     resolvedLocations: resolved.points
 
   };
+  mileCountRouteCache.set(cacheKey,{at:Date.now(),value:result});
+  return result;
 
 }
 

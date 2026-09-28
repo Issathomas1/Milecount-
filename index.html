@@ -351,7 +351,8 @@ color:var(--muted);
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}.dot.strong{background:#18b66d}.dot.works{background:#d5a62d}.dot.pass{background:#c95757}
 .mcMapPopup{font-family:Arial,sans-serif;color:#102019}.mcMapPopupTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.mcMapPopupTop b{font-size:13px;line-height:1.25}.mcMapPopupTop strong{color:#138858;font-size:18px;white-space:nowrap}.mcMapProvider{font-size:9px;font-weight:900;margin:5px 0 8px;color:#4f6c5e}.mcMapGrid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.mcMapGrid span{background:#eef5f1;border-radius:7px;padding:6px}.mcMapGrid small{display:block;font-size:7px;color:#708078;font-weight:900}.mcMapGrid b{font-size:11px}.mcMapFine{font-size:9px;color:#67776f;margin:7px 0}.mcMapSelect{padding:9px!important;margin:4px 0 0!important;font-size:10px!important;border-radius:8px!important;background:#18a568!important}.mcMapSource{display:block;text-align:center;text-decoration:none;background:#eef5f1;color:#13794e;font-weight:900;padding:8px;border-radius:8px;margin-top:5px;font-size:9px}.mcClusterPopup{font-family:Arial,sans-serif;color:#102019}.mcClusterPopup>b{display:block;margin-bottom:7px}.mcClusterPopup button{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;text-align:left;background:#eef5f1!important;color:#102019!important;padding:7px!important;margin:5px 0!important;border-radius:7px!important}.mcClusterPopup button span{font-size:9px;font-weight:800}.mcClusterPopup button strong{font-size:11px;color:#138858}.mcClusterPopup button small{grid-column:1/-1;font-size:8px;color:#67776f}.mcClusterMore,.mcHeatPopup{font-size:9px;color:#67776f;margin-top:6px}.mcHeatPopup b{display:block;color:#102019;font-size:12px;margin-bottom:5px}
 @media(max-width:520px){#loadDiscoveryMap{height:330px}.loadMapLegend em{width:100%;margin-left:0}}
-.homeMapCard{padding:12px;margin-bottom:10px}.homeMapTitleRow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.homeMapTitleRow h2{margin:6px 0 0}.homeMapTitleRow p{margin-bottom:0}.homeMapTitleRow>button{width:auto;margin:0;padding:9px 12px;background:#15271f;border:1px solid #2b4438;font-size:10px}.providerFilterBar{display:flex;align-items:end;gap:10px;margin-top:10px;padding:10px;border:1px solid #244637;border-radius:12px;background:#09130f}.providerFilterBar label{margin:0;flex:1;font-size:9px}.providerFilterBar select{margin-top:5px;padding:10px;font-size:12px}.providerFilterBar span{max-width:45%;padding-bottom:9px;font-size:9px;color:#93a79d;text-align:right}@media(max-width:520px){.providerFilterBar{align-items:stretch;flex-direction:column}.providerFilterBar span{max-width:none;text-align:left;padding:0}}
+.homeMapCard{padding:12px;margin-bottom:10px}.homeMapTitleRow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.homeMapTitleRow h2{margin:6px 0 0}.homeMapTitleRow p{margin-bottom:0}.homeMapTitleRow>button{width:auto;margin:0;padding:9px 12px;background:#15271f;border:1px solid #2b4438;font-size:10px}.homeboundAltBox{margin:12px 0;padding:12px;border:1px solid #244637;border-radius:12px;background:#09130f}.homeboundAltBox>small{font-weight:900;color:#8adbb5}.homeAlt{display:flex;flex-direction:column;gap:3px;padding:9px 0;border-bottom:1px solid #183326}.homeAlt:last-child{border-bottom:0}.homeAlt b{font-size:11px}.homeAlt span{font-size:9px;color:#93a79d}
+.providerFilterBar{display:flex;align-items:end;gap:10px;margin-top:10px;padding:10px;border:1px solid #244637;border-radius:12px;background:#09130f}.providerFilterBar label{margin:0;flex:1;font-size:9px}.providerFilterBar select{margin-top:5px;padding:10px;font-size:12px}.providerFilterBar span{max-width:45%;padding-bottom:9px;font-size:9px;color:#93a79d;text-align:right}@media(max-width:520px){.providerFilterBar{align-items:stretch;flex-direction:column}.providerFilterBar span{max-width:none;text-align:left;padding:0}}
 .sandboxStrip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:10px 11px;border:1px dashed #8b6f1f;border-radius:12px;background:#1b170a}.sandboxStrip span{display:block;font-size:8px;font-weight:900;color:#e0bc4b}.sandboxStrip strong{display:block;margin-top:2px;font-size:13px}.sandboxStrip small{display:block;margin-top:2px;font-size:8px;color:#aa9f80}.sandboxStrip button{width:auto;margin:0;padding:9px 10px;background:#3a3010;border:1px solid #8b6f1f;font-size:9px}.liveNowStrip{display:flex;align-items:baseline;gap:8px;margin:8px 0 2px;padding:9px 10px;border:1px solid #1e5138;border-radius:11px;background:#0d2118}.liveNowStrip span{font-size:9px;font-weight:900;color:#8adbb5;letter-spacing:.9px}.liveNowStrip strong{font-size:21px;color:#31bf72}.liveNowStrip small{margin-left:auto;font-size:8px;color:#93a79d}
 .simpleSearchCard{padding:18px}
 .simpleSearchTitle{margin:0 0 4px;font-size:28px;line-height:1.08}
@@ -943,6 +944,10 @@ BEST FREIGHT TOWARD HOME
 </div>
 
 
+<div class="homeboundAltBox">
+<small>TOP HOMEBOUND OPTIONS</small>
+<div id="homeboundAlternatives"><div class="details">Run Find My Way Home to rank connected freight up to 3 days forward.</div></div>
+</div>
 <button id="getHome">
 GET ME HOME PAID
 </button>
@@ -1152,11 +1157,11 @@ fuel
 app
 ===================== -->
 <script src="cloud.js?v=50-admin-ui"></script>
-<script src="routing.js?v=20260927-recovery16"></script>
+<script src="routing.js?v=20260928-routecache1"></script>
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-mapfix2"></script>
-<script src="app.js?v=20260928-provider-filter1"></script>
+<script src="app.js?v=20260928-corepolish1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){

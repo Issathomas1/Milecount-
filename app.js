@@ -126,6 +126,26 @@ async function routeDetour(stop,fallback){
  catch(e){console.warn("Detour fallback",e);return {extraMiles:fallback,extraDriveTime:"Estimated"}}
 }
 
+
+function loadEconomics(l){
+ const loaded=Math.max(0,Number(l.loadedMiles||0));
+ const deadhead=Math.max(0,Number(l.deadheadMiles??l.extraMiles??0));
+ const allMiles=loaded+deadhead;
+ const rpm=allMiles>0?Number(l.pay||0)/allMiles:Number(l.rpm||0);
+ const fuelCost=Number(l.fuel?.fuelCost||0);
+ const afterFuel=Number(l.pay||0)-fuelCost;
+ return {loaded,deadhead,allMiles,rpm,fuelCost,afterFuel};
+}
+function qualityScore(l,profile){
+ const e=loadEconomics(l);
+ if(l.isSandbox)return -100000+(Number(l.pay||0));
+ const rpmScore=e.rpm*220;
+ const payScore=Math.min(1200,Number(l.pay||0))*.12;
+ const dhPenalty=e.deadhead*.65;
+ const fitBonus=e.rpm>=profile.target?220:e.rpm>=profile.breakEven?90:0;
+ return rpmScore+payScore+fitBonus-dhPenalty;
+}
+
 async function findMoney(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  const profile=updateCostUI();
@@ -195,7 +215,7 @@ async function findMoney(){
  if(!S.liveOnlyBrowse){
    loads=loads.filter(l=>Number(l.extraMiles||0)<=maxDH && (Number(l.extraMiles||0)<=0 || Number(l.pay||0)/Number(l.extraMiles||1)>=minRPM));
  }
- loads.sort((a,b)=>b.afterFuel-a.afterFuel);
+ loads.sort((a,b)=>qualityScore(b,profile)-qualityScore(a,profile));
  const best=loads[0]||{pay:0,space:0,weight:0,stop:S.destination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
  S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
 
@@ -204,7 +224,7 @@ async function findMoney(){
  if(typeof window.renderMileCountLoadMap==="function")window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
  const miles=Math.max(0,Number(l.loadedMiles||l.loaded_miles||0)),dh=Math.max(0,Number(l.deadheadMiles??l.deadhead_miles??l.extraMiles??0));
- const allMiles=miles+dh,rpm=allMiles>0?Number(l.pay||0)/allMiles:(dh>0?Number(l.pay||0)/dh:0);
+ const allMiles=miles+dh,rpm=loadEconomics(l).rpm;
  const margin=Number(l.afterFuel||0),verdict=rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS";
  const origin=l.origin?.city?l.origin.city+", "+(l.origin.state||""):S.origin,destination=l.destination?.city?l.destination.city+", "+(l.destination.state||""):l.stop;
  const source=l.provider||((l.name||"").includes("SIMULATION")?"SIMULATION":"MILECOUNT");
@@ -309,6 +329,9 @@ async function protectReturn(){
  const candidates=[];
  // Search TrukTek from delivery market toward home on today + next 3 days.
  for(let day=0;day<=3;day++){
+   if(el("returnStatus"))el("returnStatus").textContent="CHECKING DAY "+(day+1)+" OF 4";
+   if(el("returnLead"))el("returnLead").textContent="Searching "+dateISOPlus(day)+" freight from "+delivery+" toward "+home+"…";
+   await new Promise(r=>requestAnimationFrame(()=>r()));
    try{
      const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{
        method:"POST",headers:{"Content-Type":"application/json"},
@@ -373,7 +396,10 @@ async function protectReturn(){
    if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • TrukTek";
    if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay);
    if(el("returnMilesPreview"))el("returnMilesPreview").textContent=directMiles?Math.round(directMiles).toLocaleString()+" mi toward home":"Route found";
-   if(el("returnLead"))el("returnLead").textContent="Best homebound option found. MileCount searched up to 3 days forward and ranked freight by homeward progress, deadhead and all-mile RPM.";
+   if(el("returnLead"))el("returnLead").textContent="Best homebound option: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
+ if(el("homeboundAlternatives")){
+   el("homeboundAlternatives").innerHTML=useful.slice(0,5).map((c,i)=>'<div class="homeAlt"><b>'+(i+1)+'. '+(c.pickup||delivery)+' → '+(c.delivery||home)+'</b><span>'+money(c.pay)+' • '+(c.dispatchRPM?("$"+c.dispatchRPM.toFixed(2)+"/mi"):"RPM —")+' • '+Math.round(c.dispatchDeadhead||0)+' mi DH • '+(c.pickupDate||"date n/a")+(c.isSandbox?" • TEST":" • LIVE")+'</span></div>').join("");
+ }
    if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="ADD BEST HOMEBOUND LOAD"}
  }else{
    S.returnPay=0;S.returnSelected=null;
@@ -382,6 +408,7 @@ async function protectReturn(){
    if(el("returnStatus"))el("returnStatus").textContent="0–3 DAYS CHECKED";
    if(el("returnSourceTag"))el("returnSourceTag").textContent="NO HOMEBOUND FREIGHT";
    if(el("returnLead"))el("returnLead").textContent="No connected freight currently moves you toward home within the 3-day search window. Try again later or widen the home market.";
+   if(el("homeboundAlternatives"))el("homeboundAlternatives").innerHTML='<div class="details">No ranked homebound alternatives yet.</div>';
    if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO HOMEBOUND LOAD YET"}
  }
  setButtonBusy("protect",false,"","FIND MY WAY HOME");
