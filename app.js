@@ -1083,97 +1083,123 @@ async function smartAutoStack(){
  let chosen=stackSelectedLoads().filter(x=>!base||loadKey(x)!==loadKey(base));
  if(!base&&chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
  if(base&&chosen.length<1){alert("Your base trip is saved. Select at least 1 additional load to stack.");return}
- setBusy(true,"One moment — building the smartest feasible trip…");
+ setBusy(true,"One moment — optimizing every pickup and drop…");
  setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
  try{
-   const start=(el("from")?.value||S.origin||"").trim();
-   const state=createTripState(start);
-   const remaining=[...chosen],routeStops=[start].filter(isRoutableLocation);
-   let cursor=start;
-   if(base){
-     const bp=base.pickup||start,bd=base.delivery||base.stop||S.destination;
-     if(isRoutableLocation(bp)&&routeStops.at(-1)!==bp)routeStops.push(bp);
-     applyTripPickup(state,base);
-     // Candidate freight at/near the base pickup can be loaded before the base delivery
-     // if it fits and follows the same general destination corridor.
-     const samePickup=[];
-     for(let i=remaining.length-1;i>=0;i--){
-       const l=remaining[i];
-       if(laneCity(l.pickup)===laneCity(bp)){
-         const w=Math.max(0,Number(l.weight||0)),sp=Math.max(0,Number(l.space||0));
-         const cap=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
-         if(state.onboardWeight+w<=cap&&state.onboardSpace+sp<=Number(state.capacitySpaceLimit??currentCapacity().availableSpace)){
-           samePickup.unshift(remaining.splice(i,1)[0]);
-         }
-       }
-     }
-     for(const l of samePickup){applyTripPickup(state,l)}
-     const baseMiles=await withTimeout(roadMilesBetween(bp,bd),2200,Number(base.loadedMiles||0));
-     if(Number.isFinite(baseMiles))state.miles+=Number(baseMiles);
-     if(isRoutableLocation(bd)&&routeStops.at(-1)!==bd)routeStops.push(bd);
-     applyTripDrop(state,base);
-     // Drop any co-loaded freight whose delivery is Charlotte/base-delivery market.
-     for(const l of [...state.onboard]){
-       if(laneCity(l.delivery||l.stop)===laneCity(bd))applyTripDrop(state,l);
-     }
-     cursor=bd||start;
-   }
+   const startLoc=(el("from")?.value||S.origin||base?.pickup||chosen[0]?.pickup||"").trim();
+   const state=createTripState(startLoc);
+   const allLoads=[];
+   if(base)allLoads.push(base);
+   chosen.forEach(l=>{if(!allLoads.some(x=>loadKey(x)===loadKey(l)))allLoads.push(l)});
+   const unpicked=[...allLoads],onboard=[];
+   const routeStops=[startLoc].filter(isRoutableLocation);
+   let cursor=startLoc;
 
-   // Dispatch iteratively. Pick the nearest feasible pickup from the truck's
-   // CURRENT state, deliver it, release capacity, then evaluate the next load.
-   while(remaining.length){
+   // Smart Stack is a pickup-and-delivery route, NOT a list of isolated lanes.
+   // At every stop we choose between every legal pickup and every legal drop.
+   // A drop is only eligible after its matching pickup. This allows FL pickup,
+   // FL pickup, GA pickup, then northbound drops without returning to Florida.
+   const mileCache=new Map();
+   async function legMiles(a,b){
+     if(!a||!b||laneCity(a)===laneCity(b))return 0;
+     const k=laneCity(a)+"->"+laneCity(b);
+     if(mileCache.has(k))return mileCache.get(k);
+     const m=await withTimeout(roadMilesBetween(a,b),1800,null);
+     const n=Number.isFinite(m)?Number(m):999999;
+     mileCache.set(k,n);return n;
+   }
+   function fits(l){
      const maxPayload=Number(state.capacityWeightLimit??currentCapacity().availableWeight);
-     const feasible=remaining.map((l,i)=>({l,i,w:Math.max(0,Number(l.weight||0)),sp:Math.max(0,Number(l.space||0))}))
-       .filter(x=>state.onboardWeight+x.w<=maxPayload&&state.onboardSpace+x.sp<=Number(state.capacitySpaceLimit??currentCapacity().availableSpace));
-     if(!feasible.length){
-       state.feasible=false;state.issues.push("No remaining selected load fits current truck capacity.");break;
-     }
-     let pick=feasible[0],bestMiles=Infinity;
-     for(const x of feasible){
-       const m=await withTimeout(roadMilesBetween(cursor,x.l.pickup),1600,null);
-       const miles=Number.isFinite(m)?m:999999;
-       // Prefer nearby freight, then higher all-mile value.
-       const value=Number(x.l.pay||0)/Math.max(1,Number(x.l.loadedMiles||1));
-       const score=miles-(value*8);
-       if(score<bestMiles){bestMiles=score;pick=x}
-     }
-     const l=remaining.splice(pick.i,1)[0];
-     const toPickup=await withTimeout(roadMilesBetween(cursor,l.pickup),1800,0);
-     if(Number.isFinite(toPickup))state.miles+=Number(toPickup);
-     if(isRoutableLocation(l.pickup)&&routeStops.at(-1)!==l.pickup)routeStops.push(l.pickup);
-     applyTripPickup(state,l);
-
-     const loaded=await withTimeout(roadMilesBetween(l.pickup,l.delivery),2200,Number(l.loadedMiles||0));
-     if(Number.isFinite(loaded))state.miles+=Number(loaded);
-     if(isRoutableLocation(l.delivery)&&routeStops.at(-1)!==l.delivery)routeStops.push(l.delivery);
-     applyTripDrop(state,l);
-     cursor=state.location;
+     const maxSpace=Number(state.capacitySpaceLimit??currentCapacity().availableSpace);
+     return state.onboardWeight+Math.max(0,Number(l.weight||0))<=maxPayload &&
+            state.onboardSpace+Math.max(0,Number(l.space||0))<=maxSpace;
+   }
+   async function directionPenalty(from,next,load,type){
+     // Penalize moves that point away from the load's useful corridor.
+     if(type==="drop")return 0;
+     const direct=await legMiles(from,load.delivery||load.stop);
+     const via1=await legMiles(from,next),via2=await legMiles(next,load.delivery||load.stop);
+     if(direct>=999999||via1>=999999||via2>=999999)return 0;
+     return Math.max(0,(via1+via2)-direct);
    }
 
-   // Routing is an enhancement, not a blocker. On mobile/Safari or a slow provider,
-   // AutoStack must still finish using the per-leg miles already calculated above.
+   let guard=0;
+   while((unpicked.length||onboard.length)&&guard++<100){
+     const options=[];
+     // Every feasible unpicked load is a candidate pickup.
+     for(let i=0;i<unpicked.length;i++){
+       const l=unpicked[i]; if(!fits(l))continue;
+       const loc=l.pickup; if(!isRoutableLocation(loc))continue;
+       const miles=await legMiles(cursor,loc);
+       const detour=await directionPenalty(cursor,loc,l,"pickup");
+       const value=Number(l.pay||0)/Math.max(1,Number(l.loadedMiles||1));
+       // Strongly favor nearby/on-corridor pickups; revenue breaks close ties.
+       options.push({type:"pickup",l,i,loc,miles,score:miles+(detour*.45)-(value*10)});
+     }
+     // Every onboard load is now legally eligible to drop.
+     for(let i=0;i<onboard.length;i++){
+       const l=onboard[i],loc=l.delivery||l.stop;
+       if(!isRoutableLocation(loc))continue;
+       const miles=await legMiles(cursor,loc);
+       options.push({type:"drop",l,i,loc,miles,score:miles});
+     }
+     if(!options.length){
+       state.feasible=false;
+       state.issues.push("No legal next stop fits the current truck state.");
+       break;
+     }
+
+     // Look one stop ahead so we do not greedily leave a pickup market and
+     // later backtrack hundreds of miles for freight that was already nearby.
+     for(const o of options){
+       let lookAhead=0,bestNext=Infinity;
+       const futurePickups=unpicked.filter((x,j)=>!(o.type==="pickup"&&j===o.i));
+       for(const x of futurePickups){
+         if(!isRoutableLocation(x.pickup))continue;
+         const m=await legMiles(o.loc,x.pickup);
+         if(m<bestNext)bestNext=m;
+       }
+       if(bestNext<Infinity)lookAhead=bestNext*.18;
+       o.score+=lookAhead;
+     }
+     options.sort((a,b)=>a.score-b.score);
+     const next=options[0];
+     const travel=await legMiles(cursor,next.loc);
+     if(Number.isFinite(travel)&&travel<999999)state.miles+=travel;
+     if(routeStops.at(-1)!==next.loc)routeStops.push(next.loc);
+     cursor=next.loc;
+
+     if(next.type==="pickup"){
+       const l=unpicked.splice(next.i,1)[0];
+       applyTripPickup(state,l);
+       onboard.push(l);
+     }else{
+       const l=onboard.splice(next.i,1)[0];
+       applyTripDrop(state,l);
+     }
+   }
+
    let route=null;
    if(routeStops.length>=2&&typeof getMileCountRoadRoute==="function"){
-     try{route=await withTimeout(getMileCountRoadRoute(routeStops),4500,null)}catch(e){console.warn("AutoStack route verification",e)}
+     try{route=await withTimeout(getMileCountRoadRoute(routeStops),5000,null)}catch(e){console.warn("AutoStack route verification",e)}
    }
    const routeVerified=!!(route&&Number(route.miles)>0);
    if(Number(route?.miles)>0)state.miles=Number(route.miles);
    const fuel=fuelFor(state.miles);
-   const rpm=state.miles>0?state.liveRevenue/state.miles:0;
+   const totalRevenue=state.liveRevenue+state.testRevenue;
+   const rpm=state.miles>0?totalRevenue/state.miles:0;
    const snapshot=tripSnapshot(state);
    S.tripState=state;
    S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot,routeVerified};
-   // Keep DONE visible in the fixed tray so mobile users never have to hunt for it.
    el("doneStack")?.classList.remove("hidden");
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
-    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+ (base?'<div class="baseStateLine">BASE CARGO • '+escHtml(base.pickup||start)+' → '+escHtml(base.delivery||base.stop||"Delivery")+' • '+money(base.pay)+'</div>':'')+
+    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
-    '<div class="tripStateNow"><b>TRUCK STATE AFTER PLAN</b><span>'+snapshot.onboardCount+' onboard • '+Math.round(snapshot.availableWeight).toLocaleString()+' lb available • '+snapshot.availableSpace.toFixed(1)+' ft available • '+snapshot.completedCount+' delivered</span></div>'+
-    '<div class="stackRoute">'+state.events.map(e=>'<div><b>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
+    '<div class="tripStateNow"><b>OPTIMIZED STOP ORDER</b><span>Multiple pickups can happen before drops. MileCount will not intentionally return to a market it already left when a legal on-route pickup was available.</span></div>'+
+    '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
-    (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY and live RPM.</p>':'');
-   // AutoStack is a two-step flow: optimize first, then DONE opens the actual route/trip screen.
+    (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY.</p>':'');
    if(el("stackPlanResult")){
      el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="finishAutoStack" type="button" style="margin-top:12px">DONE • SHOW ROUTE</button>');
      el("finishAutoStack")?.addEventListener("click",finishAutoStack);
