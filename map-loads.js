@@ -77,6 +77,7 @@ function cityState(v){
  return [v.city,v.state].filter(Boolean).join(", ");
 }
 function loadPoint(load){
+ if(Number.isFinite(Number(load.map_lat))&&Number.isFinite(Number(load.map_lon)))return [Number(load.map_lat),Number(load.map_lon)];
  if(Array.isArray(load._milecountMapPoint)&&load._milecountMapPoint.length===2)return load._milecountMapPoint;
  const c=Array.isArray(load.routeCoordinates)?load.routeCoordinates:[];
  if(c.length){
