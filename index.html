@@ -343,6 +343,14 @@ color:var(--muted);
 .loadFoot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px;flex-wrap:wrap}
 .sourceTag,.verdictTag{font-size:9px;font-weight:900;border-radius:20px;padding:6px 8px}.sourceTag{background:#172a21;color:#a9c5b7}.verdictTag{background:#173b29;color:#70dfa1}
 @media(max-width:420px){.loadMetrics{grid-template-columns:repeat(2,1fr)}}
+.loadMapShell{margin:12px 0 16px;background:#09130f;border:1px solid #20352b;border-radius:15px;padding:10px}
+.loadMapHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:3px 3px 9px}.loadMapHead h3{margin:6px 0 0}.loadMapHead>b{font-size:10px;color:#8adbb5}
+#loadDiscoveryMap{width:100%;height:360px;border-radius:12px;overflow:hidden;background:#07110d}
+.loadMapLegend{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:9px 3px 1px;font-size:10px;color:#93a79d}.loadMapLegend span{display:flex;align-items:center;gap:4px}.loadMapLegend em{margin-left:auto;font-style:normal}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}.dot.strong{background:#18b66d}.dot.works{background:#d5a62d}.dot.pass{background:#c95757}
+.mcMapPopup{font-family:Arial,sans-serif;color:#102019}.mcMapPopupTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.mcMapPopupTop b{font-size:13px;line-height:1.25}.mcMapPopupTop strong{color:#138858;font-size:18px;white-space:nowrap}.mcMapProvider{font-size:9px;font-weight:900;margin:5px 0 8px;color:#4f6c5e}.mcMapGrid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.mcMapGrid span{background:#eef5f1;border-radius:7px;padding:6px}.mcMapGrid small{display:block;font-size:7px;color:#708078;font-weight:900}.mcMapGrid b{font-size:11px}.mcMapFine{font-size:9px;color:#67776f;margin:7px 0}.mcMapSelect{padding:9px!important;margin:4px 0 0!important;font-size:10px!important;border-radius:8px!important;background:#18a568!important}
+@media(max-width:520px){#loadDiscoveryMap{height:330px}.loadMapLegend em{width:100%;margin-left:0}}
+
 </style>
 
 <!-- deploy-retry-20260927-1657-stable -->
@@ -581,6 +589,11 @@ Best freight combination.
 
 <p class="details">Tap the best fit to fill your remaining space.</p>
 
+<div class="loadMapShell">
+<div class="loadMapHead"><div><span class="badge">LOAD MAP</span><h3>Loads around your search</h3></div><b id="loadMapCount">0 MAPPED</b></div>
+<div id="loadDiscoveryMap" aria-label="Clickable map of matched freight loads"></div>
+<div class="loadMapLegend"><span><i class="dot strong"></i>Strong</span><span><i class="dot works"></i>Works</span><span><i class="dot pass"></i>Pass</span><em>Tap any pin for load details.</em></div>
+</div>
 <div id="loadCandidates" style="display:grid;gap:8px;margin:14px 0"></div>
 
 
@@ -1079,7 +1092,8 @@ app
 <script src="routing.js?v=20260927-recovery16"></script>
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
-<script src="app.js?v=live-surgical23"></script>
+<script src="map-loads.js?v=20260927-loadmap1"></script>
+<script src="app.js?v=20260927-loadmap1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
