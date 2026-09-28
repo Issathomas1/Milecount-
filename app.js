@@ -887,6 +887,66 @@ async function applyProviderFilter(){
 }
 
 
+
+function createTripState(start){
+ return {
+  location:start||S.origin||"",
+  onboard:[],
+  completed:[],
+  events:[],
+  onboardWeight:0,
+  onboardSpace:0,
+  peakWeight:0,
+  peakSpace:0,
+  liveRevenue:0,
+  testRevenue:0,
+  miles:0,
+  feasible:true,
+  issues:[]
+ };
+}
+function tripLoadId(l){return loadKey(l)}
+function applyTripPickup(state,l){
+ const w=Math.max(0,Number(l.weight||0)),sp=Math.max(0,Number(l.space||0));
+ state.location=l.pickup||state.location;
+ state.onboard.push(l);
+ state.onboardWeight+=w;state.onboardSpace+=sp;
+ state.peakWeight=Math.max(state.peakWeight,state.onboardWeight);
+ state.peakSpace=Math.max(state.peakSpace,state.onboardSpace);
+ const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+ const ok=state.onboardWeight<=maxPayload&&state.onboardSpace<=activeVehicle.cargoLength;
+ if(!ok){
+   state.feasible=false;
+   state.issues.push("Capacity exceeded at "+state.location);
+ }
+ state.events.push({type:"pickup",location:state.location,load:l,onboardWeight:state.onboardWeight,onboardSpace:state.onboardSpace,ok});
+ return ok;
+}
+function applyTripDrop(state,l){
+ const id=tripLoadId(l),idx=state.onboard.findIndex(x=>tripLoadId(x)===id);
+ if(idx>=0)state.onboard.splice(idx,1);
+ state.onboardWeight=Math.max(0,state.onboardWeight-Math.max(0,Number(l.weight||0)));
+ state.onboardSpace=Math.max(0,state.onboardSpace-Math.max(0,Number(l.space||0)));
+ state.location=l.delivery||state.location;
+ state.completed.push(l);
+ if(l.isSandbox)state.testRevenue+=Number(l.pay||0);else state.liveRevenue+=Number(l.pay||0);
+ state.events.push({type:"drop",location:state.location,load:l,onboardWeight:state.onboardWeight,onboardSpace:state.onboardSpace,ok:true});
+}
+function tripSnapshot(state){
+ return {
+  location:state.location,
+  onboardCount:state.onboard.length,
+  onboardWeight:state.onboardWeight,
+  onboardSpace:state.onboardSpace,
+  availableWeight:Math.max(0,Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB)-state.onboardWeight),
+  availableSpace:Math.max(0,activeVehicle.cargoLength-state.onboardSpace),
+  completedCount:state.completed.length,
+  liveRevenue:state.liveRevenue,
+  testRevenue:state.testRevenue,
+  feasible:state.feasible
+ };
+}
+
 const selectedStackKeys=new Set();
 function loadKey(l){
  return String(l.providerLoadId||l.bookingReference||l.name||"")+"|"+String(l.provider||"");
@@ -913,50 +973,64 @@ function toggleStackLoad(index){
 async function smartAutoStack(){
  const chosen=stackSelectedLoads();
  if(chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
- setBusy(true,"One moment — optimizing pickups, drops and available capacity…");
- setButtonBusy("smartAutoStack",true,"OPTIMIZING…","SMART AUTOSTACK");
+ setBusy(true,"One moment — building the smartest feasible trip…");
+ setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
  try{
    const start=(el("from")?.value||S.origin||"").trim();
-   const live=chosen.filter(l=>!l.isSandbox),test=chosen.filter(l=>l.isSandbox);
-   const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
-   const remaining=[...chosen],ordered=[],stops=[],events=[];
-   let cursor=start,onboardWeight=0,onboardSpace=0,peakWeight=0,peakSpace=0,capacityOK=true;
+   const state=createTripState(start);
+   const remaining=[...chosen],routeStops=[start].filter(isRoutableLocation);
+   let cursor=start;
+
+   // Dispatch iteratively. Pick the nearest feasible pickup from the truck's
+   // CURRENT state, deliver it, release capacity, then evaluate the next load.
    while(remaining.length){
-     let bestIndex=0,bestMiles=Infinity;
-     for(let i=0;i<remaining.length;i++){
-       const p=remaining[i].pickup;if(!isRoutableLocation(p))continue;
-       const m=await withTimeout(roadMilesBetween(cursor,p),1800,null);
-       if(Number.isFinite(m)&&m<bestMiles){bestMiles=m;bestIndex=i}
+     const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+     const feasible=remaining.map((l,i)=>({l,i,w:Math.max(0,Number(l.weight||0)),sp:Math.max(0,Number(l.space||0))}))
+       .filter(x=>state.onboardWeight+x.w<=maxPayload&&state.onboardSpace+x.sp<=activeVehicle.cargoLength);
+     if(!feasible.length){
+       state.feasible=false;state.issues.push("No remaining selected load fits current truck capacity.");break;
      }
-     const l=remaining.splice(bestIndex,1)[0],w=Math.max(0,Number(l.weight||0)),sp=Math.max(0,Number(l.space||0));
-     ordered.push(l);
-     if(isRoutableLocation(l.pickup)&&stops.at(-1)!==l.pickup)stops.push(l.pickup);
-     onboardWeight+=w;onboardSpace+=sp;peakWeight=Math.max(peakWeight,onboardWeight);peakSpace=Math.max(peakSpace,onboardSpace);
-     const pickupOK=onboardWeight<=maxPayload&&onboardSpace<=activeVehicle.cargoLength;if(!pickupOK)capacityOK=false;
-     events.push({type:"pickup",city:l.pickup,load:l,onboardWeight,onboardSpace,ok:pickupOK});
-     if(isRoutableLocation(l.delivery)&&stops.at(-1)!==l.delivery)stops.push(l.delivery);
-     onboardWeight=Math.max(0,onboardWeight-w);onboardSpace=Math.max(0,onboardSpace-sp);
-     events.push({type:"delivery",city:l.delivery,load:l,onboardWeight,onboardSpace,ok:true});
-     cursor=l.delivery||cursor;
+     let pick=feasible[0],bestMiles=Infinity;
+     for(const x of feasible){
+       const m=await withTimeout(roadMilesBetween(cursor,x.l.pickup),1600,null);
+       const miles=Number.isFinite(m)?m:999999;
+       // Prefer nearby freight, then higher all-mile value.
+       const value=Number(x.l.pay||0)/Math.max(1,Number(x.l.loadedMiles||1));
+       const score=miles-(value*8);
+       if(score<bestMiles){bestMiles=score;pick=x}
+     }
+     const l=remaining.splice(pick.i,1)[0];
+     const toPickup=await withTimeout(roadMilesBetween(cursor,l.pickup),1800,0);
+     if(Number.isFinite(toPickup))state.miles+=Number(toPickup);
+     if(isRoutableLocation(l.pickup)&&routeStops.at(-1)!==l.pickup)routeStops.push(l.pickup);
+     applyTripPickup(state,l);
+
+     const loaded=await withTimeout(roadMilesBetween(l.pickup,l.delivery),2200,Number(l.loadedMiles||0));
+     if(Number.isFinite(loaded))state.miles+=Number(loaded);
+     if(isRoutableLocation(l.delivery)&&routeStops.at(-1)!==l.delivery)routeStops.push(l.delivery);
+     applyTripDrop(state,l);
+     cursor=state.location;
    }
-   const routeStops=[start,...stops].filter(isRoutableLocation).filter((x,i,a)=>i===0||x!==a[i-1]);
+
    const route=routeStops.length>=2?await withTimeout(getMileCountRoadRoute(routeStops),6500,null):null;
-   const miles=Number(route?.miles||ordered.reduce((s,l)=>s+Number(l.loadedMiles||0),0));
-   const livePay=live.reduce((s,l)=>s+Number(l.pay||0),0),testPay=test.reduce((s,l)=>s+Number(l.pay||0),0);
-   const fuel=fuelFor(miles),rpm=miles>0?livePay/miles:0;
-   const weightOK=peakWeight<=maxPayload,spaceOK=peakSpace<=activeVehicle.cargoLength;
-   const valid=capacityOK&&weightOK&&spaceOK&&routeStops.length>=2;
-   S.stackPlan={loads:ordered,routeStops,miles,livePay,testPay,fuel,rpm,valid,peakWeight,peakSpace,events};
+   if(Number(route?.miles)>0)state.miles=Number(route.miles);
+   const fuel=fuelFor(state.miles);
+   const rpm=state.miles>0?state.liveRevenue/state.miles:0;
+   const snapshot=tripSnapshot(state);
+   S.tripState=state;
+   S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot};
+
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
-    '<div class="stackPlanStatus '+(valid?"good":"bad")+'">'+(valid?"STACK PLAN READY":"STACK NEEDS CHANGES")+'</div>'+
-    '<div class="stackPlanMetrics"><div><small>SELECTED</small><b>'+chosen.length+' loads</b></div><div><small>LIVE PAY</small><b>'+money(livePay)+'</b></div><div><small>TEST PAY</small><b>'+money(testPay)+'</b></div><div><small>ROUTE</small><b>'+Math.round(miles).toLocaleString()+' mi</b></div><div><small>PEAK WEIGHT</small><b>'+Math.round(peakWeight).toLocaleString()+' lb</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div></div>'+
-    '<div class="stackRoute">'+events.map(e=>'<div><b>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+(e.city||"Location")+'</b><span>'+money(e.load.pay)+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
-    (!weightOK?'<p class="stackWarn">Peak onboard weight exceeds '+maxPayload.toLocaleString()+' lb.</p>':'')+
-    (!spaceOK?'<p class="stackWarn">Peak onboard cargo length exceeds '+activeVehicle.cargoLength+' ft.</p>':'')+
-    (test.length?'<p class="stackWarn">Sandbox/test pay is excluded from LIVE PAY and live RPM.</p>':'');
+    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+
+    '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
+    '<div class="tripStateNow"><b>TRUCK STATE AFTER PLAN</b><span>'+snapshot.onboardCount+' onboard • '+Math.round(snapshot.availableWeight).toLocaleString()+' lb available • '+snapshot.availableSpace.toFixed(1)+' ft available • '+snapshot.completedCount+' delivered</span></div>'+
+    '<div class="stackRoute">'+state.events.map(e=>'<div><b>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
+    (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
+    (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY and live RPM.</p>':'');
    el("stackPlanResult")?.scrollIntoView({behavior:"smooth",block:"center"});
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
 }
+function escHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\\"":"&quot;","'":"&#39;"}[c]))}
 
 function unifiedSourceLabel(l){
  return l.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • "+(l.provider||"Provider");
