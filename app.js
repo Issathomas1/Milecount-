@@ -1045,6 +1045,8 @@ function updateStackTray(){
  if(count)count.textContent=chosen.length;
  if(pay)pay.textContent=money(chosen.reduce((s,l)=>s+Number(l.pay||0),0));
  if(tray)tray.classList.toggle("active",chosen.length>0);
+ // Manual choice is valid with one or more selected loads; AutoStack remains optional.
+ const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
 }
 function toggleStackLoad(index){
  const loads=S.candidateLoads||[],l=loads[index];if(!l)return;
@@ -1165,6 +1167,29 @@ async function smartAutoStack(){
    }
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
 }
+async function finishMyPicks(){
+ const chosen=stackSelectedLoads();
+ if(!chosen.length){alert("Pick at least 1 load first.");return}
+ const base=S.basePlanLoad||null;
+ const ordered=[];
+ if(base)ordered.push(base);
+ chosen.forEach(l=>{if(!ordered.some(x=>loadKey(x)===loadKey(l)))ordered.push(l)});
+ const stops=[];
+ const start=(el("from")?.value||S.origin||ordered[0]?.pickup||"").trim();
+ if(isRoutableLocation(start))stops.push(start);
+ const events=[];
+ let livePay=0,testPay=0,miles=0;
+ for(const l of ordered){
+   if(isRoutableLocation(l.pickup)&&stops.at(-1)!==l.pickup)stops.push(l.pickup);
+   events.push({type:"pickup",location:l.pickup,load:l,onboardWeight:Number(l.weight||0),onboardSpace:Number(l.space||0)});
+   if(isRoutableLocation(l.delivery)&&stops.at(-1)!==l.delivery)stops.push(l.delivery);
+   events.push({type:"drop",location:l.delivery,load:l,onboardWeight:0,onboardSpace:0});
+   if(l.isSandbox)testPay+=Number(l.pay||0);else livePay+=Number(l.pay||0);
+   miles+=Math.max(0,Number(l.loadedMiles||0))+Math.max(0,Number(l.deadheadMiles||0));
+ }
+ S.stackPlan={loads:ordered,routeStops:stops,miles,livePay,testPay,fuel:fuelFor(miles),rpm:miles?livePay/miles:0,valid:true,events,snapshot:{},routeVerified:false,manual:true};
+ await finishAutoStack();
+}
 async function finishAutoStack(){
  const p=S.stackPlan;
  if(!p||!Array.isArray(p.routeStops)||p.routeStops.length<2){
@@ -1266,7 +1291,7 @@ fetchLoadBootSandbox(false);
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 bind("smartAutoStack",smartAutoStack);
-bind("doneStack",finishAutoStack);
+bind("doneStack",finishMyPicks);
 bind("clearStack",()=>{selectedStackKeys.clear();S.stackPlan=null;el("doneStack")?.classList.add("hidden");updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
 silentAudit();
 setInterval(()=>{
