@@ -154,6 +154,37 @@ function setBoardStatus(kind,text){
  s.className="boardHealth "+kind;
  s.textContent=text;
 }
+
+function silentValidateLoad(l){
+ const issues=[],e=loadEconomics(l),w=Number(l?.weight||0),pay=Number(l?.pay||0);
+ if(w>MAX_LOAD_WEIGHT_LB)issues.push("weight");
+ if(pay<0)issues.push("pay");
+ if(e.deadhead<0||e.loaded<0||e.allMiles<0)issues.push("miles");
+ if(e.allMiles>0&&Math.abs(e.rpm-(pay/e.allMiles))>.02)issues.push("rpm");
+ return {ok:issues.length===0,issues,e};
+}
+function silentValidateTrip(){
+ const st=S.tripState;if(!st)return {ok:true,issues:[]};
+ const issues=[],cap=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+ if(Number(st.onboardWeight||0)>cap)issues.push("weight");
+ if(Number(st.onboardSpace||0)>activeVehicle.cargoLength)issues.push("space");
+ const expected=(st.completed||[]).filter(l=>!l.isSandbox).reduce((s,l)=>s+Number(l.pay||0),0);
+ if(Math.abs(expected-Number(st.liveRevenue||0))>.01)issues.push("revenue");
+ return {ok:issues.length===0,issues};
+}
+function silentAudit(){
+ const loads=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:(S.candidateLoads||[]);
+ const bad=loads.filter(l=>!silentValidateLoad(l).ok);
+ const trip=silentValidateTrip();
+ S.lastAudit={at:Date.now(),ok:bad.length===0&&trip.ok,badLoads:bad.length,tripIssues:trip.issues};
+ // Never expose a suspect selected-load calculation as a confident fact.
+ if(S.selectedCandidate&&!silentValidateLoad(S.selectedCandidate).ok){
+   if(el("loadVerdict"))el("loadVerdict").textContent="RECHECKING…";
+   if(el("autoStackReason"))el("autoStackReason").textContent="Milecount is rechecking this load's route and economics.";
+ }
+ return S.lastAudit;
+}
+
 function qualityScore(l,profile){
  const e=loadEconomics(l);
  if(l.isSandbox)return -100000+(Number(l.pay||0));
@@ -1099,5 +1130,15 @@ el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 bind("smartAutoStack",smartAutoStack);
 bind("clearStack",()=>{selectedStackKeys.clear();updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
+silentAudit();
+setInterval(()=>{
+ try{
+   silentAudit();
+   refreshLiveLoadCount();
+   // LoadBoot fetch remains cached for at least 5 minutes; this does not poll it every minute.
+   fetchLoadBootSandbox(false).catch(()=>{});
+ }catch(e){console.warn("MileCount background audit",e)}
+},60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){silentAudit();refreshLiveLoadCount()}});
 console.log("MileCount App Engine V2 Ready");
 })();
