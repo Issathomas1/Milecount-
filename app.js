@@ -298,7 +298,7 @@ document.addEventListener("milecount:search-area",()=>findMoney());
 
 async function checkWarpMarketQuote(){
  const priceEl=el("marketQuotePrice"),statusEl=el("marketQuoteStatus"),detailsEl=el("marketQuoteDetails"),btn=el("checkMarketQuote");
- const origin=String(el("from")?.value||"").trim(),destination=String(el("to")?.value||"").trim();
+ const origin=String(el("marketFromZip")?.value||"").trim(),destination=String(el("marketToZip")?.value||"").trim();
  const pallets=Math.max(1,Math.min(12,Math.round(val("marketPallets",1))));
  const weight=Math.max(50,Math.round(val("marketWeightPerPallet",500)));
  const pickup=el("pickupDate")?.value||"";
