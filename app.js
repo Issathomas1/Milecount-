@@ -129,16 +129,25 @@ async function findMoney(){
 }
 
 function selectCandidate(i){
- const l=(S.candidateLoads||[])[i];if(!l)return;S.selectedCandidate=l;S.addedPay=l.pay;S.totalPay=S.primaryPay+l.pay;S.extraMiles=l.extraMiles;S.selectedStop=l.stop;
- if(el("added"))el("added").textContent="+"+money(l.pay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(l.pay);
+ const l=(S.candidateLoads||[])[i];if(!l)return;S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
+ if(l.provider){
+  S.tripMode="live";S.primaryPay=0;S.addedPay=l.pay;S.totalPay=l.pay;S.origin=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));S.destination=l.delivery||([l.destination?.city,l.destination?.state].filter(Boolean).join(", "));S.selectedStop=S.destination;S.extraMiles=Math.max(0,Number(l.deadhead||0));
+ }else{
+  S.tripMode="simulation";S.primaryPay=Math.max(0,val("pay",1400));S.addedPay=l.pay;S.totalPay=S.primaryPay+l.pay;S.extraMiles=l.extraMiles;S.selectedStop=l.stop;
+ }
+ const economicMiles=l.provider?Math.max(0,Number(l.loadedMiles||0))+Math.max(0,Number(l.deadhead||0)):Math.max(0,Number(l.extraMiles||0));
+ const fuel=l.provider?fuelFor(economicMiles):l.fuel;const afterFuel=l.pay-(fuel?.fuelCost||0);
+ if(el("added"))el("added").textContent="+"+money(l.pay);if(el("current"))el("current").textContent=money(S.primaryPay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(l.pay);
  if(el("remainingSpace"))el("remainingSpace").textContent=Math.max(0,val("space",0)-l.space)+" ft remaining";if(el("remainingWeight"))el("remainingWeight").textContent=Math.max(0,val("weight",0)-l.weight).toLocaleString()+" lb remaining";
- if(el("detourMiles"))el("detourMiles").textContent=l.extraMiles.toFixed(1)+" mi";if(el("detourTime"))el("detourTime").textContent=l.extraDriveTime;if(el("spaceUsed"))el("spaceUsed").textContent=l.space+" ft";if(el("weightUsed"))el("weightUsed").textContent=l.weight.toLocaleString()+" lb";if(el("extraFuel"))el("extraFuel").textContent=money(l.fuel.fuelCost);if(el("addedAfterFuel"))el("addedAfterFuel").textContent="+"+money(l.afterFuel);
+ if(el("detourMiles"))el("detourMiles").textContent=S.extraMiles.toFixed(1)+" mi";if(el("detourTime"))el("detourTime").textContent=l.provider?"Provider deadhead":l.extraDriveTime;if(el("spaceUsed"))el("spaceUsed").textContent=l.space+" ft";if(el("weightUsed"))el("weightUsed").textContent=l.weight.toLocaleString()+" lb";if(el("extraFuel"))el("extraFuel").textContent=money(fuel?.fuelCost||0);if(el("addedAfterFuel"))el("addedAfterFuel").textContent=money(afterFuel);
  document.querySelectorAll(".candidateLoad").forEach((b,n)=>b.classList.toggle("selected",n===i));
 }
 async function updateOutboundMap(){
+ const l=S.selectedCandidate;
+ if(l?.provider&&Array.isArray(l.routeCoordinates)&&l.routeCoordinates.length>1&&typeof showMileCountProviderRoute==="function")return await showMileCountProviderRoute(l);
  if(typeof showMileCountRoute!=="function")return null;
- const stops=[S.origin]; if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop); if(stops.at(-1)!==S.destination)stops.push(S.destination);
- return await showMileCountRoute(stops);
+ if(l?.provider)return await showMileCountRoute([l.pickup||S.origin,l.delivery||S.destination]);
+ const stops=[S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);return await showMileCountRoute(stops);
 }
 async function addToTrip(){
  const l=S.selectedCandidate;
@@ -154,17 +163,18 @@ async function addToTrip(){
    }
   }catch(e){console.warn("Planner AutoStack cloud update failed",e)}
  }
- showScreen(3);await updateOutboundMap();
+ if(l?.provider&&el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>LIVE LOAD PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+S.destination+'</b><br>LIVE LOAD DELIVERY</div>';showScreen(3);await updateOutboundMap();
 }
 function protectReturn(){
  if(el("returnLane"))el("returnLane").textContent=S.destination+" → "+S.home;
- if(el("returnPay"))el("returnPay").textContent="+"+money(S.returnPay);
+ if(el("returnPay"))el("returnPay").textContent=money(S.returnPay||0);
  if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay);
  if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(S.roundTripMiles||0).toLocaleString()+" mi";
  showScreen(4)
 }
 
 async function getHomePaid(){
+ if(!(S.returnPay>0)){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO RETURN LOAD SELECTED"}alert("No return load has been selected. MileCount will not add return revenue until a real or manually entered return load exists.");return}
  S.homeAdded=true;
  if(S.plannerTripId&&window.MileCountCloud){try{const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);if(t)await MileCountCloud.updatePlannerTrip(t.id,{return_pay:Number(S.returnPay||0),expected_revenue:Number(t.original_pay||0)+Number(t.autostack_pay||0)+Number(S.returnPay||0)})}catch(e){console.warn("Planner return cloud update failed",e)}}
 let route=null;
@@ -201,7 +211,7 @@ let route=null;
 
 async function viewUpdatedTrip(){
  const total=S.totalPay+(S.homeAdded?S.returnPay:0);if(el("tripPay"))el("tripPay").textContent=money(total);
- if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>START / PRIMARY CARGO</div>'+(S.selectedStop!==S.destination?'<div class="stop">📦 <b>'+S.selectedStop+'</b><br>MileCount partial delivery</div>':'')+'<div class="stop">🏁 <b>'+S.destination+'</b><br>Original delivery</div>'+(S.homeAdded?'<div class="stop">💰 <b>'+S.destination+'</b><br>Return load pickup • +$740</div><div class="stop">🏠 <b>'+S.home+'</b><br>HOME ✓</div>':'');
+ if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>START / PRIMARY CARGO</div>'+(S.selectedStop!==S.destination?'<div class="stop">📦 <b>'+S.selectedStop+'</b><br>MileCount partial delivery</div>':'')+'<div class="stop">🏁 <b>'+S.destination+'</b><br>Original delivery</div>'+(S.homeAdded&&S.returnPay>0?'<div class="stop">💰 <b>'+S.destination+'</b><br>Confirmed return load • +'+money(S.returnPay)+'</div><div class="stop">🏠 <b>'+S.home+'</b><br>HOME ✓</div>':'');
  await saveCurrentTrip();
  showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
 }
@@ -214,7 +224,7 @@ async function saveCurrentTrip(){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);return false}
 }
-function startNewTrip(){S.homeAdded=false;S.returnPay=0;S.roundTripMiles=0;S.selectedCandidate=null;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
