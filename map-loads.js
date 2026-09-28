@@ -156,7 +156,7 @@ function popupHtml(load,index,profile){
     '<span><small>AFTER FUEL*</small><b>'+money(after)+'</b></span>'+
    '</div>'+
    '<div class="mcMapFine">Pickup: '+esc(pickup)+' • '+Number(load.weight||0).toLocaleString()+' lb'+(load.space?" • "+esc(load.space)+" ft":"")+'</div>'+
-   '<button type="button" class="mcMapSelect" onclick="window.MileCountSelectCandidate && window.MileCountSelectCandidate('+index+')">VIEW THIS LOAD</button>'+
+   '<button type="button" class="mcMapSelect" onclick="window.MileCountOpenLoadDetails ? window.MileCountOpenLoadDetails('+index+') : (window.MileCountSelectCandidate && window.MileCountSelectCandidate('+index+'))">VIEW THIS LOAD</button>'+
    sourceButton+
   '</div>';
 }
@@ -211,7 +211,7 @@ function clusterPopup(group){
    ranked.map(x=>{
      const e=economics(x.load,sourceProfile);
      const lane=(cityState(x.load.origin)||x.load.pickup||"Pickup")+' → '+(cityState(x.load.destination)||x.load.delivery||x.load.stop||"Delivery");
-     return '<button type="button" onclick="window.MileCountSelectCandidate && window.MileCountSelectCandidate('+x.index+')"><span>'+esc(lane)+'</span><strong>'+money(x.load.pay)+'</strong><small>'+e.label+(e.rpm?" • $"+e.rpm.toFixed(2)+"/mi":"")+'</small></button>';
+     return '<button type="button" onclick="window.MileCountOpenLoadDetails ? window.MileCountOpenLoadDetails(' + x.index + ') : (window.MileCountSelectCandidate && window.MileCountSelectCandidate(' + x.index + '))"><span>'+esc(lane)+'</span><strong>'+money(x.load.pay)+'</strong><small>'+e.label+(e.rpm?" • $"+e.rpm.toFixed(2)+"/mi":"")+'</small></button>';
    }).join("")+
    (group.length>5?'<div class="mcClusterMore">+'+(group.length-5)+' more — zoom in to separate</div>':"")+
   '</div>';
@@ -222,8 +222,14 @@ function renderPins(items){
    if(group.length===1){
      const x=group[0],e=economics(x.load,sourceProfile);
      const marker=L.marker(x.pt,{icon:markerIcon(e.tone,x.index),riseOnHover:true}).addTo(loadMap);
-     marker.bindPopup(popupHtml(x.load,x.index,sourceProfile),{maxWidth:330,minWidth:275});
-     marker.on("click",()=>{selectedIndex=x.index;if(window.MileCountSelectCandidate)window.MileCountSelectCandidate(x.index)});
+     marker.bindPopup(popupHtml(x.load,x.index,sourceProfile),{maxWidth:330,minWidth:275,autoClose:false,closeOnClick:false});
+     marker.on("click",e=>{
+       if(e?.originalEvent)L.DomEvent.stopPropagation(e.originalEvent);
+       selectedIndex=x.index;
+       if(marker.closePopup)marker.closePopup();
+       if(window.MileCountOpenLoadDetails)window.MileCountOpenLoadDetails(x.index);
+       else if(window.MileCountSelectCandidate)window.MileCountSelectCandidate(x.index);
+     });
      renderedLayers.push(marker);
    }else{
      const lat=group.reduce((s,x)=>s+x.pt[0],0)/group.length;
