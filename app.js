@@ -136,6 +136,11 @@ function loadEconomics(l){
  const afterFuel=Number(l.pay||0)-fuelCost;
  return {loaded,deadhead,allMiles,rpm,fuelCost,afterFuel};
 }
+function setBoardStatus(kind,text){
+ const s=el("boardHealth");if(!s)return;
+ s.className="boardHealth "+kind;
+ s.textContent=text;
+}
 function qualityScore(l,profile){
  const e=loadEconomics(l);
  if(l.isSandbox)return -100000+(Number(l.pay||0));
@@ -147,13 +152,14 @@ function qualityScore(l,profile){
 }
 
 async function findMoney(){
+ setBoardStatus("working","Checking connected freight…");
  applyVehicle(el("vehicleType")?.value||"box26",false);
  const profile=updateCostUI();
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
  let loads=[];let liveProvider=false; let providerErrors=[];
  let providerResponded=false,providerLiveFound=0,resolvedLane=null;
- try{const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:S.liveOnlyBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})}),10000,null);if(!r)throw new Error("TrukTek request timed out");if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e)}
+ try{const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:S.liveOnlyBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})}),10000,null);if(!r)throw new Error("TrukTek request timed out");if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e);setBoardStatus("warn","TrukTek is temporarily slow/unavailable. Other connected freight can still display.")}
  if(el("dataModeBadge")){
   el("dataModeBadge").textContent=S.liveOnlyBrowse
     ?(providerResponded?(liveProvider?"LIVE LOAD BOARD":"LIVE • NO MATCHES"):"LIVE API UNAVAILABLE")
@@ -213,13 +219,14 @@ async function findMoney(){
  }
  const maxDH=Math.max(0,val("maxDeadhead",100)),minRPM=Math.max(0,val("minRPM",0));
  if(!S.liveOnlyBrowse){
-   loads=loads.filter(l=>Number(l.extraMiles||0)<=maxDH && (Number(l.extraMiles||0)<=0 || Number(l.pay||0)/Number(l.extraMiles||1)>=minRPM));
+   loads=loads.filter(l=>loadEconomics(l).deadhead<=maxDH && loadEconomics(l).rpm>=minRPM);
  }
  loads.sort((a,b)=>qualityScore(b,profile)-qualityScore(a,profile));
  const best=loads[0]||{pay:0,space:0,weight:0,stop:S.destination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
  S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
 
  if(S.liveOnlyBrowse)S.liveBoardLoads=[...loads];
+ if(providerErrors.length===0)setBoardStatus("ok",loads.length?("Freight updated • "+loads.length+" provider load"+(loads.length===1?"":"s")+" processed"):"Connected • no matching live freight right now");
  S.candidateLoads=loads;S.selectedCandidate=best;
  if(typeof window.renderMileCountLoadMap==="function")window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
@@ -247,7 +254,7 @@ async function findMoney(){
  if(el("extraFuel"))el("extraFuel").textContent=money(best.fuel.fuelCost);
  if(el("extraFuelDetails"))el("extraFuelDetails").textContent=best.fuel.gallons.toFixed(1)+" gal • $"+best.fuel.dieselPrice.toFixed(2)+"/gal • "+best.fuel.source;
  if(el("addedAfterFuel"))el("addedAfterFuel").textContent="+"+money(best.afterFuel);
- const addedRPM=best.extraMiles>0?best.pay/best.extraMiles:0;
+ const addedRPM=loadEconomics(best).rpm;
  if(el("loadVerdict")){
    el("loadVerdict").textContent=!best.pay?"NO FIT":(addedRPM>=profile.target?"STRONG ✓":addedRPM>=profile.breakEven?"WORKS":"PASS");
    el("loadVerdict").style.color=!best.pay?"#93a79d":(addedRPM>=profile.target?"#31bf72":addedRPM>=profile.breakEven?"#f1c75b":"#ff7777");
@@ -257,7 +264,10 @@ async function findMoney(){
 }
 
 function selectCandidate(i){
- const l=(S.candidateLoads||[])[i];if(!l)return;S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
+ const l=(S.candidateLoads||[])[i];if(!l)return;
+ const e=loadEconomics(l);
+ if(el("selectedLoadSummary"))el("selectedLoadSummary").innerHTML='<b>'+(l.pickup||"Pickup")+' → '+(l.delivery||l.stop||"Delivery")+'</b><span>'+money(l.pay)+' • '+(e.rpm?("$"+e.rpm.toFixed(2)+"/all-mile"):"RPM —")+' • '+Math.round(e.deadhead)+' mi deadhead • '+(l.isSandbox?"SANDBOX TEST":"LIVE")+'</span>';
+S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  if(l.provider){
   S.tripMode="live";S.primaryPay=0;S.addedPay=l.pay;S.totalPay=l.pay;
   S.selectedLoadPickup=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));
@@ -611,6 +621,8 @@ async function browseLiveLoadBoard(stayHome=false){
  S.liveOnlyBrowse=true;
  S.stayHomeAfterSearch=!!stayHome;
  applyVehicle(el("vehicleType")?.value||"box26",false);
+ // Browse uses full truck capacity but does not overwrite the driver's saved lane/filter form.
+ const savedBrowse={to:el("to")?.value||"",pay:el("pay")?.value||"",maxDeadhead:el("maxDeadhead")?.value||"",minRPM:el("minRPM")?.value||"",pickupDate:el("pickupDate")?.value||"",space:el("space")?.value||"",weight:el("weight")?.value||""};
  if(el("to"))el("to").value="Anywhere, USA";
  if(el("pay"))el("pay").value=0;
  if(el("maxDeadhead"))el("maxDeadhead").value=500;
@@ -623,6 +635,9 @@ async function browseLiveLoadBoard(stayHome=false){
    await withTimeout(refreshUnifiedFreightBoard(false),12000,null);
  }finally{
    S.stayHomeAfterSearch=false;
+   if(typeof savedBrowse!=="undefined"){
+     ["to","pay","maxDeadhead","minRPM","pickupDate","space","weight"].forEach(k=>{if(el(k))el(k).value=savedBrowse[k]});
+   }
    if(!stayHome)setButtonBusy("browseLiveLoads",false,"","BROWSE LIVE LOAD BOARD");
    setBusy(false);
  }
@@ -831,5 +846,6 @@ bind("viewLoadBootSandbox",showLoadBootSandbox);
 fetchLoadBootSandbox(false);
 
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
+window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 console.log("MileCount App Engine V2 Ready");
 })();
