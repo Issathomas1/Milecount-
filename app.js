@@ -9,6 +9,13 @@ const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:0,extraMiles:0,round
 const el=id=>document.getElementById(id);
 const val=(id,f=0)=>{const n=Number(el(id)?.value);return Number.isFinite(n)?n:f};
 const money=v=>{const n=Math.round(Number(v)||0);return (n<0?"-$":"$")+Math.abs(n).toLocaleString()};
+function withTimeout(p,ms,fallback=null){
+ return Promise.race([p,new Promise(resolve=>setTimeout(()=>resolve(fallback),ms))]);
+}
+function dateISOPlus(days){
+ const d=new Date();d.setDate(d.getDate()+days);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+}
+
 const SEARCH_KEY="milecount:driver-search:v1";
 function saveDriverSearch(){
  try{
@@ -255,14 +262,110 @@ async function addToTrip(){
    }
   }catch(e){console.warn("Planner AutoStack cloud update failed",e)}
  }
- if(l?.provider&&el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>LIVE LOAD PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+S.destination+'</b><br>LIVE LOAD DELIVERY</div>';showScreen(3);await updateOutboundMap();
+ if(l?.provider&&el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+(l.pickup||S.selectedLoadPickup||S.origin)+'</b><br>LIVE LOAD PICKUP • '+l.provider+'</div><div class="stop">🏁 <b>'+(l.delivery||S.selectedLoadDelivery||S.destination)+'</b><br>LIVE LOAD DELIVERY</div>';
+ showScreen(3);
+ // Never leave the route card spinning forever.
+ if(el("roadMiles"))el("roadMiles").textContent="Calculating…";
+ if(el("driveTime"))el("driveTime").textContent="Calculating…";
+ if(el("routeSource"))el("routeSource").textContent="Calculating road route…";
+ const route=await withTimeout(updateOutboundMap(),6500,null);
+ if(!route){
+   if(el("roadMiles"))el("roadMiles").textContent="Route unavailable";
+   if(el("driveTime"))el("driveTime").textContent="—";
+   if(el("routeSource"))el("routeSource").textContent="Routing timed out. Load details are still usable; retry from the trip screen.";
+ }
 }
-function protectReturn(){
- if(el("returnLane"))el("returnLane").textContent=S.destination+" → "+S.home;
- if(el("returnPay"))el("returnPay").textContent=money(S.returnPay||0);
- if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay);
- if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(S.roundTripMiles||0).toLocaleString()+" mi";
- showScreen(4)
+async function protectReturn(){
+ const selected=S.selectedCandidate;
+ const delivery=selected?.delivery||S.selectedLoadDelivery||S.destination;
+ const home=(el("from")?.value||S.home||"Atlanta, GA").trim();
+ S.home=home;
+ if(el("returnLane"))el("returnLane").textContent=delivery+" → "+home;
+ if(el("returnSource"))el("returnSource").textContent="SEARCHING";
+ if(el("returnStatus"))el("returnStatus").textContent="UP TO 3 DAYS";
+ if(el("returnSourceTag"))el("returnSourceTag").textContent="DISPATCH SEARCH";
+ if(el("returnPay"))el("returnPay").textContent="Searching…";
+ if(el("returnLead"))el("returnLead").textContent="Searching connected freight up to 3 days after delivery for loads that move you toward "+home+".";
+ showScreen(4);
+
+ const candidates=[];
+ // Search TrukTek from delivery market toward home on today + next 3 days.
+ for(let day=0;day<=3;day++){
+   try{
+     const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{
+       method:"POST",headers:{"Content-Type":"application/json"},
+       body:JSON.stringify({
+         origin:delivery,destination:home,
+         space_ft:activeVehicle.cargoLength,weight_lb:activeVehicle.payload,
+         max_deadhead:250,min_rpm:0,pickup_date:dateISOPlus(day),
+         equipment:el("vehicleType")?.value||"box26",search_mode:"lane"
+       })
+     }),5500,null);
+     if(r?.ok){
+       const j=await r.json();
+       (j.loads||[]).forEach(x=>candidates.push({
+         provider:"TrukTek",pay:Number(x.pay||0),pickup:x.pickup,delivery:x.delivery,
+         loadedMiles:Number(x.loadedMiles||0),deadheadMiles:Number(x.deadhead||0),
+         pickupDate:x.pickupDate||dateISOPlus(day),weight:Number(x.weight||0),
+         sourceUrl:x.sourceUrl||null,daysOut:day
+       }));
+     }
+   }catch(e){console.warn("Homebound TrukTek search",e)}
+ }
+
+ // Include LoadBoot sandbox opportunities for dispatcher UX, but label test data.
+ try{
+   const sb=await fetchLoadBootSandbox(false);
+   sb.forEach(x=>candidates.push({...x,deadheadMiles:0,daysOut:0}));
+ }catch(e){}
+
+ // Rank by direction toward home, then economics. Road distance calls are capped.
+ let directHome=null;
+ try{directHome=await withTimeout(getMileCountRoadRoute([delivery,home]),4500,null)}catch(e){}
+ const directMiles=Number(directHome?.miles||0);
+
+ for(const c of candidates.slice(0,30)){
+   let progress=0,detour=Number(c.deadheadMiles||0),homeAfter=0;
+   try{
+     const a=await withTimeout(getMileCountRoadRoute([delivery,c.pickup||delivery]),2200,null);
+     if(a?.miles!=null)detour=Number(a.miles);
+     const h=await withTimeout(getMileCountRoadRoute([c.delivery||c.pickup||delivery,home]),2200,null);
+     if(h?.miles!=null)homeAfter=Number(h.miles);
+     if(directMiles>0)progress=directMiles-homeAfter;
+   }catch(e){}
+   c.dispatchDeadhead=detour;
+   c.homeProgress=progress;
+   const loaded=Math.max(1,Number(c.loadedMiles||0));
+   c.allMiles=detour+loaded;
+   c.dispatchRPM=c.allMiles>0?Number(c.pay||0)/c.allMiles:0;
+   c.score=(progress*1.5)+(c.dispatchRPM*100)-(detour*.75)-(Number(c.daysOut||0)*20);
+ }
+
+ candidates.sort((a,b)=>b.score-a.score);
+ const useful=candidates.filter(c=>c.homeProgress>=-50||!directMiles).slice(0,8);
+ S.returnCandidates=useful;
+ const best=useful[0];
+
+ if(best){
+   S.returnPay=Number(best.pay||0);
+   S.returnSelected=best;
+   if(el("returnPay"))el("returnPay").textContent=money(best.pay);
+   if(el("returnSource"))el("returnSource").textContent=best.isSandbox?"LoadBoot TEST":"TrukTek";
+   if(el("returnStatus"))el("returnStatus").textContent=(best.pickupDate||("+"+best.daysOut+" day"))+(best.isSandbox?" • TEST":" • LIVE");
+   if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • TrukTek";
+   if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay);
+   if(el("returnMilesPreview"))el("returnMilesPreview").textContent=directMiles?Math.round(directMiles).toLocaleString()+" mi toward home":"Route found";
+   if(el("returnLead"))el("returnLead").textContent="Best homebound option found. MileCount searched up to 3 days forward and ranked freight by homeward progress, deadhead and all-mile RPM.";
+   if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="ADD BEST HOMEBOUND LOAD"}
+ }else{
+   S.returnPay=0;S.returnSelected=null;
+   if(el("returnPay"))el("returnPay").textContent="$0";
+   if(el("returnSource"))el("returnSource").textContent="NO MATCH";
+   if(el("returnStatus"))el("returnStatus").textContent="0–3 DAYS CHECKED";
+   if(el("returnSourceTag"))el("returnSourceTag").textContent="NO HOMEBOUND FREIGHT";
+   if(el("returnLead"))el("returnLead").textContent="No connected freight currently moves you toward home within the 3-day search window. Try again later or widen the home market.";
+   if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO HOMEBOUND LOAD YET"}
+ }
 }
 
 async function getHomePaid(){
