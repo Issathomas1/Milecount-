@@ -164,6 +164,24 @@ function qualityScore(l,profile){
  return rpmScore+payScore+fitBonus-dhPenalty;
 }
 
+
+function cityStateNorm(v){
+ return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+}
+function laneMatches(load,from,to){
+ const p=cityStateNorm(load.pickup||([load.origin?.city,load.origin?.state].filter(Boolean).join(" ")));
+ const d=cityStateNorm(load.delivery||([load.destination?.city,load.destination?.state].filter(Boolean).join(" ")));
+ const f=cityStateNorm(from),t=cityStateNorm(to);
+ const originOK=!f||p.includes(f)||f.includes(p);
+ const destOK=!t||t==="anywhere usa"||d.includes(t)||t.includes(d);
+ return originOK&&destOK;
+}
+function pickupDateMatches(load,date){
+ if(!date)return true;
+ const pd=String(load.pickupDate||load.pickup_date||"").slice(0,10);
+ return !pd||pd===date;
+}
+
 async function findMoney(){
  setBoardStatus("working","Checking connected freight…");
  applyVehicle(el("vehicleType")?.value||"box26",false);
@@ -173,6 +191,20 @@ async function findMoney(){
  let loads=[];let liveProvider=false; let providerErrors=[];
  let providerResponded=false,providerLiveFound=0,resolvedLane=null;
  try{const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:S.liveOnlyBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})}),10000,null);if(!r)throw new Error("TrukTek request timed out");if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));loads=enforceWeightCap(loads);if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e);setBoardStatus("warn","TrukTek is temporarily slow/unavailable. Other connected freight can still display.")}
+ // Every lane search aggregates every connected source. LoadBoot is sandbox/test
+ // only, so it is clearly labeled and never contributes to live trip revenue.
+ if(!S.liveOnlyBrowse){
+   try{
+     const sb=await fetchLoadBootSandbox(false);
+     const requestedDate=el("pickupDate")?.value||"";
+     const matching=enforceWeightCap(sb.filter(l=>laneMatches(l,S.origin,S.destination)&&pickupDateMatches(l,requestedDate)));
+     if(matching.length){
+       loads=[...loads,...matching];
+       providerResponded=true;
+     }
+   }catch(e){providerErrors.push("LoadBoot Sandbox");console.warn("LoadBoot lane aggregation unavailable",e)}
+ }
+
  if(el("dataModeBadge")){
   el("dataModeBadge").textContent=S.liveOnlyBrowse
     ?(providerResponded?(liveProvider?"LIVE LOAD BOARD":"LIVE • NO MATCHES"):"LIVE API UNAVAILABLE")
@@ -183,11 +215,15 @@ async function findMoney(){
  ?(liveProvider?"LIVE LOAD BOARD • CONNECTED PROVIDERS":"LIVE LOAD BOARD • NO MATCHES")
  :(liveProvider?"LIVE TRUKTEK LOADS • SOURCE ATTRIBUTED":"SIMULATION • NO LIVE MATCH");
  if(el("mapModeLabel"))el("mapModeLabel").textContent=liveProvider?"Live-provider trip preview • green line = MileCount road route":"Route preview • green line = MileCount road route";
- if(!loads.length&&!S.liveOnlyBrowse)loads=[
+ if(!loads.length&&!S.liveOnlyBrowse){
+ if(el("dataModeBadge")){el("dataModeBadge").textContent="DEMO FALLBACK • NO CONNECTED LANE MATCH";el("dataModeBadge").style.background="#fff0bf"}
+ setBoardStatus("warn","No connected TrukTek or LoadBoot sandbox freight matched this lane/date. Showing demo freight separately.");
+ loads=[
   {name:"Greenville Partial A • SIMULATION",pay:475,space:7,weight:2450,stop:"Greenville, SC",fallback:30},
   {name:"Greenville Partial B • SIMULATION",pay:290,space:4,weight:1800,stop:"Greenville, SC",fallback:18},
   {name:"Spartanburg Partial • SIMULATION",pay:360,space:5,weight:2100,stop:"Spartanburg, SC",fallback:24}
  ].filter(l=>l.space<=space&&l.weight<=weight);
+ }
  if(providerResponded&&!loads.length&&el("loadCandidates")){
   el("loadCandidates").innerHTML=S.liveOnlyBrowse
    ?'<div class="details" style="padding:14px;border:1px solid #5f4d18;border-radius:12px">LIVE LOAD BOARD SEARCH COMPLETE • No authorized live loads matched the current truck, date, and filter settings. No simulation was substituted.</div>'
