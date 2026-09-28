@@ -1140,6 +1140,8 @@ async function smartAutoStack(){
    const snapshot=tripSnapshot(state);
    S.tripState=state;
    S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot,routeVerified};
+   // Keep DONE visible in the fixed tray so mobile users never have to hunt for it.
+   el("doneStack")?.classList.remove("hidden");
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
     '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+ (base?'<div class="baseStateLine">BASE CARGO • '+escHtml(base.pickup||start)+' → '+escHtml(base.delivery||base.stop||"Delivery")+' • '+money(base.pay)+'</div>':'')+
@@ -1264,7 +1266,8 @@ fetchLoadBootSandbox(false);
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 bind("smartAutoStack",smartAutoStack);
-bind("clearStack",()=>{selectedStackKeys.clear();updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
+bind("doneStack",finishAutoStack);
+bind("clearStack",()=>{selectedStackKeys.clear();S.stackPlan=null;el("doneStack")?.classList.add("hidden");updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
 silentAudit();
 setInterval(()=>{
  try{
