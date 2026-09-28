@@ -345,6 +345,14 @@ S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  if(typeof window.focusMileCountLoadMarker==="function")window.focusMileCountLoadMarker(i);
 }
 window.MileCountSelectCandidate=selectCandidate;
+window.MileCountOpenLoadDetails=function(index){
+ const i=Number(index);
+ if(!Number.isInteger(i)||!(S.candidateLoads||[])[i])return;
+ selectCandidate(i);
+ showScreen(2);
+ const card=document.querySelector('.candidateLoad[data-load-index="'+i+'"]');
+ if(card)setTimeout(()=>card.scrollIntoView({behavior:"smooth",block:"center"}),80);
+};
 async function updateOutboundMap(){
  const l=S.selectedCandidate;
  if(l?.provider&&Array.isArray(l.routeCoordinates)&&l.routeCoordinates.length>1&&typeof showMileCountProviderRoute==="function")return await showMileCountProviderRoute(l);
