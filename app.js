@@ -869,56 +869,49 @@ function toggleStackLoad(index){
 async function smartAutoStack(){
  const chosen=stackSelectedLoads();
  if(chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
- setBusy(true,"One moment — optimizing your selected freight…");
+ setBusy(true,"One moment — optimizing pickups, drops and available capacity…");
  setButtonBusy("smartAutoStack",true,"OPTIMIZING…","SMART AUTOSTACK");
  try{
    const start=(el("from")?.value||S.origin||"").trim();
    const live=chosen.filter(l=>!l.isSandbox),test=chosen.filter(l=>l.isSandbox);
    const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
-   const knownWeight=chosen.reduce((s,l)=>s+Math.max(0,Number(l.weight||0)),0);
-   const knownSpace=chosen.reduce((s,l)=>s+Math.max(0,Number(l.space||0)),0);
-   const weightOK=knownWeight<=maxPayload;
-   const spaceOK=knownSpace<=activeVehicle.cargoLength;
-
-   // Greedy nearest-pickup ordering, with every pickup before its matching delivery.
-   const remaining=[...chosen],ordered=[],stops=[];
-   let cursor=start;
+   const remaining=[...chosen],ordered=[],stops=[],events=[];
+   let cursor=start,onboardWeight=0,onboardSpace=0,peakWeight=0,peakSpace=0,capacityOK=true;
    while(remaining.length){
      let bestIndex=0,bestMiles=Infinity;
      for(let i=0;i<remaining.length;i++){
-       const p=remaining[i].pickup;
-       if(!isRoutableLocation(p))continue;
+       const p=remaining[i].pickup;if(!isRoutableLocation(p))continue;
        const m=await withTimeout(roadMilesBetween(cursor,p),1800,null);
        if(Number.isFinite(m)&&m<bestMiles){bestMiles=m;bestIndex=i}
      }
-     const l=remaining.splice(bestIndex,1)[0];
+     const l=remaining.splice(bestIndex,1)[0],w=Math.max(0,Number(l.weight||0)),sp=Math.max(0,Number(l.space||0));
      ordered.push(l);
      if(isRoutableLocation(l.pickup)&&stops.at(-1)!==l.pickup)stops.push(l.pickup);
+     onboardWeight+=w;onboardSpace+=sp;peakWeight=Math.max(peakWeight,onboardWeight);peakSpace=Math.max(peakSpace,onboardSpace);
+     const pickupOK=onboardWeight<=maxPayload&&onboardSpace<=activeVehicle.cargoLength;if(!pickupOK)capacityOK=false;
+     events.push({type:"pickup",city:l.pickup,load:l,onboardWeight,onboardSpace,ok:pickupOK});
      if(isRoutableLocation(l.delivery)&&stops.at(-1)!==l.delivery)stops.push(l.delivery);
+     onboardWeight=Math.max(0,onboardWeight-w);onboardSpace=Math.max(0,onboardSpace-sp);
+     events.push({type:"delivery",city:l.delivery,load:l,onboardWeight,onboardSpace,ok:true});
      cursor=l.delivery||cursor;
    }
    const routeStops=[start,...stops].filter(isRoutableLocation).filter((x,i,a)=>i===0||x!==a[i-1]);
    const route=routeStops.length>=2?await withTimeout(getMileCountRoadRoute(routeStops),6500,null):null;
    const miles=Number(route?.miles||ordered.reduce((s,l)=>s+Number(l.loadedMiles||0),0));
-   const livePay=live.reduce((s,l)=>s+Number(l.pay||0),0);
-   const testPay=test.reduce((s,l)=>s+Number(l.pay||0),0);
-   const fuel=fuelFor(miles);
-   const rpm=miles>0?livePay/miles:0;
-   const profile=updateCostUI();
-   const valid=weightOK&&spaceOK&&routeStops.length>=2;
-   S.stackPlan={loads:ordered,routeStops,miles,livePay,testPay,fuel,rpm,valid,knownWeight,knownSpace};
-
+   const livePay=live.reduce((s,l)=>s+Number(l.pay||0),0),testPay=test.reduce((s,l)=>s+Number(l.pay||0),0);
+   const fuel=fuelFor(miles),rpm=miles>0?livePay/miles:0;
+   const weightOK=peakWeight<=maxPayload,spaceOK=peakSpace<=activeVehicle.cargoLength;
+   const valid=capacityOK&&weightOK&&spaceOK&&routeStops.length>=2;
+   S.stackPlan={loads:ordered,routeStops,miles,livePay,testPay,fuel,rpm,valid,peakWeight,peakSpace,events};
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
     '<div class="stackPlanStatus '+(valid?"good":"bad")+'">'+(valid?"STACK PLAN READY":"STACK NEEDS CHANGES")+'</div>'+
-    '<div class="stackPlanMetrics"><div><small>SELECTED</small><b>'+chosen.length+' loads</b></div><div><small>LIVE PAY</small><b>'+money(livePay)+'</b></div><div><small>TEST PAY</small><b>'+money(testPay)+'</b></div><div><small>ROUTE</small><b>'+Math.round(miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
-    '<div class="stackRoute">'+ordered.map((l,i)=>'<div><b>'+(i+1)+'. '+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</b><span>'+money(l.pay)+' • '+(l.isSandbox?"SANDBOX TEST":"LIVE")+'</span></div>').join("")+'</div>'+
-    (!weightOK?'<p class="stackWarn">Known selected weight exceeds '+maxPayload.toLocaleString()+' lb.</p>':'')+
-    (!spaceOK?'<p class="stackWarn">Known selected cargo length exceeds '+activeVehicle.cargoLength+' ft.</p>':'')+
-    (test.length?'<p class="stackWarn">Sandbox/test pay is shown for testing only and is excluded from LIVE PAY and live RPM.</p>':'');
+    '<div class="stackPlanMetrics"><div><small>SELECTED</small><b>'+chosen.length+' loads</b></div><div><small>LIVE PAY</small><b>'+money(livePay)+'</b></div><div><small>TEST PAY</small><b>'+money(testPay)+'</b></div><div><small>ROUTE</small><b>'+Math.round(miles).toLocaleString()+' mi</b></div><div><small>PEAK WEIGHT</small><b>'+Math.round(peakWeight).toLocaleString()+' lb</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div></div>'+
+    '<div class="stackRoute">'+events.map(e=>'<div><b>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+(e.city||"Location")+'</b><span>'+money(e.load.pay)+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
+    (!weightOK?'<p class="stackWarn">Peak onboard weight exceeds '+maxPayload.toLocaleString()+' lb.</p>':'')+
+    (!spaceOK?'<p class="stackWarn">Peak onboard cargo length exceeds '+activeVehicle.cargoLength+' ft.</p>':'')+
+    (test.length?'<p class="stackWarn">Sandbox/test pay is excluded from LIVE PAY and live RPM.</p>':'');
    el("stackPlanResult")?.scrollIntoView({behavior:"smooth",block:"center"});
- }finally{
-   setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false);
- }
+ }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
 }
 
 function unifiedSourceLabel(l){
