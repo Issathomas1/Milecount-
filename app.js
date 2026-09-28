@@ -214,6 +214,7 @@ function pickupDateMatches(load,date){
 }
 
 async function findMoney(){
+ captureCapacityInputs();
  setBoardStatus("working","Checking connected freight…");
  applyVehicle(el("vehicleType")?.value||"box26",false);
  const profile=updateCostUI();
@@ -399,6 +400,7 @@ async function updateOutboundMap(){
  const stops=[S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);return await showMileCountRoute(stops);
 }
 async function addToTrip(){
+ captureCapacityInputs();
  const l=S.selectedCandidate;if(!l)return;
  // Add the selected freight as the BASE PLAN. Do not force route preview yet.
  S.basePlanLoad=l;
@@ -932,12 +934,50 @@ async function applyProviderFilter(){
 
 
 
+
+function currentCapacity(){
+ const maxWeight=Math.min(MAX_LOAD_WEIGHT_LB,Number(activeVehicle.payload||MAX_LOAD_WEIGHT_LB));
+ const maxSpace=Number(activeVehicle.cargoLength||26);
+ const inputWeight=Math.max(0,Math.min(maxWeight,val("weight",maxWeight)));
+ const inputSpace=Math.max(0,Math.min(maxSpace,val("space",maxSpace)));
+ const base=S.capacityState||{};
+ return {
+   maxWeight,maxSpace,
+   availableWeight:Number.isFinite(base.availableWeight)?Math.min(maxWeight,Math.max(0,base.availableWeight)):inputWeight,
+   availableSpace:Number.isFinite(base.availableSpace)?Math.min(maxSpace,Math.max(0,base.availableSpace)):inputSpace
+ };
+}
+function syncCapacityState(weight,space,writeInputs=true){
+ const c=currentCapacity();
+ S.capacityState={
+   maxWeight:c.maxWeight,maxSpace:c.maxSpace,
+   availableWeight:Math.min(c.maxWeight,Math.max(0,Number(weight))),
+   availableSpace:Math.min(c.maxSpace,Math.max(0,Number(space)))
+ };
+ if(writeInputs){
+   if(el("weight"))el("weight").value=Math.round(S.capacityState.availableWeight);
+   if(el("space"))el("space").value=Number(S.capacityState.availableSpace.toFixed(1));
+ }
+ if(el("capacityEverywhere"))el("capacityEverywhere").textContent=Math.round(S.capacityState.availableWeight).toLocaleString()+" lb • "+S.capacityState.availableSpace.toFixed(1)+" ft available";
+ return S.capacityState;
+}
+function captureCapacityInputs(){
+ const maxWeight=Math.min(MAX_LOAD_WEIGHT_LB,Number(activeVehicle.payload||MAX_LOAD_WEIGHT_LB));
+ const maxSpace=Number(activeVehicle.cargoLength||26);
+ syncCapacityState(Math.min(maxWeight,Math.max(0,val("weight",maxWeight))),Math.min(maxSpace,Math.max(0,val("space",maxSpace))),false);
+}
+
 function createTripState(start){
+ const cap=currentCapacity();
  return {
   location:start||S.origin||"",
   onboard:[],
   completed:[],
   events:[],
+  initialAvailableWeight:cap.availableWeight,
+  initialAvailableSpace:cap.availableSpace,
+  capacityWeightLimit:cap.availableWeight,
+  capacitySpaceLimit:cap.availableSpace,
   onboardWeight:0,
   onboardSpace:0,
   peakWeight:0,
@@ -957,8 +997,9 @@ function applyTripPickup(state,l){
  state.onboardWeight+=w;state.onboardSpace+=sp;
  state.peakWeight=Math.max(state.peakWeight,state.onboardWeight);
  state.peakSpace=Math.max(state.peakSpace,state.onboardSpace);
- const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
- const ok=state.onboardWeight<=maxPayload&&state.onboardSpace<=activeVehicle.cargoLength;
+ const maxPayload=Number(state.capacityWeightLimit??currentCapacity().availableWeight);
+ const maxSpace=Number(state.capacitySpaceLimit??currentCapacity().availableSpace);
+ const ok=state.onboardWeight<=maxPayload&&state.onboardSpace<=maxSpace;
  if(!ok){
    state.feasible=false;
    state.issues.push("Capacity exceeded at "+state.location);
@@ -982,8 +1023,8 @@ function tripSnapshot(state){
   onboardCount:state.onboard.length,
   onboardWeight:state.onboardWeight,
   onboardSpace:state.onboardSpace,
-  availableWeight:Math.max(0,Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB)-state.onboardWeight),
-  availableSpace:Math.max(0,activeVehicle.cargoLength-state.onboardSpace),
+  availableWeight:Math.max(0,Number(state.capacityWeightLimit??currentCapacity().availableWeight)-state.onboardWeight),
+  availableSpace:Math.max(0,Number(state.capacitySpaceLimit??currentCapacity().availableSpace)-state.onboardSpace),
   completedCount:state.completed.length,
   liveRevenue:state.liveRevenue,
   testRevenue:state.testRevenue,
@@ -1038,7 +1079,7 @@ async function smartAutoStack(){
        if(laneCity(l.pickup)===laneCity(bp)){
          const w=Math.max(0,Number(l.weight||0)),sp=Math.max(0,Number(l.space||0));
          const cap=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
-         if(state.onboardWeight+w<=cap&&state.onboardSpace+sp<=activeVehicle.cargoLength){
+         if(state.onboardWeight+w<=cap&&state.onboardSpace+sp<=Number(state.capacitySpaceLimit??currentCapacity().availableSpace)){
            samePickup.unshift(remaining.splice(i,1)[0]);
          }
        }
@@ -1058,9 +1099,9 @@ async function smartAutoStack(){
    // Dispatch iteratively. Pick the nearest feasible pickup from the truck's
    // CURRENT state, deliver it, release capacity, then evaluate the next load.
    while(remaining.length){
-     const maxPayload=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+     const maxPayload=Number(state.capacityWeightLimit??currentCapacity().availableWeight);
      const feasible=remaining.map((l,i)=>({l,i,w:Math.max(0,Number(l.weight||0)),sp:Math.max(0,Number(l.space||0))}))
-       .filter(x=>state.onboardWeight+x.w<=maxPayload&&state.onboardSpace+x.sp<=activeVehicle.cargoLength);
+       .filter(x=>state.onboardWeight+x.w<=maxPayload&&state.onboardSpace+x.sp<=Number(state.capacitySpaceLimit??currentCapacity().availableSpace));
      if(!feasible.length){
        state.feasible=false;state.issues.push("No remaining selected load fits current truck capacity.");break;
      }
@@ -1184,5 +1225,7 @@ setInterval(()=>{
  }catch(e){console.warn("MileCount background audit",e)}
 },60000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){silentAudit();refreshLiveLoadCount()}});
+["weight","space"].forEach(id=>el(id)?.addEventListener("input",()=>{captureCapacityInputs();syncCapacityState(S.capacityState.availableWeight,S.capacityState.availableSpace,false)}));
+captureCapacityInputs();
 console.log("MileCount App Engine V2 Ready");
 })();
