@@ -12,6 +12,21 @@ const money=v=>{const n=Math.round(Number(v)||0);return (n<0?"-$":"$")+Math.abs(
 function withTimeout(p,ms,fallback=null){
  return Promise.race([p,new Promise(resolve=>setTimeout(()=>resolve(fallback),ms))]);
 }
+let busyCount=0;
+function setBusy(on,message="One moment — working…"){
+ busyCount=Math.max(0,busyCount+(on?1:-1));
+ const active=busyCount>0,bar=el("globalBusy"),text=el("globalBusyText");
+ if(text&&on)text.textContent=message;
+ if(bar)bar.classList.toggle("active",active);
+ document.body.classList.toggle("mcBusy",active);
+}
+function setButtonBusy(id,on,busyText,normalText){
+ const b=el(id);if(!b)return;
+ b.disabled=!!on;
+ if(on){b.dataset.normalText=b.textContent;b.textContent=busyText}
+ else b.textContent=normalText||b.dataset.normalText||b.textContent;
+}
+
 function dateISOPlus(days){
  const d=new Date();d.setDate(d.getDate()+days);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
 }
@@ -118,7 +133,7 @@ async function findMoney(){
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
  let loads=[];let liveProvider=false; let providerErrors=[];
  let providerResponded=false,providerLiveFound=0,resolvedLane=null;
- try{const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:S.liveOnlyBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})});if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e)}
+ try{const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:S.liveOnlyBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})}),10000,null);if(!r)throw new Error("TrukTek request timed out");if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e)}
  if(el("dataModeBadge")){
   el("dataModeBadge").textContent=S.liveOnlyBrowse
     ?(providerResponded?(liveProvider?"LIVE LOAD BOARD":"LIVE • NO MATCHES"):"LIVE API UNAVAILABLE")
@@ -276,6 +291,9 @@ async function addToTrip(){
  }
 }
 async function protectReturn(){
+ if(el("protect")?.disabled)return;
+ setBusy(true,"One moment — dispatching your way home…");
+ setButtonBusy("protect",true,"SEARCHING 0–3 DAYS…","FIND MY WAY HOME");
  const selected=S.selectedCandidate;
  const delivery=selected?.delivery||S.selectedLoadDelivery||S.destination;
  const home=(el("from")?.value||S.home||"Atlanta, GA").trim();
@@ -366,6 +384,8 @@ async function protectReturn(){
    if(el("returnLead"))el("returnLead").textContent="No connected freight currently moves you toward home within the 3-day search window. Try again later or widen the home market.";
    if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO HOMEBOUND LOAD YET"}
  }
+ setButtonBusy("protect",false,"","FIND MY WAY HOME");
+ setBusy(false);
 }
 
 async function getHomePaid(){
@@ -550,8 +570,17 @@ async function checkWarpMarketQuote(){
  }
 }
 
-async function runNormalLoadSearch(){S.liveOnlyBrowse=false;saveDriverSearch();await findMoney()}
+async function runNormalLoadSearch(){
+ if(el("find")?.disabled)return;
+ S.liveOnlyBrowse=false;saveDriverSearch();
+ setBusy(true,"One moment — finding the best loads…");setButtonBusy("find",true,"FINDING LOADS…","FIND LOADS");
+ try{await withTimeout(findMoney(),15000,null)}
+ finally{setButtonBusy("find",false,"","FIND LOADS");setBusy(false)}
+}
 async function browseLiveLoadBoard(stayHome=false){
+ if(el("browseLiveLoads")?.disabled&&!stayHome)return;
+ setBusy(true,"One moment — refreshing connected freight…");
+ if(!stayHome)setButtonBusy("browseLiveLoads",true,"REFRESHING BOARD…","BROWSE LIVE LOAD BOARD");
  S.liveOnlyBrowse=true;
  S.stayHomeAfterSearch=!!stayHome;
  applyVehicle(el("vehicleType")?.value||"box26",false);
@@ -562,7 +591,14 @@ async function browseLiveLoadBoard(stayHome=false){
  if(el("pickupDate"))el("pickupDate").value="";
  if(el("space"))el("space").value=activeVehicle.cargoLength;
  if(el("weight"))el("weight").value=activeVehicle.payload;
- try{await findMoney();await refreshUnifiedFreightBoard(false)}finally{S.stayHomeAfterSearch=false}
+ try{
+   await withTimeout(findMoney(),15000,null);
+   await withTimeout(refreshUnifiedFreightBoard(false),12000,null);
+ }finally{
+   S.stayHomeAfterSearch=false;
+   if(!stayHome)setButtonBusy("browseLiveLoads",false,"","BROWSE LIVE LOAD BOARD");
+   setBusy(false);
+ }
 }
 bind("find",runNormalLoadSearch);
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
@@ -652,7 +688,7 @@ async function fetchLoadBootSandbox(force=false){
  const badge=el("loadBootSandboxStatus");
  try{
    if(badge)badge.textContent="Checking sandbox…";
-   const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/loadboot-sandbox?resource=loads&limit=50",{cache:"no-store"});
+   const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/loadboot-sandbox?resource=loads&limit=50",{cache:"no-store"}),8000,null);if(!r)throw new Error("LoadBoot sandbox timed out");
    const j=await r.json();
    if(!r.ok||j.ok===false)throw new Error(j.error?.message||j.error||("Sandbox "+r.status));
    const raw=extractLoadBootArray(j.data);

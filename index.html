@@ -110,6 +110,7 @@ min-height:86px;
 }
 .feature b{display:block;color:#f3f8f5;margin-bottom:7px}
 .feature span{font-size:12px;color:#93a79d;line-height:1.35}
+.globalBusy{position:fixed;top:72px;left:50%;transform:translate(-50%,-18px);z-index:99999;display:flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid #2b6048;border-radius:999px;background:rgba(8,24,17,.96);color:#eaf8f0;font-size:12px;font-weight:900;box-shadow:0 8px 28px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:.18s ease;max-width:88vw}.globalBusy.active{opacity:1;transform:translate(-50%,0)}.busySpinner{width:15px;height:15px;border:2px solid #315c49;border-top-color:#31bf72;border-radius:50%;animation:mcspin .8s linear infinite;flex:none}@keyframes mcspin{to{transform:rotate(360deg)}}button:disabled{opacity:.65;cursor:wait}.mcBusy .globalBusy{pointer-events:auto}
 @media(max-width:520px){
 .photoHero{height:330px}
 .featureStrip{grid-template-columns:1fr}
@@ -390,6 +391,7 @@ color:var(--muted);
 
 
 <body>
+<div id="globalBusy" class="globalBusy" role="status" aria-live="polite"><div class="busySpinner"></div><span id="globalBusyText">One moment — finding loads…</span></div>
 
 <div class="app">
 
@@ -1143,7 +1145,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-mapfix2"></script>
-<script src="app.js?v=20260928-dispatcher-home1"></script>
+<script src="app.js?v=20260928-reliability1"></script>
 <script>
 document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
