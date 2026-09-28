@@ -27,6 +27,10 @@ function setButtonBusy(id,on,busyText,normalText){
  else b.textContent=normalText||b.dataset.normalText||b.textContent;
 }
 
+function isRoutableLocation(v){
+ const s=String(v||"").trim().toLowerCase();
+ return !!s && !["anywhere, usa","anywhere","nationwide","usa"].includes(s);
+}
 function dateISOPlus(days){
  const d=new Date();d.setDate(d.getDate()+days);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
 }
@@ -278,7 +282,10 @@ function selectCandidate(i){
  if(el("selectedLoadSummary"))el("selectedLoadSummary").innerHTML='<b>'+(l.pickup||"Pickup")+' → '+(l.delivery||l.stop||"Delivery")+'</b><span>'+money(l.pay)+' • '+(e.rpm?("$"+e.rpm.toFixed(2)+"/all-mile"):"RPM —")+' • '+Math.round(e.deadhead)+' mi deadhead • '+(l.isSandbox?"SANDBOX TEST":"LIVE")+'</span>';
 S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  if(l.provider){
-  S.tripMode="live";S.primaryPay=0;S.addedPay=l.pay;S.totalPay=l.pay;
+  S.tripMode=l.isSandbox?"sandbox":"live";
+  S.primaryPay=0;
+  S.addedPay=l.isSandbox?0:l.pay;
+  S.totalPay=l.isSandbox?0:l.pay;
   S.selectedLoadPickup=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));
   S.selectedLoadDelivery=l.delivery||([l.destination?.city,l.destination?.state].filter(Boolean).join(", "));
   S.selectedStop=S.selectedLoadDelivery;
@@ -288,7 +295,11 @@ S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  }
  const economicMiles=l.provider?Math.max(0,Number(l.loadedMiles||0))+Math.max(0,Number(l.deadheadMiles??l.extraMiles??0)):Math.max(0,Number(l.extraMiles||0));
  const fuel=l.provider?fuelFor(economicMiles):l.fuel;const afterFuel=l.pay-(fuel?.fuelCost||0);
- if(el("added"))el("added").textContent="+"+money(l.pay);if(el("current"))el("current").textContent=money(S.primaryPay);if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);if(el("tripAdded"))el("tripAdded").textContent="+"+money(l.pay);
+ if(el("added"))el("added").textContent=l.isSandbox?"TEST "+money(l.pay):"+"+money(l.pay);
+ if(el("current"))el("current").textContent=money(S.primaryPay);
+ if(el("newTotal"))el("newTotal").textContent=l.isSandbox?"TEST ONLY":money(S.totalPay);
+ if(el("tripPay"))el("tripPay").textContent=l.isSandbox?"$0 LIVE":money(S.totalPay);
+ if(el("tripAdded"))el("tripAdded").textContent=l.isSandbox?"TEST "+money(l.pay):"+"+money(l.pay);
  if(el("remainingSpace"))el("remainingSpace").textContent=Math.max(0,val("space",0)-l.space)+" ft remaining";if(el("remainingWeight"))el("remainingWeight").textContent=Math.max(0,val("weight",0)-l.weight).toLocaleString()+" lb remaining";
  if(el("detourMiles"))el("detourMiles").textContent=S.extraMiles.toFixed(1)+" mi";if(el("detourTime"))el("detourTime").textContent=l.provider?"Provider deadhead":l.extraDriveTime;if(el("spaceUsed"))el("spaceUsed").textContent=l.space+" ft";if(el("weightUsed"))el("weightUsed").textContent=l.weight.toLocaleString()+" lb";if(el("extraFuel"))el("extraFuel").textContent=money(fuel?.fuelCost||0);if(el("addedAfterFuel"))el("addedAfterFuel").textContent=money(afterFuel);
  document.querySelectorAll(".candidateLoad").forEach((b,n)=>b.classList.toggle("selected",n===i));
@@ -299,11 +310,27 @@ async function updateOutboundMap(){
  const l=S.selectedCandidate;
  if(l?.provider&&Array.isArray(l.routeCoordinates)&&l.routeCoordinates.length>1&&typeof showMileCountProviderRoute==="function")return await showMileCountProviderRoute(l);
  if(typeof showMileCountRoute!=="function")return null;
- if(l?.provider)return await showMileCountRoute([S.origin,l.pickup||S.origin,l.delivery||S.destination].filter((x,i,a)=>x&&a.indexOf(x)===i));
+ if(l?.provider){
+  const pickup=l.pickup||S.selectedLoadPickup||S.origin;
+  const delivery=l.delivery||S.selectedLoadDelivery||S.destination;
+  const stops=[S.origin,pickup,delivery].filter(isRoutableLocation).filter((x,i,a)=>a.indexOf(x)===i);
+  if(stops.length<2)return null;
+  return await showMileCountRoute(stops);
+ }
  const stops=[S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);return await showMileCountRoute(stops);
 }
 async function addToTrip(){
  const l=S.selectedCandidate;
+ if(l?.isSandbox){
+   if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🧪 <b>'+(l.pickup||"Pickup")+'</b><br>LOADBOOT SANDBOX PICKUP • TEST ONLY</div><div class="stop">🏁 <b>'+(l.delivery||"Delivery")+'</b><br>LOADBOOT SANDBOX DELIVERY • NOT BOOKABLE</div>';
+   showScreen(3);
+   if(el("roadMiles"))el("roadMiles").textContent=Number(l.loadedMiles||0)?Math.round(Number(l.loadedMiles)).toLocaleString()+" mi":"Route preview";
+   if(el("driveTime"))el("driveTime").textContent="TEST DATA";
+   if(el("routeSource"))el("routeSource").textContent="LoadBoot sandbox preview. Test freight is never added to live trip revenue.";
+   await withTimeout(updateOutboundMap(),5000,null);
+   return;
+ }
+
  if(l&&S.plannerTripId&&window.MileCountCloud){
   try{
    const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);
@@ -406,22 +433,26 @@ async function protectReturn(){
  candidates.sort((a,b)=>b.score-a.score);
  const useful=candidates.filter(c=>c.homeProgress>=-50||!directMiles).slice(0,8);
  S.returnCandidates=useful;
- const best=useful[0];
+ const bestLive=useful.find(c=>!c.isSandbox);
+ const best=bestLive||useful[0];
 
  if(best){
-   S.returnPay=Number(best.pay||0);
+   S.returnPay=best.isSandbox?0:Number(best.pay||0);
    S.returnSelected=best;
-   if(el("returnPay"))el("returnPay").textContent=money(best.pay);
+   if(el("returnPay"))el("returnPay").textContent=best.isSandbox?("TEST "+money(best.pay)):money(best.pay);
    if(el("returnSource"))el("returnSource").textContent=best.isSandbox?"LoadBoot TEST":"TrukTek";
    if(el("returnStatus"))el("returnStatus").textContent=(best.pickupDate||("+"+best.daysOut+" day"))+(best.isSandbox?" • TEST":" • LIVE");
    if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • TrukTek";
-   if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay);
+   if(el("previewRoundPay"))el("previewRoundPay").textContent=best.isSandbox?"NO LIVE REVENUE":money(S.totalPay+S.returnPay);
    if(el("returnMilesPreview"))el("returnMilesPreview").textContent=directMiles?Math.round(directMiles).toLocaleString()+" mi toward home":"Route found";
    if(el("returnLead"))el("returnLead").textContent="Best homebound option: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
  if(el("homeboundAlternatives")){
    el("homeboundAlternatives").innerHTML=useful.slice(0,5).map((c,i)=>'<div class="homeAlt"><b>'+(i+1)+'. '+(c.pickup||delivery)+' → '+(c.delivery||home)+'</b><span>'+money(c.pay)+' • '+(c.dispatchRPM?("$"+c.dispatchRPM.toFixed(2)+"/mi"):"RPM —")+' • '+Math.round(c.dispatchDeadhead||0)+' mi DH • '+(c.pickupDate||"date n/a")+(c.isSandbox?" • TEST":" • LIVE")+'</span></div>').join("");
  }
-   if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="ADD BEST HOMEBOUND LOAD"}
+   if(el("getHome")){
+     el("getHome").disabled=!!best.isSandbox;
+     el("getHome").textContent=best.isSandbox?"TEST OPTION • NOT ADDABLE":"ADD BEST HOMEBOUND LOAD";
+   }
  }else{
    S.returnPay=0;S.returnSelected=null;
    if(el("returnPay"))el("returnPay").textContent="$0";
@@ -437,11 +468,20 @@ async function protectReturn(){
 }
 
 async function getHomePaid(){
+ if(S.returnSelected?.isSandbox){alert("This is LoadBoot sandbox test freight. MileCount will not confirm it or add it to real trip revenue.");return}
  if(!(S.returnPay>0)){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO RETURN LOAD SELECTED"}alert("No return load has been selected. MileCount will not add return revenue until a real or manually entered return load exists.");return}
  S.homeAdded=true;
  if(S.plannerTripId&&window.MileCountCloud){try{const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);if(t)await MileCountCloud.updatePlannerTrip(t.id,{return_pay:Number(S.returnPay||0),expected_revenue:Number(t.original_pay||0)+Number(t.autostack_pay||0)+Number(S.returnPay||0)})}catch(e){console.warn("Planner return cloud update failed",e)}}
 let route=null;
- if(typeof showHomeboundRoute==="function"){try{route=await showHomeboundRoute(S.origin,S.destination,S.home)}catch(e){console.warn(e)}}
+ if(typeof showMileCountRoute==="function"){
+   try{
+     const baseDelivery=S.selectedCandidate?.delivery||S.selectedLoadDelivery||S.destination;
+     const rp=S.returnSelected?.pickup||baseDelivery;
+     const rd=S.returnSelected?.delivery||S.home;
+     const stops=[S.origin,S.selectedCandidate?.pickup,baseDelivery,rp,rd,S.home].filter(isRoutableLocation).filter((x,i,a)=>a.indexOf(x)===i);
+     route=stops.length>=2?await showMileCountRoute(stops):null;
+   }catch(e){console.warn(e)}
+ }
  const live=route&&Number.isFinite(route.miles)?route.miles:(typeof getMileCountCurrentRoadMiles==="function"?getMileCountCurrentRoadMiles():null);
  const miles=Number.isFinite(live)&&live>0?live:S.roundTripMiles;S.roundTripMiles=miles;
  const r=typeof calculateMileCountRoundTrip==="function"?calculateMileCountRoundTrip(S.totalPay,S.returnPay,miles,S.origin):null;
@@ -812,7 +852,7 @@ function renderUnifiedLoadList(loads){
    const verdict=l.isSandbox?"TEST DATA":(rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS");
    return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
     '<div class="loadTop"><div><div class="loadLane">'+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</div><div class="loadMeta">'+unifiedSourceLabel(l)+' • '+(l.equipment||activeVehicle.name)+(l.commodity?" • "+l.commodity:"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
-    '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+Number(l.weight||0).toLocaleString()+' lb</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(l.isSandbox?"via LoadBoot":(l.provider||"LIVE"))+'</b></div></div>'+
+    '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+(Number(l.weight||0)>0?Number(l.weight).toLocaleString()+" lb":"UNKNOWN")+'</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(l.isSandbox?"via LoadBoot":(l.provider||"LIVE"))+'</b></div></div>'+
     '<div class="loadFoot"><span class="sourceTag">'+(l.isSandbox?"LOADBOOT SANDBOX":"LIVE • "+(l.provider||"PROVIDER"))+'</span><span class="verdictTag">'+verdict+'</span></div></button>';
  }).join(""):'<div class="details">No freight is currently available from connected sources.</div>';
  document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
