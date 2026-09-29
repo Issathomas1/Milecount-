@@ -959,7 +959,7 @@ function localSimPool(home){
 }
 async function fetchDirectFreightLocal(home){
  try{
-  const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:500,max_weight:9999,limit:60})}),8000,null);
+  const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:1000,max_weight:9999,limit:60})}),8000,null);
   if(!r)return[];
   const j=await r.json();
   S.directFreightConfigured=!!j.configured;
@@ -1004,9 +1004,9 @@ async function buildLocalMoneyDay(){
      return;
    }
    const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:typedHome).trim();
-   S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=500;S.localMaxLoads=5;
+   S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=1000;S.localMaxLoads=5;
    const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your current truck location":home;
-   if(status)status.textContent="Searching local/regional freight and building the best ≤500-mile day back to "+homeLabel+"…";
+   if(status)status.textContent="Searching local/regional freight and building the best ≤1,000-mile day back to "+homeLabel+"…";
    // Refresh the connected board, then use road-distance checks to keep only
    // pickups close enough to be candidates for a same-day regional plan.
    await browseLiveLoadBoard(true);
@@ -1056,7 +1056,7 @@ async function buildLocalMoneyDay(){
    const sc=S.localSourceCounts||{real:0,sandbox:0,sim:0};
    if(status)status.textContent=picks.length
      ?("LOCAL MONEY ✓ "+sc.real+" real"+(sc.direct?(" • "+sc.direct+" Direct Freight"):"")+" • "+sc.sandbox+" sandbox • "+sc.sim+" local SIM. Selected "+picks.length+" candidates for Smart AutoStack.")
-     :"LOCAL MONEY • No candidate currently fits a ≤500-mile round-trip day.";
+     :"LOCAL MONEY • No candidate currently fits a ≤1,000-mile round-trip day.";
    showScreen(2);
    if(picks.length>=2)setTimeout(()=>smartAutoStack(),180);
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
@@ -1458,9 +1458,9 @@ async function smartAutoStack(){
        }
      }
    }
-   if(S.localMoneyMode&&state.miles>Number(S.localMaxMiles||500)){
+   if(S.localMoneyMode&&state.miles>Number(S.localMaxMiles||1000)){
      state.feasible=false;
-     state.issues.push("LOCAL MONEY limit exceeded: "+Math.round(state.miles)+" miles. Maximum is "+Number(S.localMaxMiles||500)+" miles including the day route.");
+     state.issues.push("LOCAL MONEY limit exceeded: "+Math.round(state.miles)+" miles. Maximum is "+Number(S.localMaxMiles||1000)+" miles including the day route.");
    }
    const fuel=fuelFor(state.miles);
    const totalRevenue=state.liveRevenue+state.testRevenue;
@@ -1597,7 +1597,7 @@ async function finishMyPicks(){
 async function finishAutoStack(){
  const p=S.stackPlan;
  if(S.localMoneyMode&&p&&p.valid===false){
-   alert("This Local Money plan does not meet the 500-mile/capacity rules. Change the selected loads or route before finishing.");
+   alert("This Local Money plan does not meet the 1,000-mile/capacity rules. Change the selected loads or route before finishing.");
    return;
  }
  if(!p||!Array.isArray(p.routeStops)||p.routeStops.length<2){
