@@ -1035,91 +1035,62 @@ async function buildLocalMoneyDay(){
  const btn=el("localMoneyMode"),status=el("localMoneyStatus");
  if(btn){btn.disabled=true;btn.textContent="BUILDING LOCAL DAY…"}
  try{
-   // Local Money must not inherit a stale FROM city from an older search.
-   // Prefer the driver's permission-based current truck location when available;
-   // otherwise use the currently typed FROM value.
    let typedHome=(el("from")?.value||"").trim();
-   // Location is automatic/background. Manual map/state/FROM selection wins.
-   // Only request browser GPS when the driver has not chosen a planning market.
    if(!typedHome&&!S.manualTruckLocation&&!S.smartDispatchLocationEnabled&&navigator.geolocation){
      await new Promise(resolve=>navigator.geolocation.getCurrentPosition(pos=>{
        const lat=Number(pos.coords.latitude),lng=Number(pos.coords.longitude);
        S.driverLocation={lat,lng,accuracy:Number(pos.coords.accuracy||0),updatedAt:Date.now()};
-       S.smartDispatchLocationEnabled=true;S.smartDispatchOrigin=lat.toFixed(5)+","+lng.toFixed(5);
-       resolve();
-     },()=>resolve(),{enableHighAccuracy:true,timeout:8000,maximumAge:60000}));
+       S.smartDispatchLocationEnabled=true;S.smartDispatchOrigin=lat.toFixed(5)+","+lng.toFixed(5);resolve();
+     },()=>resolve(),{enableHighAccuracy:false,timeout:2500,maximumAge:300000}));
      typedHome=(el("from")?.value||"").trim();
    }
-   // Local Money should never silently reuse an old trip city. If GPS has not
-   // been approved in this session, use the visible FROM field only.
-   if(!S.smartDispatchLocationEnabled&&!typedHome){
-     if(status)status.textContent="Choose a city/state or tap a state on the map so MileCount knows where the truck is.";
-     return;
-   }
+   if(!S.smartDispatchLocationEnabled&&!typedHome){if(status)status.textContent="Choose where the truck is first.";return}
    const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:typedHome).trim();
-   S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=1000;S.localMaxLoads=5;
-   const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your current truck location":home;
-   if(status)status.textContent="Searching local/regional freight and building the best local day back to "+homeLabel+"…";
-   // Refresh the connected board, then use road-distance checks to keep only
-   // pickups close enough to be candidates for a same-day regional plan.
-   // FAST PATH: start provider refreshes in parallel instead of waiting on one board first.
-   const boardRefresh=browseLiveLoadBoard(true).catch(()=>null);
-   // One normalized pool: connected live board + direct TrukTek public search +
-   // LoadBoot sandbox + MileCount local SIM. The dispatcher treats them the same
-   // for routing while source labels keep REAL / SANDBOX / SIM unmistakable.
-   const [trukLocal,directLocal,loadBootLocal]=await Promise.all([fetchTrukTekLocal(home),fetchDirectFreightLocal(home),fetchLoadBootSandbox(false),boardRefresh]).then(x=>x.slice(0,3));
-   const simSeed=(el("from")?.value||S.home||home||"Atlanta, GA").trim();
-   const simLocal=localSimPool(simSeed);
-   const raw=dedupeNormalizedLoads(enforceWeightCap([...(S.candidateLoads||[]),...trukLocal,...directLocal,...loadBootLocal,...simLocal]));
-   S.localSourceCounts={
-    real:raw.filter(x=>!x.isSandbox).length,
-    direct:raw.filter(x=>x.provider==="Direct Freight").length,
-    sandbox:raw.filter(x=>x.isSandbox&&!x.isLocalSim).length,
-    sim:raw.filter(x=>x.isLocalSim).length
-   };
-   // Progressive Local Day: qualify a fast first wave so drivers see money quickly,
-   // then continue checking the rest of the original 40-load pool in the background.
-   const rankedRaw=[...raw].sort((a,b)=>Number(b.pay||0)-Number(a.pay||0)).slice(0,40);
-   const qualify=async(l,timeout=1100)=>{
-     const loaded=Number(l.loadedMiles||0);
-     let toPickup=null,back=null;
-     try{[toPickup,back]=await Promise.all([
-       withTimeout(roadMilesBetween(home,l.pickup),timeout,null),
-       withTimeout(roadMilesBetween(l.delivery||l.pickup,home),timeout,null)
-     ])}catch(e){}
-     if(!Number.isFinite(toPickup)||!Number.isFinite(back))return null;
-     const sameState=String(l.pickup||"").trim().slice(-2).toUpperCase()===String(home).trim().slice(-2).toUpperCase();
-     if(!(sameState||Number(toPickup)<=175||l.isLocalSim))return null;
-     l.deadheadMiles=Number(toPickup);l.localSoloMiles=Number(toPickup)+loaded+Number(back);
-     l.localAfterGas=Number(l.pay||0)-Number(fuelFor(Math.max(1,Number(toPickup)+loaded)).fuelCost||0);
-     return l;
-   };
-   const firstWave=(await Promise.all(rankedRaw.slice(0,10).map(l=>qualify(l,850)))).filter(Boolean);
-   firstWave.sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
-   // Show up to five immediately instead of holding the screen for every route check.
-   const nearby=[...firstWave];
-   S.candidateLoads=nearby.slice(0,5);S.allUnifiedLoads=[...S.candidateLoads];
-   if(S.candidateLoads.length){renderUnifiedLoadList(S.candidateLoads);showScreen(2)}
-   // Continue remaining qualification concurrently; append results when ready.
-   const restPromise=Promise.all(rankedRaw.slice(10).map(l=>qualify(l,1200))).then(rest=>{
-     const merged=dedupeNormalizedLoads([...nearby,...rest.filter(Boolean)]).sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
-     S.candidateLoads=merged.slice(0,40);S.allUnifiedLoads=[...S.candidateLoads];
-     renderUnifiedLoadList(S.candidateLoads);updateStackTray();
-     return merged;
-   });
-   nearby.sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
-   const picks=nearby.slice(0,5);
-   selectedStackKeys.clear();
-   picks.forEach(l=>selectedStackKeys.add(loadKey(l)));
-   // First wave is already visible; remaining qualified loads append asynchronously.
-   restPromise.catch(e=>console.warn("Local Day background load qualification",e));
-   updateStackTray();
-   const sc=S.localSourceCounts||{real:0,sandbox:0,sim:0};
-   if(status)status.textContent=picks.length
-     ?("LOCAL MONEY ✓ "+sc.real+" real"+(sc.direct?(" • "+sc.direct+" Direct Freight"):"")+" • "+sc.sandbox+" sandbox • "+sc.sim+" local SIM. Selected "+picks.length+" candidates for Smart AutoStack.")
-     :"LOCAL MONEY • No candidate currently fits a ≤1,000-mile round-trip day.";
-   showScreen(2);
-   if(picks.length>=2)setTimeout(()=>smartAutoStack(),180);
+   S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxLoads=5;
+   const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your truck location":home;
+   if(status)status.textContent="Finding local money around "+homeLabel+"…";
+
+   // Fetch every source concurrently. Do NOT let a slow provider block the first screen.
+   const sourceJobs=[
+     Promise.resolve(S.candidateLoads||[]),
+     fetchTrukTekLocal(home).catch(()=>[]),
+     fetchDirectFreightLocal(home).catch(()=>[]),
+     fetchLoadBootSandbox(false).catch(()=>[]),
+     Promise.resolve(localSimPool((typedHome||S.home||"Atlanta, GA").trim()))
+   ];
+   const quick=await Promise.all(sourceJobs.map(p=>Promise.race([p,new Promise(r=>setTimeout(()=>r([]),1200))])));
+   let raw=dedupeNormalizedLoads(enforceWeightCap(quick.flat()));
+   // Always render a first screen immediately from source data; routing enrichment must never hide loads.
+   raw.sort((a,b)=>Number(b.pay||0)-Number(a.pay||0));
+   const first=raw.slice(0,5);
+   S.candidateLoads=first;S.allUnifiedLoads=[...first];
+   renderUnifiedLoadList(first);showScreen(2);
+   if(status)status.textContent=first.length?"Showing first "+first.length+" • checking more loads…":"Checking connected providers…";
+
+   // Start Smart AutoStack from the visible first five, but don't wait for background enrichment.
+   selectedStackKeys.clear();first.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
+   if(first.length>=2)setTimeout(()=>smartAutoStack(),80);
+
+   // Full provider results + route enrichment continue in background.
+   Promise.all(sourceJobs).then(async all=>{
+     let full=dedupeNormalizedLoads(enforceWeightCap(all.flat())).slice(0,40);
+     const enriched=await Promise.all(full.map(async l=>{
+       const loaded=Number(l.loadedMiles||0);
+       try{
+         const [toPickup,back]=await Promise.all([
+           withTimeout(roadMilesBetween(home,l.pickup),1600,null),
+           withTimeout(roadMilesBetween(l.delivery||l.pickup,home),1600,null)
+         ]);
+         if(Number.isFinite(toPickup)){l.deadheadMiles=Number(toPickup);l.localSoloMiles=Number(toPickup)+loaded+(Number.isFinite(back)?Number(back):0);l.localAfterGas=Number(l.pay||0)-Number(fuelFor(Math.max(1,Number(toPickup)+loaded)).fuelCost||0)}
+       }catch(e){}
+       return l; // route timeout never deletes the load
+     }));
+     enriched.sort((a,b)=>Number(b.localAfterGas??b.pay??0)-Number(a.localAfterGas??a.pay??0));
+     S.candidateLoads=enriched;S.allUnifiedLoads=[...enriched];renderUnifiedLoadList(enriched);updateStackTray();
+     const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
+     S.localSourceCounts=sc;
+     if(status)status.textContent="LOCAL MONEY ✓ "+enriched.length+" loads • "+sc.real+" real • "+sc.sandbox+" sandbox • "+sc.sim+" SIM";
+   }).catch(e=>console.warn("Local Day background refresh",e));
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
  finally{if(btn){btn.disabled=false;btn.textContent="💰 BUILD MY LOCAL DAY"}}
 }
