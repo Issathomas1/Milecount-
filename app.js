@@ -587,13 +587,36 @@ async function protectReturn(){
 async function getHomePaid(){
  if(S.returnSelected?.isSandbox)S.demoReturn=true;
  if(!(S.returnPay>0)){S.homeAdded=false;el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO RETURN LOAD SELECTED"}alert("No return load has been selected. MileCount will not add return revenue until a real or manually entered return load exists.");return}
+ // A return load must still fit the Local Day. Never turn "homebound" into an
+ // out-of-way second trip (for example Atlanta → Charlotte → Riverdale).
+ if(S.localMoneyMode&&S.returnSelected){
+   const ev=(S.finalRouteEvents||S.stackPlan?.events||[]);
+   const lastFreight=[...ev].reverse().find(e=>e.type==="drop"&&e.load);
+   const from=lastFreight?.location||S.destination;
+   const rp=S.returnSelected.pickup||from,rd=S.returnSelected.delivery||S.home;
+   let candidateRoute=null,directHome=null;
+   try{candidateRoute=await withTimeout(getMileCountRoadRoute([from,rp,rd,S.home].filter(isRoutableLocation)),5000,null)}catch(e){}
+   try{directHome=await withTimeout(getMileCountRoadRoute([from,S.home].filter(isRoutableLocation)),3500,null)}catch(e){}
+   const candidateHours=Number(candidateRoute?.durationHours||candidateRoute?.hours||0);
+   const candidateMiles=Number(candidateRoute?.miles||0),directMiles=Number(directHome?.miles||0);
+   if((candidateHours&&candidateHours>10)||(directMiles>0&&candidateMiles>directMiles*1.6)){
+     S.homeAdded=false;
+     alert("That return load takes you too far out of the way or pushes the Local Day past 10 driving hours. Pick a closer homebound load.");
+     return;
+   }
+ }
  S.homeAdded=true;
  if(S.plannerTripId&&!S.demoReturn&&window.MileCountCloud){try{const all=await MileCountCloud.plannerTrips(),t=all.find(x=>x.id===S.plannerTripId);if(t)await MileCountCloud.updatePlannerTrip(t.id,{return_pay:Number(S.returnPay||0),expected_revenue:Number(t.original_pay||0)+Number(t.autostack_pay||0)+Number(S.returnPay||0)})}catch(e){console.warn("Planner return cloud update failed",e)}}
 let route=null;
  if(typeof showMileCountRoute==="function"){
    try{
-     const baseStops=(Array.isArray(S.finalRouteStops)&&S.finalRouteStops.length?S.finalRouteStops:(Array.isArray(S.stackPlan?.routeStops)?S.stackPlan.routeStops:[])).filter(isRoutableLocation);
-     const baseDelivery=baseStops.at(-1)||S.selectedCandidate?.delivery||S.selectedLoadDelivery||S.destination;
+     const baseEvents=(Array.isArray(S.finalRouteEvents)&&S.finalRouteEvents.length?S.finalRouteEvents:(Array.isArray(S.stackPlan?.events)?S.stackPlan.events:[]));
+     const lastFreight=[...baseEvents].reverse().find(e=>e.type==="drop"&&e.load);
+     const baseDelivery=lastFreight?.location||S.selectedCandidate?.delivery||S.selectedLoadDelivery||S.destination;
+     // Strip synthetic/chosen HOME from the base route before inserting a return load.
+     const rawBase=(Array.isArray(S.finalRouteStops)&&S.finalRouteStops.length?S.finalRouteStops:(Array.isArray(S.stackPlan?.routeStops)?S.stackPlan.routeStops:[])).filter(isRoutableLocation);
+     const homeKey=laneCity(S.home||"");
+     const baseStops=rawBase.filter((x,i)=>!(homeKey&&laneCity(x)===homeKey&&i===rawBase.length-1));
      const rp=S.returnSelected?.pickup||baseDelivery;
      const rd=S.returnSelected?.delivery||S.home;
      const stops=[...baseStops];
