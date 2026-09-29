@@ -957,6 +957,15 @@ function localSimPool(home){
  }
  return rows.map((r,i)=>({name:state+" LOCAL SIM "+(i+1),provider:"MileCount Local SIM",providerLoadId:"MC-"+state+"-"+today+"-"+(i+1),pickup:r[0],delivery:r[1],pay:r[2],loadedMiles:r[3],weight:r[4],space:r[5],pickupDate:today,pickupWindow:r[6],deliveryWindow:r[7],equipment:"Box Truck",commodity:"Local palletized freight",isSandbox:true,isLocalSim:true,sandboxLabel:"LOCAL SIM • NOT BOOKABLE"}));
 }
+async function fetchDirectFreightLocal(home){
+ try{
+  const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:500,max_weight:9999,limit:60})}),8000,null);
+  if(!r)return[];
+  const j=await r.json();
+  S.directFreightConfigured=!!j.configured;
+  return enforceWeightCap(Array.isArray(j.loads)?j.loads:[]);
+ }catch(e){console.warn("Direct Freight adapter",e);return[]}
+}
 async function fetchTrukTekLocal(home){
  const parts=String(home||"Atlanta, GA").split(","),city=(parts[0]||"Atlanta").trim(),state=(parts[1]||"GA").trim().slice(0,2).toUpperCase();
  try{
@@ -1004,12 +1013,13 @@ async function buildLocalMoneyDay(){
    // One normalized pool: connected live board + direct TrukTek public search +
    // LoadBoot sandbox + MileCount local SIM. The dispatcher treats them the same
    // for routing while source labels keep REAL / SANDBOX / SIM unmistakable.
-   const [trukLocal,loadBootLocal]=await Promise.all([fetchTrukTekLocal(home),fetchLoadBootSandbox(false)]);
+   const [trukLocal,directLocal,loadBootLocal]=await Promise.all([fetchTrukTekLocal(home),fetchDirectFreightLocal(home),fetchLoadBootSandbox(false)]);
    const simSeed=(el("from")?.value||S.home||home||"Atlanta, GA").trim();
    const simLocal=localSimPool(simSeed);
-   const raw=dedupeNormalizedLoads(enforceWeightCap([...(S.candidateLoads||[]),...trukLocal,...loadBootLocal,...simLocal]));
+   const raw=dedupeNormalizedLoads(enforceWeightCap([...(S.candidateLoads||[]),...trukLocal,...directLocal,...loadBootLocal,...simLocal]));
    S.localSourceCounts={
     real:raw.filter(x=>!x.isSandbox).length,
+    direct:raw.filter(x=>x.provider==="Direct Freight").length,
     sandbox:raw.filter(x=>x.isSandbox&&!x.isLocalSim).length,
     sim:raw.filter(x=>x.isLocalSim).length
    };
@@ -1045,7 +1055,7 @@ async function buildLocalMoneyDay(){
    updateStackTray();
    const sc=S.localSourceCounts||{real:0,sandbox:0,sim:0};
    if(status)status.textContent=picks.length
-     ?("LOCAL MONEY ✓ "+sc.real+" real • "+sc.sandbox+" sandbox • "+sc.sim+" local SIM in the normalized pool. Selected "+picks.length+" candidates for Smart AutoStack.")
+     ?("LOCAL MONEY ✓ "+sc.real+" real"+(sc.direct?(" • "+sc.direct+" Direct Freight"):"")+" • "+sc.sandbox+" sandbox • "+sc.sim+" local SIM. Selected "+picks.length+" candidates for Smart AutoStack.")
      :"LOCAL MONEY • No candidate currently fits a ≤500-mile round-trip day.";
    showScreen(2);
    if(picks.length>=2)setTimeout(()=>smartAutoStack(),180);
