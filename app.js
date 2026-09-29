@@ -1247,7 +1247,8 @@ async function fetchLoadBootSandbox(force=false){
 
 
 function providerFilterKey(l){
- if(l.isSandbox)return "loadboot-sandbox";
+ if(isLoadBootRecord(l))return "loadboot-sandbox";
+ if(l.isLocalSim)return "milecount-sim";
  return String(l.provider||"unknown").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 }
 function updateProviderFilterOptions(loads){
@@ -1256,7 +1257,7 @@ function updateProviderFilterOptions(loads){
  const seen=new Map();
  (loads||[]).forEach(l=>{
    const key=providerFilterKey(l);
-   const label=l.isSandbox?"LoadBoot Sandbox":(l.provider||"Other Provider");
+   const label=isLoadBootRecord(l)?"LoadBoot Sandbox":(l.isLocalSim?"MileCount SIM":(l.provider||"Other Provider"));
    if(key&&!seen.has(key))seen.set(key,label);
  });
  const options=[
@@ -1821,8 +1822,11 @@ function renderFinalTripStops(){
 }
 function escHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\\"":"&quot;","'":"&#39;"}[c]))}
 
+function isLoadBootRecord(l){return String(l?.provider||"").toLowerCase().includes("loadboot")&&!!l?.providerLoadId}
 function unifiedSourceLabel(l){
- return l.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • "+(l.provider||"Provider");
+ if(isLoadBootRecord(l))return "SANDBOX TEST • via LoadBoot";
+ if(l?.isLocalSim||String(l?.provider||"").includes("MileCount"))return "SIM • MileCount • NOT BOOKABLE";
+ return "LIVE • "+(l.provider||"Provider");
 }
 function renderUnifiedLoadList(loads){
  const profile=updateCostUI();
@@ -1834,8 +1838,9 @@ function renderUnifiedLoadList(loads){
    const verdict=l.isSandbox?"TEST DATA":(rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS");
    return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
     '<div class="loadTop"><div><div class="loadLane">'+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</div><div class="loadMeta">'+unifiedSourceLabel(l)+' • '+(l.equipment||activeVehicle.name)+(l.commodity?" • "+l.commodity:"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
-    '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+(Number(l.weight||0)>0?Number(l.weight).toLocaleString()+" lb":"UNKNOWN")+'</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(l.isSandbox?"via LoadBoot":(l.provider||"LIVE"))+'</b></div></div>'+
-    '<div class="loadFoot"><span class="sourceTag">'+(l.isSandbox?"LOADBOOT SANDBOX":"LIVE • "+(l.provider||"PROVIDER"))+'</span><span class="stackPick" data-stack-index="'+i+'">＋ STACK</span><span class="verdictTag">'+verdict+'</span></div></button>';
+    '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+(Number(l.weight||0)>0?Number(l.weight).toLocaleString()+" lb":"UNKNOWN")+'</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(isLoadBootRecord(l)?"via LoadBoot":(l.isLocalSim?"MileCount SIM":(l.provider||"LIVE")))+'</b></div></div>'+
+    (isLoadBootRecord(l)?'<div class="loadBootRef"><b>LoadBoot ref: '+escHtml(l.providerLoadId)+'</b> • <a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on LoadBoot</a></div>':'')+
+    '<div class="loadFoot"><span class="sourceTag">'+(isLoadBootRecord(l)?"LOADBOOT SANDBOX":(l.isLocalSim?"MILECOUNT SIM":"LIVE • "+(l.provider||"PROVIDER")))+'</span><span class="stackPick" data-stack-index="'+i+'">＋ STACK</span><span class="verdictTag">'+verdict+'</span></div></button>';
  }).join(""):'<div class="details">No freight is currently available from connected sources.</div>';
  document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
  document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
