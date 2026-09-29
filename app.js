@@ -1416,6 +1416,22 @@ function laneCity(v){
   .replace(/\s+/g," ")
   .split(",").slice(0,2).join(",");
 }
+function mcClock(v){const m=String(v||"").match(/(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null}
+function mcWindow(load,type){const raw=type==="pickup"?(load.pickupWindow||load.pickup_time||load.pickupTime):(load.deliveryWindow||load.delivery_time||load.deliveryTime);if(!raw)return null;const p=String(raw).split(/\s*[-–—]\s*/),a=mcClock(p[0]),b=mcClock(p[1]||p[0]);return Number.isFinite(a)?{start:a,end:Number.isFinite(b)?b:a,raw:String(raw)}:null}
+function mcTime(m){m=((Math.round(m)%1440)+1440)%1440;const h=Math.floor(m/60),n=m%60;return (h%12||12)+":"+String(n).padStart(2,"0")+" "+(h>=12?"PM":"AM")}
+async function buildDispatchTimeline(events,start){
+ let now=mcClock(el("dayStartTime")?.value||"06:00")??360,drive=0,onDuty=0,sinceBreak=0,prev=start;const timeline=[],issues=[];
+ for(const e of events||[]){if(e.type==="home")continue;const loc=e.location||"";let mi=0;try{mi=await withTimeout(roadMilesBetween(prev,loc),1600,0)||0}catch(_){}
+  const dm=Math.max(0,Number(mi)/50*60);
+  if(sinceBreak+dm>480){timeline.push({type:"break",arrival:mcTime(now),location:"MANDATORY BREAK",window:"30 min"});now+=30;onDuty+=30;sinceBreak=0}
+  now+=dm;drive+=dm;onDuty+=dm;sinceBreak+=dm;
+  const w=mcWindow(e.load,e.type);if(w&&now<w.start){onDuty+=w.start-now;now=w.start}
+  if(w&&now>w.end)issues.push((e.type==="pickup"?"Pickup":"Delivery")+" missed at "+loc+" • "+mcTime(now)+" > "+mcTime(w.end));
+  const service=Math.max(0,Number(e.type==="pickup"?(el("pickupServiceMin")?.value||20):(el("dropServiceMin")?.value||20)));
+  timeline.push({type:e.type,arrival:mcTime(now),location:loc,window:w?.raw||"Flexible",service});now+=service;onDuty+=service;prev=loc;
+ }
+ return {ok:issues.length===0&&drive<=600,issues,driveMinutes:drive,onDutyMinutes:onDuty,start:mcTime(mcClock(el("dayStartTime")?.value||"06:00")??360),finish:mcTime(now),timeline};
+}
 async function smartAutoStack(){
  const base=S.basePlanLoad||null;
  let chosen=stackSelectedLoads().filter(x=>!base||loadKey(x)!==loadKey(base));
@@ -1548,17 +1564,21 @@ async function smartAutoStack(){
      state.feasible=false;
      state.issues.push("LOCAL DAY driving limit exceeded: "+estimatedDriveHours.toFixed(1)+" hr. Maximum is 10 driving hours.");
    }
+   const schedule=await buildDispatchTimeline(state.events,startLoc);
+   state.schedule=schedule;
+   if(!schedule.ok){state.feasible=false;state.issues.push(...schedule.issues);if(schedule.driveMinutes>600)state.issues.push("LOCAL DAY exceeds 10 driving hours")}
    const fuel=fuelFor(state.miles);
    const totalRevenue=state.liveRevenue+state.testRevenue;
    const rpm=state.miles>0?totalRevenue/state.miles:0;
    const snapshot=tripSnapshot(state);
    S.tripState=state;
-   S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,snapshot,routeVerified};
+   S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,schedule:state.schedule,snapshot,routeVerified};
    el("doneStack")?.classList.remove("hidden");
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
     '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
+    (state.schedule?'<div class="tripStateNow"><b>DRIVER DAY • '+(state.schedule.ok?'ON TIME ✓':'IMPOSSIBLE ✕')+'</b><span>'+state.schedule.start+' → '+state.schedule.finish+' • '+(state.schedule.driveMinutes/60).toFixed(1)+' driving hr • '+(state.schedule.onDutyMinutes/60).toFixed(1)+' on-duty hr</span></div>':'')+
     '<div class="tripStateNow"><b>OPTIMIZED STOP ORDER</b><span>Multiple pickups can happen before drops. MileCount will not intentionally return to a market it already left when a legal on-route pickup was available.</span></div>'+
     '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":e.type==="home"?"HOME":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
