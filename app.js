@@ -892,7 +892,15 @@ async function startSmartDispatchFromLocation(){
      await browseLiveLoadBoard(true);
      if(el("from"))el("from").value=oldFrom||"";
      const loads=(S.candidateLoads||[]).slice(0,8);
-     if(status)status.textContent=loads.length?("SMART DISPATCH ✓ "+loads.length+" compatible opportunities found. Pick loads or use Smart AutoStack."):"SMART DISPATCH ✓ No compatible freight is showing right now. Refresh as providers update.";
+     if(status)status.textContent=loads.length?("SMART DISPATCH ✓ "+loads.length+" compatible opportunities found. Opening your best matches…"):"SMART DISPATCH ✓ No compatible freight is showing right now. Refresh as providers update.";
+     if(loads.length){
+       // Smart Dispatch is an action, not a status-only button: take the driver
+       // directly to the compatible freight results after location search finishes.
+       S.candidateLoads=loads;
+       renderUnifiedLoadList(loads);
+       showScreen(2);
+       setTimeout(()=>el("loadCandidates")?.scrollIntoView({behavior:"smooth",block:"start"}),120);
+     }
    }catch(e){console.warn("Smart Dispatch location search",e);if(status)status.textContent="Location received, but freight search could not finish. Try again."}
    finally{if(btn){btn.disabled=false;btn.textContent="📍 SMART DISPATCH • REFRESH FROM MY LOCATION"}}
  },err=>{
