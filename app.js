@@ -1084,7 +1084,15 @@ async function browseStateLoads(state){
    if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(inState,{breakEven:profile.breakEven,target:profile.target,origin:seed,destination:""});
    if(status)status.textContent=inState.length+" loads in/through "+state+" • REAL, SANDBOX and SIM clearly labeled";
    const total=el("unifiedFreightCount");if(total)total.textContent=inState.length.toLocaleString();
-   setTimeout(()=>el("loadDiscoveryMap")?.scrollIntoView({behavior:"smooth",block:"start"}),80);
+   // State selection is an action: open the freight results immediately.
+   // Do not leave the driver sitting on the map after they chose a state.
+   if(inState.length){
+     showScreen(2);
+     setTimeout(()=>el("loadCandidates")?.scrollIntoView({behavior:"smooth",block:"start"}),100);
+   }else{
+     // Stay on the map only when there truly are no results to show.
+     setTimeout(()=>el("stateBrowseStatus")?.scrollIntoView({behavior:"smooth",block:"center"}),80);
+   }
  }catch(e){console.warn("State load browser",e);if(status)status.textContent="Could not load this state. Try again."}
 }
 bind("smartDispatchLocation",startSmartDispatchFromLocation);
