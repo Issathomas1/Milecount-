@@ -449,14 +449,17 @@ async function addToTrip(){
 
 async function protectReturn(){
  if(el("protect")?.disabled)return;
- // FROM is always the driver's lane start/home for this trip.
- S.home=(el("from")?.value||S.origin||"").trim();
+ // The driver's explicitly selected FINAL DESTINATION is authoritative.
+ // Do not overwrite it with the original FROM field or a stale load destination.
  setBusy(true,"One moment — dispatching your way home…");
  setButtonBusy("protect",true,"SEARCHING 0–3 DAYS…","FIND MY WAY HOME");
  const selected=S.selectedCandidate;
- const delivery=selected?.delivery||S.selectedLoadDelivery||S.destination;
- const home=(el("from")?.value||S.home||"Atlanta, GA").trim();
+ const plannedStops=Array.isArray(S.stackPlan?.routeStops)?S.stackPlan.routeStops:[];
+ const delivery=(plannedStops.length?plannedStops[plannedStops.length-1]:null)||selected?.delivery||S.selectedLoadDelivery||S.destination;
+ const chosenEnd=(el("tripHomeChoice")?.value||"").trim();
+ const home=(chosenEnd||S.stackPlan?.endLocation||S.home||el("from")?.value||S.origin||"Atlanta, GA").trim();
  S.home=home;
+ if(S.stackPlan)S.stackPlan.endLocation=home;
  if(el("returnLane"))el("returnLane").textContent=delivery+" → "+home;
  if(el("returnSource"))el("returnSource").textContent="SEARCHING";
  if(el("returnStatus"))el("returnStatus").textContent="UP TO 3 DAYS";
