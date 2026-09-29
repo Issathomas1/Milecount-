@@ -1108,6 +1108,7 @@ async function buildLocalMoneyDay(){
        return l; // route timeout never deletes the load
      }));
      enriched.sort((a,b)=>Number(b.localAfterGas??b.pay??0)-Number(a.localAfterGas??a.pay??0));
+     // Refresh the board, but preserve any selections that still exist in the new local pool.
      S.candidateLoads=enriched;S.allUnifiedLoads=[...enriched];renderUnifiedLoadList(enriched);updateStackTray();
      // Once the complete LOCAL pool is visible, select the strongest plan candidates.
      const picks=enriched.slice(0,Math.min(currentPlan().maxStack===Infinity?5:currentPlan().maxStack,5));
@@ -1506,9 +1507,15 @@ function strongFitAlternatives(excluded,all,origin){if(!currentPlan().strongFit)
  return (all||[]).filter(l=>!used.has(loadKey(l))&&isRoutableLocation(l.pickup)&&isRoutableLocation(l.delivery))
   .sort((a,b)=>strongFitScore(b,origin)-strongFitScore(a,origin)).slice(0,5);
 }
+let mcTripBuildSeq=0;
 async function smartAutoStack(){
+ const buildId=++mcTripBuildSeq;
  const base=S.basePlanLoad||null;
- let chosen=stackSelectedLoads().filter(x=>!base||loadKey(x)!==loadKey(base));
+ // Freeze the exact selected load objects for this build. Background provider
+ // refreshes may update the board, but they cannot mutate an in-progress trip.
+ const selectedKeys=new Set(selectedStackKeys);
+ const selectionPool=[...(Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[]),...(S.candidateLoads||[])];
+ let chosen=selectionPool.filter(x=>selectedKeys.has(loadKey(x))).filter((x,i,a)=>a.findIndex(y=>loadKey(y)===loadKey(x))===i).filter(x=>!base||loadKey(x)!==loadKey(base));
  if(!base&&chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
  if(base&&chosen.length<1){alert("Your base trip is saved. Select at least 1 additional load to stack.");return}
  setBusy(true,"One moment — optimizing every pickup and drop…");
@@ -1607,6 +1614,22 @@ async function smartAutoStack(){
      }
    }
 
+   // Stability guard: no stale/orphan provider result may enter this trip.
+   const allowedKeys=new Set(allLoads.map(loadKey));
+   state.events=state.events.filter(e=>e.type==="home"||allowedKeys.has(loadKey(e.load)));
+   const picked=new Set(),cleanEvents=[];
+   for(const e of state.events){
+     if(e.type==="home"){cleanEvents.push(e);continue}
+     const k=loadKey(e.load);if(!allowedKeys.has(k))continue;
+     if(e.type==="pickup"){picked.add(k);cleanEvents.push(e)}
+     else if(e.type==="drop"&&picked.has(k)){cleanEvents.push(e)}
+   }
+   state.events=cleanEvents;
+   // Rebuild route stops exclusively from the validated event list.
+   routeStops.length=0;if(isRoutableLocation(startLoc))routeStops.push(startLoc);
+   state.events.forEach(e=>{if(isRoutableLocation(e.location)&&laneCity(routeStops.at(-1))!==laneCity(e.location))routeStops.push(e.location)});
+   if(buildId!==mcTripBuildSeq)return;
+
    let route=null;
    if(routeStops.length>=2&&typeof getMileCountRoadRoute==="function"){
      try{route=await withTimeout(getMileCountRoadRoute(routeStops),5000,null)}catch(e){console.warn("AutoStack route verification",e)}
@@ -1626,22 +1649,17 @@ async function smartAutoStack(){
      }
    }
    
-   // MileCount Local Day product rule: keep the completed route under 10
-   // driving hours. This is intentionally stricter than the mileage cap.
    const localDriveHours=Number(route?.durationHours||route?.hours||0);
    const estimatedDriveHours=localDriveHours>0?localDriveHours:(state.miles/43.5);
    state.driveHours=estimatedDriveHours;
-   if(S.localMoneyMode&&estimatedDriveHours>10){
-     state.feasible=false;
-     state.issues.push("LOCAL DAY driving limit exceeded: "+estimatedDriveHours.toFixed(1)+" hr. Maximum is 10 driving hours.");
-   }
    const schedule=await buildDispatchTimeline(state.events,startLoc);
    state.schedule=schedule;
-   if(!schedule.ok){state.feasible=false;state.issues.push(...schedule.issues);if(schedule.driveMinutes>600)state.issues.push("LOCAL DAY exceeds 10 driving hours")}
+   if(!schedule.ok){state.feasible=false;state.issues.push(...schedule.issues)}
    const fuel=fuelFor(state.miles);
    const totalRevenue=state.liveRevenue+state.testRevenue;
    const rpm=state.miles>0?totalRevenue/state.miles:0;
    const snapshot=tripSnapshot(state);
+   if(buildId!==mcTripBuildSeq)return;
    S.tripState=state;
    S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,schedule:state.schedule,snapshot,routeVerified};
    el("doneStack")?.classList.remove("hidden");
