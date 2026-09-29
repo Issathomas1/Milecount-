@@ -6,6 +6,23 @@ Stable buttons + simulated AutoStack optimizer + routing + fuel
 (function(){
 "use strict";
 const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:0,extraMiles:0,roundTripMiles:0,homeAdded:false,origin:"Atlanta, GA",destination:"Charlotte, NC",home:"Atlanta, GA",selectedStop:"Greenville, SC",liveOnlyBrowse:false,stayHomeAfterSearch:false};
+const MILECOUNT_PLANS={
+ basic:{name:"Basic",price:19,maxTrucks:1,maxStack:3,dispatcher:false,strongFit:false,autoCorrect:false},
+ gold:{name:"Gold Pro",price:39,maxTrucks:1,maxStack:5,dispatcher:true,strongFit:true,autoCorrect:false},
+ premium:{name:"Premium Pro",price:69,maxTrucks:1,maxStack:10,dispatcher:true,strongFit:true,autoCorrect:true},
+ platinum:{name:"Platinum Pro",price:129,maxTrucks:5,maxStack:Infinity,dispatcher:true,strongFit:true,autoCorrect:true,fleet:true}
+};
+function currentPlanKey(){return String(localStorage.getItem("milecount_plan")||"basic").toLowerCase()}
+function currentPlan(){return MILECOUNT_PLANS[currentPlanKey()]||MILECOUNT_PLANS.basic}
+function requirePlan(feature){
+ const p=currentPlan();
+ if(feature==="dispatcher"&&!p.dispatcher||feature==="strongFit"&&!p.strongFit||feature==="autoCorrect"&&!p.autoCorrect||feature==="fleet"&&!p.fleet){
+   const box=el("upgradePrompt");if(box){box.classList.remove("hidden");box.innerHTML='<b>UPGRADE MILECOUNT</b><span>'+p.name+' does not include this feature. Compare Pro plans to unlock it.</span><a href="pricing.html">VIEW PLANS</a>'}
+   return false;
+ }
+ return true;
+}
+
 const el=id=>document.getElementById(id);
 const val=(id,f=0)=>{const n=Number(el(id)?.value);return Number.isFinite(n)?n:f};
 const money=v=>{const n=Math.round(Number(v)||0);return (n<0?"-$":"$")+Math.abs(n).toLocaleString()};
@@ -1404,6 +1421,8 @@ function updateStackTray(){
  const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
 }
 function toggleStackLoad(index){
+ const p=currentPlan();if(!selectedStackKeys.has(loadKey((S.candidateLoads||[])[i]))&&selectedStackKeys.size>=p.maxStack){alert(p.name+" supports up to "+p.maxStack+" AutoStack loads. Upgrade for more.");return}
+
  const loads=S.candidateLoads||[],l=loads[index];if(!l)return;
  const key=loadKey(l);
  if(selectedStackKeys.has(key))selectedStackKeys.delete(key);else selectedStackKeys.add(key);
@@ -1438,7 +1457,7 @@ function strongFitScore(l,origin){
  const timeBonus=(l.pickupWindow||l.pickup_time||l.pickupTime)?40:0;
  return (rpm*110)+(pay/20)-dh+timeBonus;
 }
-function strongFitAlternatives(excluded,all,origin){
+function strongFitAlternatives(excluded,all,origin){if(!currentPlan().strongFit)return[];
  const used=new Set((excluded||[]).map(loadKey));
  return (all||[]).filter(l=>!used.has(loadKey(l))&&isRoutableLocation(l.pickup)&&isRoutableLocation(l.delivery))
   .sort((a,b)=>strongFitScore(b,origin)-strongFitScore(a,origin)).slice(0,5);
@@ -1634,7 +1653,7 @@ async function smartAutoStack(){
    }
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
 }
-async function proposeAutoCorrect(){
+async function proposeAutoCorrect(){if(!requirePlan("autoCorrect"))return null;
  const p=S.stackPlan;if(!p)return;
  const pool=S.allUnifiedLoads||S.candidateLoads||[];
  const current=stackSelectedLoads(),origin=(el("from")?.value||S.origin||"").trim();
