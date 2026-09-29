@@ -649,7 +649,7 @@ async function viewUpdatedTrip(){
  if(el("tripDetailPay"))el("tripDetailPay").textContent=money(total);
  if(el("tripDetailReturn"))el("tripDetailReturn").textContent=S.homeAdded&&S.returnPay>0?money(S.returnPay):"$0";
  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="";
- if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>START / PRIMARY CARGO</div>'+(S.selectedStop!==S.destination?'<div class="stop">📦 <b>'+S.selectedStop+'</b><br>MileCount partial delivery</div>':'')+'<div class="stop">🏁 <b>'+S.destination+'</b><br>Original delivery</div>'+(S.homeAdded&&S.returnPay>0?'<div class="stop">💰 <b>'+S.destination+'</b><br>Confirmed return load • +'+money(S.returnPay)+'</div><div class="stop">🏠 <b>'+S.home+'</b><br>HOME ✓</div>':'');
+ renderFinalTripStops();
  await saveCurrentTrip();
  refreshFinalTripOverview();
  showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
@@ -666,7 +666,7 @@ async function saveCurrentTrip(showStatus=false){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
-function startNewTrip(){S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){S.finalRouteEvents=null;S.finalRouteStops=null;S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -1401,10 +1401,10 @@ async function finishAutoStack(){
  if(el("tripAdded"))el("tripAdded").textContent="+"+money(S.addedPay).replace("-$","-$");
  if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
  if(el("routeSource"))el("routeSource").textContent=p.routeVerified?"Smart AutoStack • verified road route":"Smart AutoStack • estimated road route";
- if(el("tripStops")){
-   const events=Array.isArray(p.events)?p.events:[];
-   el("tripStops").innerHTML=events.length?events.map((e,i)=>'<div class="stop">'+(e.type==="pickup"?"📦":"🏁")+' <b>'+escHtml(e.location||"Stop")+'</b><br>'+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+' • '+money(e.load?.pay||0)+'</div>').join(""):p.routeStops.map((s,i)=>'<div class="stop">'+(i===0?"🚚":i===p.routeStops.length-1?"🏁":"📍")+' <b>'+escHtml(s)+'</b></div>').join("");
- }
+ const events=Array.isArray(p.events)?p.events:[];
+ S.finalRouteEvents=events.map(e=>({type:e.type,location:e.location,load:e.load}));
+ S.finalRouteStops=Array.isArray(p.routeStops)?[...p.routeStops]:[];
+ renderFinalTripStops();
  showScreen(3);
  setTimeout(async()=>{
    try{
@@ -1413,6 +1413,39 @@ async function finishAutoStack(){
      else if(typeof updateOutboundMap==="function")await updateOutboundMap();
    }catch(e){console.warn("AutoStack route display",e)}
  },250);
+}
+function renderFinalTripStops(){
+ const box=el("tripStops");if(!box)return;
+ let events=Array.isArray(S.finalRouteEvents)?S.finalRouteEvents.map(e=>({...e})):[];
+ if(!events.length&&S.stackPlan?.events?.length)events=S.stackPlan.events.map(e=>({type:e.type,location:e.location,load:e.load}));
+ if(!events.length){
+   events=[
+    {type:"start",location:S.origin,label:"START / PRIMARY CARGO"},
+    ...(S.selectedStop&&S.selectedStop!==S.destination?[{type:"drop",location:S.selectedStop,label:"MileCount partial delivery"}]:[]),
+    {type:"drop",location:S.destination,label:"Original delivery"}
+   ];
+ }
+ if(S.homeAdded&&S.returnPay>0){
+   const r=S.returnSelected||{};
+   const pickup=r.pickup||S.destination;
+   const delivery=r.delivery||S.home;
+   events.push({type:"returnPickup",location:pickup,load:r,label:"RETURN LOAD PICKUP • +"+money(S.returnPay)});
+   events.push({type:"returnDrop",location:delivery,load:r,label:"RETURN LOAD DROP"});
+   if(S.home&&delivery!==S.home)events.push({type:"home",location:S.home,label:"HOME ✓"});
+   else if(S.home)events.push({type:"home",location:S.home,label:"HOME ✓"});
+ }
+ const rows=events.map((e,i)=>{
+   const type=e.type||"stop";
+   const icon=type==="pickup"?"📦":type==="drop"?"🏁":type==="returnPickup"?"💰":type==="returnDrop"?"🏁":type==="home"?"🏠":"🚚";
+   const title=type==="pickup"?"PICKUP":type==="drop"?"DROP":type==="returnPickup"?"RETURN PICKUP":type==="returnDrop"?"RETURN DROP":type==="home"?"HOME":"START";
+   const lane=e.load&&(e.load.pickup||e.load.delivery)?escHtml(e.load.pickup||"")+" → "+escHtml(e.load.delivery||""):"";
+   const pay=e.load&&Number(e.load.pay)>0?" • "+money(e.load.pay):"";
+   const detail=e.label?escHtml(e.label):(title+(lane?" • "+lane:"")+pay);
+   return '<div class="stop">'+icon+' <b>STOP '+(i+1)+' • '+escHtml(e.location||"Stop")+'</b><br>'+detail+'</div>';
+ }).join("");
+ const start=events[0]?.location||S.origin||"Start";
+ const end=events[events.length-1]?.location||S.destination||"End";
+ box.innerHTML='<details class="simpleDetails" style="margin-top:12px"><summary><span>FULL ROUTE • '+events.length+' STOPS</span><span style="font-size:10px;color:#93a79d;margin-left:auto;margin-right:8px">'+escHtml(start)+' → '+escHtml(end)+'</span></summary><div class="simpleDetailsBody">'+rows+'</div></details>';
 }
 function escHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\\"":"&quot;","'":"&#39;"}[c]))}
 
