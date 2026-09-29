@@ -997,7 +997,7 @@ function localSimPool(home){
    const hour=6+(i%11),pickup=String(hour).padStart(2,"0")+":00-"+String(hour+1).padStart(2,"0")+":00";
    rows.push([a,b,pay,miles,weight,space,pickup,String(hour+1).padStart(2,"0")+":15-"+String(hour+3).padStart(2,"0")+":00"]);
  }
- return rows.map((r,i)=>({name:state+" LOCAL SIM "+(i+1),provider:"MileCount Local SIM",providerLoadId:"MC-"+state+"-"+today+"-"+(i+1),pickup:r[0],delivery:r[1],pay:r[2],loadedMiles:r[3],weight:r[4],space:r[5],pickupDate:today,pickupWindow:r[6],deliveryWindow:r[7],equipment:"Box Truck",commodity:"Local palletized freight",isSandbox:true,isLocalSim:true,sandboxLabel:"LOCAL SIM • NOT BOOKABLE"}));
+ return rows.map((r,i)=>({name:state+" LOCAL SIM "+(i+1),provider:"MileCount Local SIM",providerLoadId:"MC-"+state+"-"+today+"-"+(i+1),pickup:r[0],delivery:r[1],pay:r[2],loadedMiles:r[3],weight:r[4],space:r[5],pickupDate:today,pickupWindow:null,deliveryWindow:null,simSuggestedPickup:r[6],simSuggestedDelivery:r[7],equipment:"Box Truck",commodity:"Local palletized freight",isSandbox:true,isLocalSim:true,sandboxLabel:"LOCAL SIM • NOT BOOKABLE"}));
 }
 async function fetchDirectFreightLocal(home){
  try{
@@ -1099,7 +1099,18 @@ async function buildLocalMoneyDay(){
      // Once the complete LOCAL pool is visible, select the strongest plan candidates.
      const picks=enriched.slice(0,Math.min(currentPlan().maxStack===Infinity?5:currentPlan().maxStack,5));
      selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
-     if(picks.length>=2)setTimeout(()=>smartAutoStack(),80);
+     if(picks.length>=2)setTimeout(async()=>{
+       await smartAutoStack();
+       if(S.stackPlan&&!S.stackPlan.valid&&!S.stackPlan.feasible){
+         const proposal=await proposeAutoCorrect();
+         if(proposal?.loads?.length){
+           // Local Day is an automatic dispatcher mode: apply the feasible prune
+           // immediately instead of leaving impossible loads selected.
+           selectedStackKeys.clear();proposal.loads.forEach(l=>selectedStackKeys.add(loadKey(l)));
+           S.autoCorrectProposal=null;updateStackTray();await smartAutoStack();
+         }
+       }
+     },80);
      const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
      S.localSourceCounts=sc;
      if(status)status.textContent="LOCAL MONEY ✓ "+enriched.length+" loads • "+sc.real+" real • "+sc.sandbox+" sandbox • "+sc.sim+" SIM";
@@ -1460,7 +1471,10 @@ async function buildDispatchTimeline(events,start){
   const dm=Math.max(0,Number(mi)/50*60);
   if(sinceBreak+dm>480){timeline.push({type:"break",arrival:mcTime(now),location:"MANDATORY BREAK",window:"30 min"});now+=30;onDuty+=30;sinceBreak=0}
   now+=dm;drive+=dm;onDuty+=dm;sinceBreak+=dm;
-  const w=mcWindow(e.load,e.type),off=mcDayOffset(e.load,e.type);
+  // SIM freight has generated demonstration windows, not broker appointments.
+  // Keep its displayed schedule flexible and never reject a plan on SIM-only times.
+  const simFlexible=!!e.load?.isLocalSim;
+  const w=simFlexible?null:mcWindow(e.load,e.type),off=simFlexible?0:mcDayOffset(e.load,e.type);
   const ws=w?w.start+off:null,we=w?w.end+off:null;
   if(w&&now<ws){onDuty+=ws-now;now=ws}
   if(w&&now>we)issues.push((e.type==="pickup"?"Pickup":"Delivery")+" missed at "+loc+" • "+mcTime(now)+" > "+mcTime(we));
@@ -1670,7 +1684,7 @@ async function smartAutoStack(){
    }
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
 }
-async function proposeAutoCorrect(){if(!requirePlan("autoCorrect"))return null;
+async function proposeAutoCorrect(){
  const p=S.stackPlan;if(!p)return;
  const pool=S.allUnifiedLoads||S.candidateLoads||[];
  const current=stackSelectedLoads(),origin=(el("from")?.value||S.origin||"").trim();
@@ -1678,11 +1692,11 @@ async function proposeAutoCorrect(){if(!requirePlan("autoCorrect"))return null;
  // until the dispatcher can build a feasible day, then fill open slots with Strong Fits.
  let keep=[...current].sort((a,b)=>strongFitScore(b,origin)-strongFitScore(a,origin));
  const removed=[];
- while(keep.length>1){
+ while(keep.length>0){
    const old=new Set(selectedStackKeys);selectedStackKeys.clear();keep.forEach(l=>selectedStackKeys.add(loadKey(l)));
    // Build silently by using the same optimizer; proposal is captured after each run.
    await smartAutoStack();
-   if(S.stackPlan?.valid){const proposed=[...keep];selectedStackKeys.clear();old.forEach(k=>selectedStackKeys.add(k));S.autoCorrectProposal={loads:proposed,removed:[...removed],plan:S.stackPlan};updateStackTray();return S.autoCorrectProposal}
+   if(S.stackPlan?.valid||S.stackPlan?.feasible){const proposed=[...keep];selectedStackKeys.clear();old.forEach(k=>selectedStackKeys.add(k));S.autoCorrectProposal={loads:proposed,removed:[...removed],plan:S.stackPlan};updateStackTray();return S.autoCorrectProposal}
    const weak=keep.pop();if(weak)removed.push(weak);
    selectedStackKeys.clear();old.forEach(k=>selectedStackKeys.add(k));
  }
