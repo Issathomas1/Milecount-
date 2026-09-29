@@ -686,7 +686,7 @@ async function saveCurrentTrip(showStatus=false){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
-function startNewTrip(){S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -935,7 +935,51 @@ async function startSmartDispatchFromLocation(){
  },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
 }
 bind("find",runNormalLoadSearch);
+
+async function buildLocalMoneyDay(){
+ const btn=el("localMoneyMode"),status=el("localMoneyStatus");
+ if(btn){btn.disabled=true;btn.textContent="BUILDING LOCAL DAY…"}
+ try{
+   const home=(el("from")?.value||S.home||S.origin||"Atlanta, GA").trim();
+   S.home=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=500;S.localMaxLoads=5;
+   if(status)status.textContent="Searching local/regional freight and building the best ≤500-mile day back to "+home+"…";
+   // Refresh the connected board, then use road-distance checks to keep only
+   // pickups close enough to be candidates for a same-day regional plan.
+   await browseLiveLoadBoard(true);
+   const raw=enforceWeightCap(S.candidateLoads||[]);
+   const nearby=[];
+   for(const l of raw.slice(0,40)){
+     let toPickup=null,loaded=Number(l.loadedMiles||0);
+     try{toPickup=await withTimeout(roadMilesBetween(home,l.pickup),1800,null)}catch(e){}
+     if(!Number.isFinite(toPickup))continue;
+     let back=null;
+     try{back=await withTimeout(roadMilesBetween(l.delivery||l.pickup,home),1800,null)}catch(e){}
+     if(!Number.isFinite(back))continue;
+     const soloMiles=Number(toPickup)+loaded+Number(back);
+     if(soloMiles<=500){
+       l.deadheadMiles=Number(toPickup);
+       l.localSoloMiles=soloMiles;
+       l.localAfterGas=Number(l.pay||0)-Number(fuelFor(soloMiles).fuelCost||0);
+       nearby.push(l);
+     }
+   }
+   nearby.sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
+   const picks=nearby.slice(0,5);
+   selectedStackKeys.clear();
+   picks.forEach(l=>selectedStackKeys.add(loadKey(l)));
+   S.candidateLoads=nearby.slice(0,12);
+   renderUnifiedLoadList(S.candidateLoads);
+   updateStackTray();
+   if(status)status.textContent=picks.length
+     ?("LOCAL MONEY ✓ Selected "+picks.length+" strong candidates. Smart AutoStack will optimize the combined route and keep the full day under 500 miles when feasible.")
+     :"LOCAL MONEY • No connected loads currently fit a ≤500-mile round-trip day. Use SIM freight for testing or refresh later.";
+   showScreen(2);
+   if(picks.length>=2)setTimeout(()=>smartAutoStack(),180);
+ }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
+ finally{if(btn){btn.disabled=false;btn.textContent="🏠 LOCAL MONEY MODE • BUILD MY DAY"}}
+}
 bind("smartDispatchLocation",startSmartDispatchFromLocation);
+bind("localMoneyMode",buildLocalMoneyDay);
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
 bind("refreshLiveMap",async()=>{await browseLiveLoadBoard(true);await Promise.all([refreshLiveLoadCount(),refreshUnifiedFreightBoard(true)])});
 bind("viewLoadList",()=>showScreen(2));
@@ -1318,6 +1362,10 @@ async function smartAutoStack(){
    }
    const routeVerified=!!(route&&Number(route.miles)>0);
    if(Number(route?.miles)>0)state.miles=Number(route.miles);
+   if(S.localMoneyMode&&state.miles>Number(S.localMaxMiles||500)){
+     state.feasible=false;
+     state.issues.push("LOCAL MONEY limit exceeded: "+Math.round(state.miles)+" miles. Maximum is "+Number(S.localMaxMiles||500)+" miles including the day route.");
+   }
    const fuel=fuelFor(state.miles);
    const totalRevenue=state.liveRevenue+state.testRevenue;
    const rpm=state.miles>0?totalRevenue/state.miles:0;
