@@ -1556,10 +1556,11 @@ function renderRouteOrderRows(){
   '<div class="routeOrderRow" data-i="'+i+'" draggable="true" style="display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid #1d392d;touch-action:pan-y">'+
    '<button type="button" class="routeDrag" aria-label="Drag stop '+(i+1)+'" style="width:44px;padding:10px;cursor:grab;background:#15271f">☰</button>'+
    '<span><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"📦 PICKUP":e.type==="home"?"🏠 HOME":"🏁 DROP")+' • '+escHtml(e.location||"Stop")+'</b><small style="display:block;opacity:.7">'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</small></span>'+
-   '<span style="display:flex;gap:4px"><button type="button" class="routeMoveUp" data-i="'+i+'" '+(i===0?"disabled":"")+' style="width:42px;padding:9px">↑</button><button type="button" class="routeMoveDown" data-i="'+i+'" '+(i===p.events.length-1?"disabled":"")+' style="width:42px;padding:9px">↓</button></span>'+
+   '<span style="display:flex;gap:4px"><button type="button" class="routeMoveUp" data-i="'+i+'" '+(i===0?"disabled":"")+' style="width:42px;padding:9px">↑</button><button type="button" class="routeMoveDown" data-i="'+i+'" '+(i===p.events.length-1?"disabled":"")+' style="width:42px;padding:9px">↓</button>'+(e.type!=="home"?'<button type="button" class="routeDeleteLoad" data-i="'+i+'" aria-label="Remove this load" style="width:42px;padding:9px;background:#351818">✕</button>':'')+'</span>'+
   '</div>').join("");
  wrap.querySelectorAll(".routeMoveUp").forEach(b=>b.addEventListener("click",()=>moveRouteStop(Number(b.dataset.i),-1)));
  wrap.querySelectorAll(".routeMoveDown").forEach(b=>b.addEventListener("click",()=>moveRouteStop(Number(b.dataset.i),1)));
+ wrap.querySelectorAll(".routeDeleteLoad").forEach(b=>b.addEventListener("click",()=>deleteRouteLoad(Number(b.dataset.i))));
  let dragIndex=null;
  wrap.querySelectorAll(".routeOrderRow").forEach(row=>{
   row.addEventListener("dragstart",e=>{dragIndex=Number(row.dataset.i);row.style.opacity=".45";if(e.dataTransfer)e.dataTransfer.effectAllowed="move"});
@@ -1579,6 +1580,22 @@ function renderRouteOrderRows(){
   const stop=()=>{active=false;from=null};
   handle.addEventListener("pointerup",stop);handle.addEventListener("pointercancel",stop);
  });
+}
+function deleteRouteLoad(i){
+ const p=S.stackPlan,m=el("routeOrderMessage");if(!p?.events?.[i])return;
+ const event=p.events[i],id=tripLoadId(event.load||{});
+ if(!id||event.type==="home")return;
+ const removed=event.load;
+ // Removing either pickup or drop removes the entire load so the route remains legal.
+ p.events=p.events.filter(e=>e.type==="home"||tripLoadId(e.load||{})!==id);
+ p.loads=(p.loads||[]).filter(l=>tripLoadId(l)!==id);
+ selectedStackKeys.delete(id);
+ const pay=Number(removed?.pay||0);
+ if(removed?.isSandbox)p.testPay=Math.max(0,Number(p.testPay||0)-pay);
+ else p.livePay=Math.max(0,Number(p.livePay||0)-pay);
+ updateStackTray();
+ if(m)m.textContent="Removed "+(removed?.pickup||"load")+" → "+(removed?.delivery||"")+" • Press APPLY MY ROUTE ORDER to recalculate.";
+ renderRouteOrderRows();
 }
 function moveRouteStop(i,delta){return moveRouteStopTo(i,i+delta)}
 function moveRouteStopTo(i,j){
