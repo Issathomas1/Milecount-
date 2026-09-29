@@ -1253,50 +1253,81 @@ async function smartAutoStack(){
    }
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
 }
+function routeOrderIsLegal(events){
+ const picked=new Set();
+ for(const e of events){
+  const id=tripLoadId(e.load||{});
+  if(e.type==="drop"&&!picked.has(id))return {ok:false,event:e};
+  if(e.type==="pickup")picked.add(id);
+ }
+ return {ok:true};
+}
 function renderEditableStopOrder(){
  const p=S.stackPlan,box=el("stackPlanResult");
  if(!p||!box||!Array.isArray(p.events))return;
- const n=p.events.length;
- const options=p.events.map((e,i)=>'<option value="'+i+'">'+(i+1)+'. '+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Stop")+'</option>').join("");
  box.insertAdjacentHTML("beforeend",
-  '<div class="tripStateNow" style="margin-top:12px"><b>CHANGE ROUTE ORDER</b><span>Choose a new position for any stop. MileCount blocks a delivery from being placed before its pickup.</span></div>'+
-  '<div id="routeOrderEditor">'+p.events.map((e,i)=>'<label style="display:grid;grid-template-columns:1fr 92px;gap:10px;align-items:center;margin:8px 0"><span><b>'+(e.type==="pickup"?"📦":"🏁")+' '+escHtml(e.location||"Stop")+'</b><small style="display:block;opacity:.7">'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</small></span><select class="routeOrderSelect" data-event-index="'+i+'" style="margin:0">'+options.replace('value="'+i+'"','value="'+i+'" selected')+'</select></label>').join("")+'</div>'+
+  '<div class="tripStateNow" style="margin-top:12px"><b>CHANGE ROUTE ORDER</b><span>Press and hold ☰, then drag a stop where you want it. ↑ ↓ buttons are also available.</span></div>'+
+  '<div id="routeOrderEditor"></div>'+
   '<button id="applyRouteOrder" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:10px">APPLY MY ROUTE ORDER</button>'+
   '<div id="routeOrderMessage" class="details"></div>');
+ renderRouteOrderRows();
  el("applyRouteOrder")?.addEventListener("click",applyManualRouteOrder);
+}
+function renderRouteOrderRows(){
+ const p=S.stackPlan,wrap=el("routeOrderEditor");if(!p||!wrap)return;
+ wrap.innerHTML=p.events.map((e,i)=>
+  '<div class="routeOrderRow" data-i="'+i+'" draggable="true" style="display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid #1d392d;touch-action:pan-y">'+
+   '<button type="button" class="routeDrag" aria-label="Drag stop '+(i+1)+'" style="width:44px;padding:10px;cursor:grab;background:#15271f">☰</button>'+
+   '<span><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"📦 PICKUP":"🏁 DROP")+' • '+escHtml(e.location||"Stop")+'</b><small style="display:block;opacity:.7">'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</small></span>'+
+   '<span style="display:flex;gap:4px"><button type="button" class="routeMoveUp" data-i="'+i+'" '+(i===0?"disabled":"")+' style="width:42px;padding:9px">↑</button><button type="button" class="routeMoveDown" data-i="'+i+'" '+(i===p.events.length-1?"disabled":"")+' style="width:42px;padding:9px">↓</button></span>'+
+  '</div>').join("");
+ wrap.querySelectorAll(".routeMoveUp").forEach(b=>b.addEventListener("click",()=>moveRouteStop(Number(b.dataset.i),-1)));
+ wrap.querySelectorAll(".routeMoveDown").forEach(b=>b.addEventListener("click",()=>moveRouteStop(Number(b.dataset.i),1)));
+ let dragIndex=null;
+ wrap.querySelectorAll(".routeOrderRow").forEach(row=>{
+  row.addEventListener("dragstart",e=>{dragIndex=Number(row.dataset.i);row.style.opacity=".45";if(e.dataTransfer)e.dataTransfer.effectAllowed="move"});
+  row.addEventListener("dragend",()=>{row.style.opacity="";dragIndex=null});
+  row.addEventListener("dragover",e=>e.preventDefault());
+  row.addEventListener("drop",e=>{e.preventDefault();const to=Number(row.dataset.i);if(dragIndex!=null)moveRouteStopTo(dragIndex,to)});
+ });
+ // iPhone/Safari: pointer drag from the handle, without disabling normal scrolling elsewhere.
+ wrap.querySelectorAll(".routeDrag").forEach(handle=>{
+  let from=null,active=false;
+  handle.addEventListener("pointerdown",e=>{from=Number(handle.closest(".routeOrderRow").dataset.i);active=true;handle.setPointerCapture?.(e.pointerId)});
+  handle.addEventListener("pointermove",e=>{
+   if(!active)return;
+   const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest?.(".routeOrderRow");
+   if(hit){const to=Number(hit.dataset.i);if(Number.isFinite(to)&&to!==from){if(moveRouteStopTo(from,to)){from=to}}}
+  });
+  const stop=()=>{active=false;from=null};
+  handle.addEventListener("pointerup",stop);handle.addEventListener("pointercancel",stop);
+ });
+}
+function moveRouteStop(i,delta){return moveRouteStopTo(i,i+delta)}
+function moveRouteStopTo(i,j){
+ const p=S.stackPlan;if(!p||j<0||j>=p.events.length||i===j)return false;
+ const next=[...p.events],[item]=next.splice(i,1);next.splice(j,0,item);
+ const legal=routeOrderIsLegal(next),m=el("routeOrderMessage");
+ if(!legal.ok){if(m)m.textContent="Can't put "+(item.location||"that stop")+" there — its delivery must stay after pickup.";return false}
+ p.events=next;if(m)m.textContent="Order changed. Press APPLY MY ROUTE ORDER to recalculate miles.";
+ renderRouteOrderRows();return true;
 }
 async function applyManualRouteOrder(){
  const p=S.stackPlan;if(!p?.events?.length)return;
- const selects=[...document.querySelectorAll(".routeOrderSelect")];
- const ranked=selects.map((s,original)=>({original,rank:Number(s.value)})).sort((a,b)=>a.rank-b.rank||a.original-b.original);
- // Duplicate positions are resolved by current order; every event remains present.
- const events=ranked.map(x=>p.events[x.original]);
- const picked=new Set();
- for(const e of events){
-   const id=tripLoadId(e.load||{});
-   if(e.type==="drop"&&!picked.has(id)){
-     const m=el("routeOrderMessage");if(m)m.textContent="That order is not possible: "+(e.location||"a delivery")+" is before its pickup.";
-     return;
-   }
-   if(e.type==="pickup")picked.add(id);
- }
+ const legal=routeOrderIsLegal(p.events),m=el("routeOrderMessage");
+ if(!legal.ok){if(m)m.textContent="That order is not possible: "+(legal.event?.location||"a delivery")+" is before its pickup.";return}
  const stops=[S.origin||p.routeStops?.[0]].filter(isRoutableLocation);
- events.forEach(e=>{if(isRoutableLocation(e.location)&&stops.at(-1)!==e.location)stops.push(e.location)});
+ p.events.forEach(e=>{if(isRoutableLocation(e.location)&&stops.at(-1)!==e.location)stops.push(e.location)});
  setBusy(true,"Recalculating your custom route…");
  try{
-   let route=null;if(stops.length>1&&typeof getMileCountRoadRoute==="function")route=await withTimeout(getMileCountRoadRoute(stops),5000,null);
-   p.events=events;p.routeStops=stops;p.routeVerified=!!(route&&Number(route.miles)>0);
-   if(Number(route?.miles)>0)p.miles=Number(route.miles);
-   p.fuel=fuelFor(p.miles);
-   const total=Number(p.livePay||0)+Number(p.testPay||0);
-   p.rpm=p.miles?total/p.miles:0;
-   S.roundTripMiles=p.miles;
-   const m=el("routeOrderMessage");if(m)m.textContent="Custom stop order applied ✓ • "+Math.round(p.miles).toLocaleString()+" road miles";
-   if(typeof showMileCountRoute==="function")await showMileCountRoute(stops);
-   // Re-render stop numbers to match the user's chosen order.
-   const routeBox=el("stackPlanResult")?.querySelector(".stackRoute");
-   if(routeBox)routeBox.innerHTML=events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</span></div>').join("");
- }catch(e){const m=el("routeOrderMessage");if(m)m.textContent="Order saved, but road-mile verification is temporarily unavailable."}
+  let route=null;if(stops.length>1&&typeof getMileCountRoadRoute==="function")route=await withTimeout(getMileCountRoadRoute(stops),5000,null);
+  p.routeStops=stops;p.routeVerified=!!(route&&Number(route.miles)>0);if(Number(route?.miles)>0)p.miles=Number(route.miles);
+  p.fuel=fuelFor(p.miles);const total=Number(p.livePay||0)+Number(p.testPay||0);p.rpm=p.miles?total/p.miles:0;S.roundTripMiles=p.miles;
+  if(m)m.textContent="Custom stop order applied ✓ • "+Math.round(p.miles).toLocaleString()+" road miles";
+  if(typeof showMileCountRoute==="function")await showMileCountRoute(stops);
+  const routeBox=el("stackPlanResult")?.querySelector(".stackRoute");
+  if(routeBox)routeBox.innerHTML=p.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</span></div>').join("");
+ }catch(e){if(m)m.textContent="Order saved, but road-mile verification is temporarily unavailable."}
  finally{setBusy(false)}
 }
 
