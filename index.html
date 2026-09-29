@@ -839,9 +839,9 @@ Your trip
   <div class="row" style="margin-top:9px"><div class="metric"><small>FUEL USED</small><b id="overviewGallons">—</b></div><div class="metric"><small>FUEL COST</small><b id="overviewFuel">—</b></div></div>
   <div class="row" style="margin-top:9px"><div class="metric"><small>MAINTENANCE RESERVE</small><b id="overviewMaintenance">—</b></div><div class="metric"><small>INSURANCE ALLOCATION</small><b id="overviewInsurance">—</b></div></div>
   <div class="row" style="margin-top:9px"><div class="metric"><small>TRUCK PAYMENT ALLOCATION</small><b id="overviewPayment">—</b></div><div class="metric"><small>OTHER OVERHEAD</small><b id="overviewOther">—</b></div></div>
-  <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL EST. TRIP COST</small><b id="overviewCost">—</b></div><div class="metric"><small>EST. MARGIN</small><b id="overviewMargin" class="green">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>TRIP FUEL COST</small><b id="overviewCost">—</b></div><div class="metric"><small>AFTER-GAS PROFIT</small><b id="overviewMargin" class="green">—</b></div></div>
   <p id="overviewFuelDetail" class="details"></p>
-  <p class="details">Planning estimate based on your saved fuel, maintenance, insurance, truck-payment and overhead settings. Tolls, taxes, payroll and unexpected expenses may not be included.</p>
+  <p class="details">Trip view subtracts fuel only. Insurance, maintenance, truck payment and other overhead stay in your separate budget. Tolls, taxes, payroll and unexpected expenses are not included.</p>
 </div>
 <button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
   <div id="tripSaveStatus" class="details"></div>
@@ -1093,7 +1093,7 @@ Waiting for MileCount Fuel Engine...
 <div class="metric">
 
 <small>
-EST CONTRIBUTION MARGIN
+AFTER-GAS PROFIT
 </small>
 
 <b id="afterFuel">
@@ -1120,7 +1120,7 @@ $0
 
 <p class="details">
 
-Estimated contribution margin subtracts the displayed fuel, maintenance reserve and allocated fixed costs. It is a planning estimate, not guaranteed profit. Taxes, tolls, labor, fees and unexpected expenses may not be included.
+After-gas profit subtracts estimated fuel from trip revenue only. Insurance, maintenance, truck payment and other overhead are handled separately. Taxes, tolls, labor, fees and unexpected expenses are not included.
 
 </p>
 
@@ -1201,7 +1201,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260929-homebound-selection3"></script>
+<script src="app.js?v=20260929-fuel-only-profit1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
