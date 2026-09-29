@@ -563,6 +563,7 @@ class="screen active"
 
 <button id="find" class="simpleSearchBtn">FIND LOADS</button>
 <button id="localMoneyMode" type="button" class="simpleSearchBtn" style="background:#0d2118;border:1px solid #2d6b4d;margin-top:8px">💰 BUILD MY LOCAL DAY</button>
+<details class="simpleDetails"><summary>Driver day schedule</summary><div class="simpleDetailsBody"><div class="filterGrid"><label>START TIME<input id="dayStartTime" type="time" value="06:00"></label><label>PICKUP SERVICE MIN<input id="pickupServiceMin" type="number" min="0" value="20"></label><label>DROP SERVICE MIN<input id="dropServiceMin" type="number" min="0" value="20"></label></div><p class="details">MileCount checks travel time, provider pickup/delivery windows, service time, breaks, and the 10-driving-hour Local Day target before approving the stack.</p></div></details>
 <div id="localMoneyStatus" class="details">Targets up to 5 loads, ≤1,000 total route miles, fuel-only trip economics, and a return to your chosen home.</div>
 <button id="browseLiveLoads" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">BROWSE LOCAL LOADS</button>
 <p class="details" style="margin-bottom:0">REAL, SANDBOX and SIM local loads are combined so you can build the best route from one place.</p>
@@ -1205,7 +1206,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260929-state-outlines1"></script>
-<script src="app.js?v=20260929-location-background1"></script>
+<script src="app.js?v=20260929-dispatch-time2"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
