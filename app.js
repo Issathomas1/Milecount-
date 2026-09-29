@@ -454,10 +454,11 @@ async function protectReturn(){
  setBusy(true,"One moment — dispatching your way home…");
  setButtonBusy("protect",true,"SEARCHING 0–3 DAYS…","FIND MY WAY HOME");
  const selected=S.selectedCandidate;
- const plannedStops=Array.isArray(S.stackPlan?.routeStops)?S.stackPlan.routeStops:[];
- const delivery=(plannedStops.length?plannedStops[plannedStops.length-1]:null)||selected?.delivery||S.selectedLoadDelivery||S.destination;
+ const plannedEvents=Array.isArray(S.stackPlan?.events)?S.stackPlan.events:[];
+ const lastFreight=[...plannedEvents].reverse().find(e=>e.type==="drop"&&e.load);
+ const delivery=lastFreight?.location||selected?.delivery||S.selectedLoadDelivery||S.destination;
  const chosenEnd=(el("tripHomeChoice")?.value||"").trim();
- const home=(chosenEnd||S.stackPlan?.endLocation||el("from")?.value||S.home||S.origin||"Atlanta, GA").trim();
+ const home=(chosenEnd||S.home||el("from")?.value||S.origin||"Atlanta, GA").trim();
  S.home=home;
  if(S.stackPlan)S.stackPlan.endLocation=home;
  if(el("returnLane"))el("returnLane").textContent=delivery+" → "+home;
@@ -1662,7 +1663,13 @@ async function finishAutoStack(){
  const first=loads[0]||S.basePlanLoad||{};
  const last=loads[loads.length-1]||S.basePlanLoad||{};
  S.origin=p.routeStops[0]||first.pickup||S.origin;
- S.destination=p.routeStops[p.routeStops.length-1]||last.delivery||last.stop||S.destination;
+ const chosenHome=(el("tripHomeChoice")?.value||S.home||"").trim();
+ const freightEnd=p.routeStops[p.routeStops.length-1]||last.delivery||last.stop||S.destination;
+ S.destination=freightEnd;
+ if(S.localMoneyMode&&isRoutableLocation(chosenHome)){
+   S.home=chosenHome;S.homeChosen=true;p.endLocation=chosenHome;
+   if(p.routeStops.at(-1)!==chosenHome)p.routeStops.push(chosenHome);
+ }
  S.primaryPay=Number(S.basePlanLoad?.pay||0);
  S.addedPay=Math.max(0,Number(p.livePay||0)+Number(p.testPay||0)-S.primaryPay);
  S.totalPay=Number(p.livePay||0)+Number(p.testPay||0);
@@ -1673,7 +1680,8 @@ async function finishAutoStack(){
  if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
  if(el("routeSource"))el("routeSource").textContent=p.routeVerified?"Smart AutoStack • verified road route":"Smart AutoStack • estimated road route";
  const events=Array.isArray(p.events)?p.events:[];
- S.finalRouteEvents=events.map(e=>({type:e.type,location:e.location,load:e.load}));
+ S.finalRouteEvents=events.filter(e=>e.type!=="home").map(e=>({type:e.type,location:e.location,load:e.load}));
+ if(S.localMoneyMode&&S.home&&S.finalRouteEvents.at(-1)?.location!==S.home)S.finalRouteEvents.push({type:"home",location:S.home,label:"HOME / FINAL DESTINATION ✓"});
  S.finalRouteStops=Array.isArray(p.routeStops)?[...p.routeStops]:[];
  renderFinalTripStops();
  showScreen(3);
