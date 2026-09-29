@@ -830,7 +830,18 @@ Your trip
   <small>TRIP DETAILS</small>
   <div class="row" style="margin-top:9px"><div class="metric"><small>LANE START</small><b id="tripHomeStart">—</b></div><div class="metric"><small>FINAL DESTINATION</small><b id="tripFinalDestination">—</b></div></div><label style="margin-top:12px">HOME / END LOCATION<input id="tripHomeChoice" type="text" placeholder="City, State — e.g. Atlanta, GA" autocomplete="address-level2"></label><p class="details" style="margin-top:6px">Choose where you actually want this trip to end. It can be different from where the lane started.</p><button id="applyTripHome" type="button" style="background:#15271f;border:1px solid #2b4438">SET END LOCATION & RECALCULATE</button>
   <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL TRIP PAY</small><b id="tripDetailPay">—</b></div><div class="metric"><small>RETURN LOAD</small><b id="tripDetailReturn">—</b></div></div>
-  <button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
+  <div id="tripOverview" class="fuelBox" style="margin-top:14px">
+  <small>FINAL TRIP OVERVIEW</small>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL REVENUE</small><b id="overviewRevenue">—</b></div><div class="metric"><small>ROAD MILES</small><b id="overviewMiles">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>ALL-MILE RPM</small><b id="overviewRPM">—</b></div><div class="metric"><small>DRIVE TIME</small><b id="overviewDriveTime">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>FUEL USED</small><b id="overviewGallons">—</b></div><div class="metric"><small>FUEL COST</small><b id="overviewFuel">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>MAINTENANCE RESERVE</small><b id="overviewMaintenance">—</b></div><div class="metric"><small>INSURANCE ALLOCATION</small><b id="overviewInsurance">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>TRUCK PAYMENT ALLOCATION</small><b id="overviewPayment">—</b></div><div class="metric"><small>OTHER OVERHEAD</small><b id="overviewOther">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL EST. TRIP COST</small><b id="overviewCost">—</b></div><div class="metric"><small>EST. MARGIN</small><b id="overviewMargin" class="green">—</b></div></div>
+  <p id="overviewFuelDetail" class="details"></p>
+  <p class="details">Planning estimate based on your saved fuel, maintenance, insurance, truck-payment and overhead settings. Tolls, taxes, payroll and unexpected expenses may not be included.</p>
+</div>
+<button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
   <div id="tripSaveStatus" class="details"></div>
 </div>
 
@@ -1184,7 +1195,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260928-homechoice1"></script>
+<script src="app.js?v=20260929-finaloverview1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");

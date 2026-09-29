@@ -616,6 +616,31 @@ let route=null;
  setTimeout(()=>viewUpdatedTrip(),250);
 }
 
+function refreshFinalTripOverview(){
+ const miles=Math.max(0,Number(S.roundTripMiles||0));
+ const revenue=Math.max(0,Number(S.totalPay||0)+(S.homeAdded?Number(S.returnPay||0):0));
+ const fuel=fuelFor(miles),p=costProfile();
+ const monthlyMiles=Math.max(1,val("monthlyMiles",8000));
+ const maintenance=miles*Math.max(0,val("maintenanceCPM",.20));
+ const insurance=miles*(Math.max(0,val("monthlyInsurance",1800))/monthlyMiles);
+ const payment=miles*(Math.max(0,val("monthlyPayment",900))/monthlyMiles);
+ const other=miles*(Math.max(0,val("monthlyOther",300))/monthlyMiles);
+ const cost=Number(fuel.fuelCost||0)+maintenance+insurance+payment+other;
+ const margin=revenue-cost;
+ if(el("overviewRevenue"))el("overviewRevenue").textContent=money(revenue);
+ if(el("overviewMiles"))el("overviewMiles").textContent=Math.round(miles).toLocaleString()+" mi";
+ if(el("overviewRPM"))el("overviewRPM").textContent=miles?"$"+(revenue/miles).toFixed(2):"—";
+ if(el("overviewDriveTime"))el("overviewDriveTime").textContent=el("driveTime")?.textContent||"—";
+ if(el("overviewGallons"))el("overviewGallons").textContent=Number(fuel.gallons||0).toFixed(1)+" gal";
+ if(el("overviewFuel"))el("overviewFuel").textContent=money(fuel.fuelCost||0);
+ if(el("overviewMaintenance"))el("overviewMaintenance").textContent=money(maintenance);
+ if(el("overviewInsurance"))el("overviewInsurance").textContent=money(insurance);
+ if(el("overviewPayment"))el("overviewPayment").textContent=money(payment);
+ if(el("overviewOther"))el("overviewOther").textContent=money(other);
+ if(el("overviewCost"))el("overviewCost").textContent=money(cost);
+ if(el("overviewMargin"))el("overviewMargin").textContent=money(margin);
+ if(el("overviewFuelDetail"))el("overviewFuelDetail").textContent=Number(fuel.gallons||0).toFixed(1)+" gallons × $"+Number(fuel.dieselPrice||0).toFixed(2)+"/gal • "+(fuel.source||fuel.fuelSource||"fuel estimate");
+}
 async function viewUpdatedTrip(){
  S.home=(S.home||el("from")?.value||S.origin||"").trim();
  const total=S.totalPay+(S.homeAdded?S.returnPay:0);if(el("tripPay"))el("tripPay").textContent=money(total);
@@ -626,6 +651,7 @@ async function viewUpdatedTrip(){
  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="";
  if(el("tripStops"))el("tripStops").innerHTML='<div class="stop">🚚 <b>'+S.origin+'</b><br>START / PRIMARY CARGO</div>'+(S.selectedStop!==S.destination?'<div class="stop">📦 <b>'+S.selectedStop+'</b><br>MileCount partial delivery</div>':'')+'<div class="stop">🏁 <b>'+S.destination+'</b><br>Original delivery</div>'+(S.homeAdded&&S.returnPay>0?'<div class="stop">💰 <b>'+S.destination+'</b><br>Confirmed return load • +'+money(S.returnPay)+'</div><div class="stop">🏠 <b>'+S.home+'</b><br>HOME ✓</div>':'');
  await saveCurrentTrip();
+ refreshFinalTripOverview();
  showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
 }
 async function saveCurrentTrip(showStatus=false){
@@ -834,6 +860,7 @@ bind("applyTripHome",async function(){
   if(el("tripStops"))el("tripStops").insertAdjacentHTML("beforeend",'<div class="stop">🏠 <b>'+escHtml(home)+'</b><br>CHOSEN END LOCATION ✓</div>');
   if(typeof showMileCountRoute==="function"&&p?.routeStops)await showMileCountRoute(p.routeStops);
   if(el("tripSaveStatus"))el("tripSaveStatus").textContent="End location updated. Trip miles recalculated.";
+  refreshFinalTripOverview();
  }catch(e){
   console.warn("End location route update failed",e);
   if(el("tripSaveStatus"))el("tripSaveStatus").textContent="End location saved. Road-mile verification is temporarily unavailable.";
