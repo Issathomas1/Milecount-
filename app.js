@@ -525,9 +525,20 @@ async function protectReturn(){
  }
 
  const weightSafeCandidates=enforceWeightCap(candidates);
- candidates.length=0;candidates.push(...weightSafeCandidates);
- candidates.sort((a,b)=>b.score-a.score);
- const useful=candidates.filter(c=>c.homeProgress>=-50||!directMiles).slice(0,8);
+ // A homebound load must be reachable from the truck and actually improve the
+ // trip toward home. Do not let a Florida pickup win from Charlotte just because
+ // the provider returned it for the lane query.
+ const seenReturn=new Set();
+ const useful=weightSafeCandidates.filter(c=>{
+   const key=[laneCity(c.pickup),laneCity(c.delivery),Number(c.pay||0),String(c.pickupDate||"")].join("|");
+   if(seenReturn.has(key))return false;seenReturn.add(key);
+   const dh=Number(c.dispatchDeadhead||0);
+   const progress=Number(c.homeProgress||0);
+   const maxReturnDH=Math.min(150,Math.max(50,Number(el("maxDeadhead")?.value||100)));
+   if(dh>maxReturnDH)return false;
+   if(directMiles>0&&progress<=0)return false;
+   return true;
+ }).sort((a,b)=>b.score-a.score).slice(0,8);
  S.returnCandidates=useful;
  const bestLive=useful.find(c=>!c.isSandbox);
  const best=bestLive||useful[0];
@@ -535,13 +546,14 @@ async function protectReturn(){
  if(best){
    S.returnPay=Number(best.pay||0); S.demoReturn=!!best.isSandbox;
    S.returnSelected=best;
+   if(el("returnLane"))el("returnLane").textContent=(best.pickup||delivery)+" → "+(best.delivery||home);
    if(el("returnPay"))el("returnPay").textContent=best.isSandbox?("TEST "+money(best.pay)):money(best.pay);
    if(el("returnSource"))el("returnSource").textContent=best.isSandbox?"LoadBoot TEST":"TrukTek";
    if(el("returnStatus"))el("returnStatus").textContent=(best.pickupDate||("+"+best.daysOut+" day"))+(best.isSandbox?" • TEST":" • LIVE");
-   if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • TrukTek";
+   if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(Number(best.allMiles||0)).toLocaleString()+" all mi";
    if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay)+(best.isSandbox?" TEST":"");
-   if(el("returnMilesPreview"))el("returnMilesPreview").textContent=directMiles?Math.round(directMiles).toLocaleString()+" mi toward home":"Route found";
-   if(el("returnLead"))el("returnLead").textContent="Best homebound option: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
+   if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • TrukTek";
+    if(el("returnLead"))el("returnLead").textContent="Best homebound option: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
  if(el("homeboundAlternatives")){
    el("homeboundAlternatives").innerHTML=useful.slice(0,5).map((c,i)=>'<div class="homeAlt"><b>'+(i+1)+'. '+(c.pickup||delivery)+' → '+(c.delivery||home)+'</b><span>'+money(c.pay)+' • '+(c.dispatchRPM?("$"+c.dispatchRPM.toFixed(2)+"/mi"):"RPM —")+' • '+Math.round(c.dispatchDeadhead||0)+' mi DH • '+(c.pickupDate||"date n/a")+(c.isSandbox?" • TEST":" • LIVE")+'</span></div>').join("");
  }
@@ -554,7 +566,7 @@ async function protectReturn(){
    const simDelivery=home;
    const simMiles=Math.max(1,Number(directMiles||S.homeTargetMiles||250));
    const simPay=Math.max(250,Math.round((simMiles*1.85)/25)*25);
-   const sim={pickup:simPickup,delivery:simDelivery,pay:simPay,loadedMiles:simMiles,deadheadMiles:0,provider:"MileCount Simulation",isSandbox:true,isSimulatedHome:true,commodity:"SIMULATED HOMEBOUND LOAD"};
+   const sim={pickup:simPickup,delivery:simDelivery,pay:simPay,loadedMiles:simMiles,deadheadMiles:0,provider:"MileCount Simulation",isSandbox:true,isSimulatedHome:true,commodity:"SIMULATED DIRECT HOMEBOUND LOAD"};
    S.returnPay=simPay;S.demoReturn=true;S.returnSelected=sim;S.returnCandidates=[sim];
    if(el("returnLane"))el("returnLane").textContent=simPickup+" → "+simDelivery;
    if(el("returnPay"))el("returnPay").textContent="SIM "+money(simPay);
