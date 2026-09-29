@@ -270,7 +270,7 @@ function renderHeat(items){
  });
 }
 function redraw(){
- const map=ensureMap(); if(!map)return;
+ const map=ensureMap(); if(!map)return; enableStateClicks(map);
  clearLayers();
  const items=preparedLoads();
  if(mapMode==="heat")renderHeat(items); else renderPins(items);
@@ -304,6 +304,14 @@ function pointInside(pt,area){
  const wraps=Number(area.west)>Number(area.east);
  const lonOk=wraps?(lon>=Number(area.west)||lon<=Number(area.east)):(lon>=Number(area.west)&&lon<=Number(area.east));
  return latOk&&lonOk;
+}
+const STATE_BOXES=[
+ ["WA",45.5,49,-124.8,-116.9],["OR",42,46.3,-124.8,-116.4],["CA",32.4,42.1,-124.5,-114.0],["NV",35,42.1,-120.1,-114],["AZ",31.2,37.1,-114.9,-109],["UT",37,42.1,-114.1,-109],["ID",42,49.1,-117.3,-111],["MT",44.3,49.1,-116.1,-104],["WY",41,45.1,-111.1,-104],["CO",37,41.1,-109.1,-102],["NM",31.3,37.1,-109.1,-103],["TX",25.8,36.6,-106.7,-93.5],["OK",33.6,37.1,-103,-94.4],["KS",37,40.1,-102.1,-94.5],["NE",40,43.1,-104.1,-95.3],["SD",42.4,46,-104.1,-96.4],["ND",45.9,49.1,-104.1,-96.5],["MN",43.4,49.4,-97.3,-89.5],["IA",40.3,43.6,-96.7,-90.1],["MO",35.9,40.7,-95.8,-89.1],["AR",33,36.6,-94.7,-89.6],["LA",28.8,33.1,-94.1,-88.8],["WI",42.4,47.2,-92.9,-86.2],["IL",36.9,42.6,-91.6,-87.4],["MI",41.7,48.3,-90.5,-82.1],["IN",37.7,41.8,-88.1,-84.7],["OH",38.3,42.1,-84.9,-80.5],["KY",36.4,39.2,-89.6,-82],["TN",34.9,36.8,-90.4,-81.6],["MS",30.1,35.1,-91.7,-88.1],["AL",30.1,35.1,-88.5,-84.8],["GA",30.3,35.1,-85.7,-80.8],["FL",24.3,31.1,-87.7,-80],["SC",32,35.3,-83.4,-78.4],["NC",33.8,36.7,-84.4,-75.3],["VA",36.5,39.6,-83.7,-75.2],["WV",37.1,40.7,-82.7,-77.7],["MD",37.8,39.8,-79.6,-75],["PA",39.7,42.3,-80.6,-74.6],["NJ",38.8,41.4,-75.7,-73.8],["NY",40.4,45.1,-79.8,-71.8]
+];
+function stateAt(lat,lon){const hits=STATE_BOXES.filter(x=>lat>=x[1]&&lat<=x[2]&&lon>=x[3]&&lon<=x[4]);return hits.length?hits.sort((a,b)=>((a[2]-a[1])*(a[4]-a[3]))-((b[2]-b[1])*(b[4]-b[3])))[0][0]:null}
+function enableStateClicks(map){
+ if(map._mileCountStateClick)return;map._mileCountStateClick=true;
+ map.on("click",e=>{const st=stateAt(e.latlng.lat,e.latlng.lng);if(!st)return;const sel=document.getElementById("stateLoadBrowser");if(sel){sel.value=st;sel.dispatchEvent(new Event("change",{bubbles:true}))}});
 }
 window.getMileCountVisibleArea=visibleArea;
 window.MileCountLoadInArea=function(load,area){return pointInside(loadPoint(load),area)};
