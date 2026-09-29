@@ -1062,8 +1062,34 @@ async function buildLocalMoneyDay(){
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
  finally{if(btn){btn.disabled=false;btn.textContent="💰 BUILD MY LOCAL DAY"}}
 }
+
+async function browseStateLoads(state){
+ state=String(state||"").toUpperCase();if(!state)return;
+ const sel=el("stateLoadBrowser"),status=el("stateBrowseStatus");
+ if(status)status.textContent="Loading "+state+" local freight…";
+ try{
+   const stateNames={GA:"Atlanta, GA",FL:"Orlando, FL",NC:"Charlotte, NC",SC:"Columbia, SC",TN:"Nashville, TN",AL:"Birmingham, AL",TX:"Dallas, TX",CA:"Los Angeles, CA",IL:"Chicago, IL",NY:"Albany, NY",NJ:"Newark, NJ",PA:"Philadelphia, PA",OH:"Columbus, OH",MI:"Detroit, MI",VA:"Richmond, VA",MD:"Baltimore, MD"};
+   const seed=stateNames[state]||("Anywhere, "+state);
+   const [truk,direct,sandbox]=await Promise.all([fetchTrukTekLocal(seed),fetchDirectFreightLocal(seed),fetchLoadBootSandbox(false)]);
+   const existing=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[];
+   const sims=localSimPool(seed);
+   const all=dedupeNormalizedLoads(enforceWeightCap([...existing,...truk,...direct,...sandbox,...sims]));
+   const inState=all.filter(l=>{
+     const p=String(l.pickup||"").toUpperCase(),d=String(l.delivery||"").toUpperCase();
+     return p.endsWith(", "+state)||d.endsWith(", "+state);
+   });
+   S.candidateLoads=inState;S.allUnifiedLoads=inState;
+   updateProviderFilterOptions(inState);renderUnifiedLoadList(inState);
+   const profile=updateCostUI();
+   if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(inState,{breakEven:profile.breakEven,target:profile.target,origin:seed,destination:""});
+   if(status)status.textContent=inState.length+" loads in/through "+state+" • REAL, SANDBOX and SIM clearly labeled";
+   const total=el("unifiedFreightCount");if(total)total.textContent=inState.length.toLocaleString();
+   setTimeout(()=>el("loadDiscoveryMap")?.scrollIntoView({behavior:"smooth",block:"start"}),80);
+ }catch(e){console.warn("State load browser",e);if(status)status.textContent="Could not load this state. Try again."}
+}
 bind("smartDispatchLocation",startSmartDispatchFromLocation);
 bind("localMoneyMode",buildLocalMoneyDay);
+el("stateLoadBrowser")?.addEventListener("change",e=>browseStateLoads(e.target.value));
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
 bind("refreshLiveMap",async()=>{await browseLiveLoadBoard(true);await Promise.all([refreshLiveLoadCount(),refreshUnifiedFreightBoard(true)])});
 bind("viewLoadList",()=>showScreen(2));
