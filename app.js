@@ -686,7 +686,7 @@ async function saveCurrentTrip(showStatus=false){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
-function startNewTrip(){S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.home="";S.origin=(el("from")?.value||"").trim();S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -988,7 +988,13 @@ async function buildLocalMoneyDay(){
    // Prefer the driver's permission-based current truck location when available;
    // otherwise use the currently typed FROM value.
    const typedHome=(el("from")?.value||"").trim();
-   const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:(typedHome||S.home||S.origin||"Atlanta, GA")).trim();
+   // Local Money should never silently reuse an old trip city. If GPS has not
+   // been approved in this session, use the visible FROM field only.
+   if(!S.smartDispatchLocationEnabled&&!typedHome){
+     if(status)status.textContent="Choose your current city/state in FROM or tap SMART DISPATCH • USE MY LOCATION first.";
+     return;
+   }
+   const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:typedHome).trim();
    S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=500;S.localMaxLoads=5;
    const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your current truck location":home;
    if(status)status.textContent="Searching local/regional freight and building the best ≤500-mile day back to "+homeLabel+"…";
