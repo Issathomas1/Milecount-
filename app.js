@@ -1432,6 +1432,16 @@ async function buildDispatchTimeline(events,start){
  }
  return {ok:issues.length===0&&drive<=600,issues,driveMinutes:drive,onDutyMinutes:onDuty,start:mcTime(mcClock(el("dayStartTime")?.value||"06:00")??360),finish:mcTime(now),timeline};
 }
+function strongFitScore(l,origin){
+ const econ=loadEconomics(l),dh=Math.max(0,Number(l.deadheadMiles??l.smartDispatchDeadhead??0)),rpm=Number(econ.rpm||0),pay=Number(l.pay||0);
+ const timeBonus=(l.pickupWindow||l.pickup_time||l.pickupTime)?40:0;
+ return (rpm*110)+(pay/20)-dh+timeBonus;
+}
+function strongFitAlternatives(excluded,all,origin){
+ const used=new Set((excluded||[]).map(loadKey));
+ return (all||[]).filter(l=>!used.has(loadKey(l))&&isRoutableLocation(l.pickup)&&isRoutableLocation(l.delivery))
+  .sort((a,b)=>strongFitScore(b,origin)-strongFitScore(a,origin)).slice(0,5);
+}
 async function smartAutoStack(){
  const base=S.basePlanLoad||null;
  let chosen=stackSelectedLoads().filter(x=>!base||loadKey(x)!==loadKey(base));
@@ -1584,6 +1594,17 @@ async function smartAutoStack(){
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
     (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY.</p>':'');
    if(el("stackPlanResult")){
+     if(!state.feasible){
+       const fits=strongFitAlternatives(allLoads,S.allUnifiedLoads||S.candidateLoads||[],startLoc);
+       if(fits.length){
+         el("stackPlanResult").insertAdjacentHTML("beforeend",'<div class="tripStateNow" style="margin-top:12px"><b>STRONG FIT REPLACEMENTS</b><span>MileCount found nearby alternatives to replace loads that make this day impossible.</span></div><div class="strongFitList">'+fits.map((l,i)=>'<button type="button" class="strongFitPick" data-key="'+escHtml(loadKey(l))+'" style="margin-top:7px;text-align:left"><b>STRONG FIT • '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span style="display:block">'+money(l.pay)+' • '+Math.round(Number(l.loadedMiles||0))+' mi • '+(loadEconomics(l).rpm?("$"+loadEconomics(l).rpm.toFixed(2)+"/mi"):"RPM —")+'</span></button>').join("")+'</div>');
+         el("stackPlanResult").querySelectorAll(".strongFitPick").forEach(b=>b.addEventListener("click",()=>{
+           const l=(S.allUnifiedLoads||S.candidateLoads||[]).find(x=>loadKey(x)===b.dataset.key);if(!l)return;
+           selectedStackKeys.add(loadKey(l));updateStackTray();
+           b.textContent="ADDED ✓";b.disabled=true;
+         }));
+       }
+     }
      el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="finishAutoStack" type="button" style="margin-top:12px">DONE • SHOW ROUTE</button>');
      el("finishAutoStack")?.addEventListener("click",finishAutoStack);
      renderEditableStopOrder();
