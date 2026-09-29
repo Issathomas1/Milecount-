@@ -1500,6 +1500,15 @@ async function smartAutoStack(){
      state.feasible=false;
      state.issues.push("LOCAL MONEY limit exceeded: "+Math.round(state.miles)+" miles. Maximum is "+Number(S.localMaxMiles||1000)+" miles including the day route.");
    }
+   // MileCount Local Day product rule: keep the completed route under 10
+   // driving hours. This is intentionally stricter than the mileage cap.
+   const localDriveHours=Number(route?.durationHours||route?.hours||0);
+   const estimatedDriveHours=localDriveHours>0?localDriveHours:(state.miles/43.5);
+   state.driveHours=estimatedDriveHours;
+   if(S.localMoneyMode&&estimatedDriveHours>10){
+     state.feasible=false;
+     state.issues.push("LOCAL DAY driving limit exceeded: "+estimatedDriveHours.toFixed(1)+" hr. Maximum is 10 driving hours.");
+   }
    const fuel=fuelFor(state.miles);
    const totalRevenue=state.liveRevenue+state.testRevenue;
    const rpm=state.miles>0?totalRevenue/state.miles:0;
@@ -1617,6 +1626,10 @@ async function applyManualRouteOrder(){
  try{
   let route=null;if(stops.length>1&&typeof getMileCountRoadRoute==="function")route=await withTimeout(getMileCountRoadRoute(stops),5000,null);
   p.routeStops=stops;p.routeVerified=!!(route&&Number(route.miles)>0);if(Number(route?.miles)>0)p.miles=Number(route.miles);
+  const manualDriveHours=Number(route?.durationHours||route?.hours||0)||(Number(p.miles||0)/43.5);
+  p.driveHours=manualDriveHours;
+  if(S.localMoneyMode&&manualDriveHours>10){p.valid=false;if(m)m.textContent="Route is "+manualDriveHours.toFixed(1)+" driving hours — Local Day maximum is 10. Remove an out-of-way load.";return}
+  p.valid=true;
   p.fuel=fuelFor(p.miles);const total=Number(p.livePay||0)+Number(p.testPay||0);p.rpm=p.miles?total/p.miles:0;S.roundTripMiles=p.miles;
   if(m)m.textContent="Custom stop order applied ✓ • "+Math.round(p.miles).toLocaleString()+" road miles";
   if(typeof showMileCountRoute==="function")await showMileCountRoute(stops);
