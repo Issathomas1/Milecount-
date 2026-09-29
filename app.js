@@ -827,7 +827,7 @@ async function runNormalLoadSearch(){
 async function browseLiveLoadBoard(stayHome=false){
  if(el("browseLiveLoads")?.disabled&&!stayHome)return;
  setBusy(true,"One moment — refreshing connected freight…");
- if(!stayHome)setButtonBusy("browseLiveLoads",true,"REFRESHING BOARD…","SHOW ALL FREIGHT");
+ if(!stayHome)setButtonBusy("browseLiveLoads",true,"REFRESHING BOARD…","BROWSE LOCAL LOADS");
  S.liveOnlyBrowse=true;
  S.stayHomeAfterSearch=!!stayHome;
  applyVehicle(el("vehicleType")?.value||"box26",false);
@@ -848,7 +848,7 @@ async function browseLiveLoadBoard(stayHome=false){
    if(typeof savedBrowse!=="undefined"){
      ["to","pay","maxDeadhead","minRPM","pickupDate","space","weight"].forEach(k=>{if(el(k))el(k).value=savedBrowse[k]});
    }
-   if(!stayHome)setButtonBusy("browseLiveLoads",false,"","SHOW ALL FREIGHT");
+   if(!stayHome)setButtonBusy("browseLiveLoads",false,"","BROWSE LOCAL LOADS");
    setBusy(false);
  }
 }
@@ -928,10 +928,10 @@ async function startSmartDispatchFromLocation(){
        setTimeout(()=>el("loadCandidates")?.scrollIntoView({behavior:"smooth",block:"start"}),120);
      }
    }catch(e){console.warn("Smart Dispatch location search",e);if(status)status.textContent="Location received, but freight search could not finish. Try again."}
-   finally{if(btn){btn.disabled=false;btn.textContent="📍 SMART DISPATCH • REFRESH FROM MY LOCATION"}}
+   finally{if(btn){btn.disabled=false;btn.textContent="📍 REFRESH MY LOCATION"}}
  },err=>{
    if(status)status.textContent=err.code===1?"Location permission was not granted. Manual MileCount still works normally.":"Could not get your current location. Try again.";
-   if(btn){btn.disabled=false;btn.textContent="📍 SMART DISPATCH • USE MY LOCATION"}
+   if(btn){btn.disabled=false;btn.textContent="📍 USE MY CURRENT LOCATION"}
  },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
 }
 bind("find",runNormalLoadSearch);
@@ -1060,7 +1060,7 @@ async function buildLocalMoneyDay(){
    showScreen(2);
    if(picks.length>=2)setTimeout(()=>smartAutoStack(),180);
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
- finally{if(btn){btn.disabled=false;btn.textContent="🏠 LOCAL MONEY MODE • BUILD MY DAY"}}
+ finally{if(btn){btn.disabled=false;btn.textContent="💰 BUILD MY LOCAL DAY"}}
 }
 bind("smartDispatchLocation",startSmartDispatchFromLocation);
 bind("localMoneyMode",buildLocalMoneyDay);
