@@ -1413,10 +1413,12 @@ function updateStackTray(){
  const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
 }
 function toggleStackLoad(index){
- const p=currentPlan();if(!selectedStackKeys.has(loadKey((S.candidateLoads||[])[i]))&&selectedStackKeys.size>=p.maxStack){alert(p.name+" supports up to "+p.maxStack+" AutoStack loads. Upgrade for more.");return}
-
  const loads=S.candidateLoads||[],l=loads[index];if(!l)return;
- const key=loadKey(l);
+ const key=loadKey(l),p=currentPlan();
+ // Regression fix: this function receives "index"; the previous entitlement
+ // check referenced an undefined variable "i", throwing before STACK could toggle.
+ if(!selectedStackKeys.has(key)&&selectedStackKeys.size>=p.maxStack){alert(p.name+" supports up to "+p.maxStack+" AutoStack loads. Upgrade for more.");return}
+
  if(selectedStackKeys.has(key))selectedStackKeys.delete(key);else selectedStackKeys.add(key);
  document.querySelectorAll(".candidateLoad").forEach((b,i)=>{
    const x=loads[i];b.classList.toggle("stackChosen",!!x&&selectedStackKeys.has(loadKey(x)));
