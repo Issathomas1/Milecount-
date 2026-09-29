@@ -457,7 +457,7 @@ async function protectReturn(){
  const plannedStops=Array.isArray(S.stackPlan?.routeStops)?S.stackPlan.routeStops:[];
  const delivery=(plannedStops.length?plannedStops[plannedStops.length-1]:null)||selected?.delivery||S.selectedLoadDelivery||S.destination;
  const chosenEnd=(el("tripHomeChoice")?.value||"").trim();
- const home=(chosenEnd||S.stackPlan?.endLocation||S.home||el("from")?.value||S.origin||"Atlanta, GA").trim();
+ const home=(chosenEnd||S.stackPlan?.endLocation||el("from")?.value||S.home||S.origin||"Atlanta, GA").trim();
  S.home=home;
  if(S.stackPlan)S.stackPlan.endLocation=home;
  if(el("returnLane"))el("returnLane").textContent=delivery+" → "+home;
@@ -991,9 +991,14 @@ async function buildLocalMoneyDay(){
  const btn=el("localMoneyMode"),status=el("localMoneyStatus");
  if(btn){btn.disabled=true;btn.textContent="BUILDING LOCAL DAY…"}
  try{
-   const home=(el("from")?.value||S.home||S.origin||"Atlanta, GA").trim();
-   S.home=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=500;S.localMaxLoads=5;
-   if(status)status.textContent="Searching local/regional freight and building the best ≤500-mile day back to "+home+"…";
+   // Local Money must not inherit a stale FROM city from an older search.
+   // Prefer the driver's permission-based current truck location when available;
+   // otherwise use the currently typed FROM value.
+   const typedHome=(el("from")?.value||"").trim();
+   const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:(typedHome||S.home||S.origin||"Atlanta, GA")).trim();
+   S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=500;S.localMaxLoads=5;
+   const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your current truck location":home;
+   if(status)status.textContent="Searching local/regional freight and building the best ≤500-mile day back to "+homeLabel+"…";
    // Refresh the connected board, then use road-distance checks to keep only
    // pickups close enough to be candidates for a same-day regional plan.
    await browseLiveLoadBoard(true);
