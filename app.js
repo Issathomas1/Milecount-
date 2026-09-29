@@ -991,8 +991,19 @@ function dedupeNormalizedLoads(loads){
 }
 async function buildLocalMoneyDay(){
  const btn=el("localMoneyMode"),status=el("localMoneyStatus");
- if(btn){btn.disabled=true;btn.textContent="BUILDING LOCAL DAY…"}
+ if(btn){btn.disabled=true;btn.textContent="LOCATING & BUILDING…"}
  try{
+   // Local Day owns location discovery now. Ask once when needed so the driver
+   // does not have to press a separate location button first.
+   if(!S.smartDispatchLocationEnabled&&navigator.geolocation){
+     if(status)status.textContent="Allow location to build your local day from where the truck is now…";
+     await new Promise(resolve=>navigator.geolocation.getCurrentPosition(pos=>{
+       const lat=Number(pos.coords.latitude),lng=Number(pos.coords.longitude);
+       S.driverLocation={lat,lng,accuracy:Number(pos.coords.accuracy||0),updatedAt:Date.now()};
+       S.smartDispatchLocationEnabled=true;S.smartDispatchOrigin=lat.toFixed(5)+","+lng.toFixed(5);
+       resolve();
+     },()=>resolve(),{enableHighAccuracy:true,timeout:10000,maximumAge:60000}));
+   }
    // Local Money must not inherit a stale FROM city from an older search.
    // Prefer the driver's permission-based current truck location when available;
    // otherwise use the currently typed FROM value.
