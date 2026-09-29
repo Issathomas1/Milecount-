@@ -428,18 +428,18 @@ MileCount<span class="green">.</span>
   <div style="position:absolute;left:24px;bottom:28px;right:24px;z-index:2;max-width:520px">
     <div style="color:#4fd487;font-weight:900;font-size:13px;letter-spacing:1px">BOX-TRUCK MONEY.</div>
     <div style="font-size:42px;line-height:1.02;font-weight:900;margin-top:8px">Make Every<br><span style="color:#31bf72">Mile Count.</span></div>
-    <div style="margin-top:14px;font-size:17px;color:#e1ebe6">Find more money. Reduce empty miles. Get home paid.</div>
+    <div style="margin-top:14px;font-size:17px;color:#e1ebe6">Pick where you are. Find local money. Build the best day.</div>
   </div>
 </div>
 
 <div class="reviewIntro">
- <b>One board. Better freight decisions.</b>
- <span>Live and authorized test freight are labeled by source. Tap any load to inspect its economics.</span>
+ <b>Local freight. Smarter days.</b>
+ <span>Choose your location, see available local freight, and let MileCount build the route.</span>
 </div>
 
 <div class="hero" style="padding-top:10px;padding-bottom:10px">
 <small>MILECOUNT ROUTE ENGINE</small>
-<p style="margin:6px 0 0">Nationwide freight intelligence • integration-ready</p>
+<p style="margin:6px 0 0">Local dispatch intelligence • real + sandbox + SIM</p>
 </div>
 
 <!-- =====================
@@ -452,9 +452,9 @@ class="screen active"
 >
 
 <div class="quickFlow">
- <div><b>1</b><span>Find freight</span></div>
- <div><b>2</b><span>Compare economics</span></div>
- <div><b>3</b><span>Build the trip home</span></div>
+ <div><b>1</b><span>Choose where you are</span></div>
+ <div><b>2</b><span>Pick local loads</span></div>
+ <div><b>3</b><span>Smart Stack & come home</span></div>
 </div>
 
 <div class="card homeMapCard">
@@ -462,19 +462,19 @@ class="screen active"
 <div class="homeMapTitleRow">
 <div>
   <span class="badge">LIVE LOAD BOARD</span>
-  <h2>Freight available now</h2>
+  <h2>Local loads available now</h2>
   <div class="liveNowStrip"><span>FREIGHT ON BOARD</span><strong id="unifiedFreightCount">Checking…</strong><small id="unifiedFreightSplit">Live + clearly labeled sandbox/test</small></div>
 <div class="liveNowStrip"><span>LIVE NOW</span><strong id="liveLoadCount">Checking…</strong><small id="liveLoadCountSource">Production/public live freight only</small></div>
-  <p class="details">All connected freight up to 9,999 lb appears together on this board. Production/live freight and sandbox/test freight are clearly labeled.</p>
+  <p class="details">Local box-truck freight appears together here. REAL, SANDBOX and SIM loads stay clearly labeled.</p>
 </div>
 <button id="refreshLiveMap" type="button">REFRESH</button>
 </div>
 <div class="loadMapShell">
-<div class="loadMapHead"><div><span class="badge">LOAD MAP</span><h3>Loads around your search</h3></div><div class="loadMapStats"><b id="loadMapTotal">0 RESULTS</b><b id="loadMapCount">0 MAPPED</b></div></div>
+<div class="loadMapHead"><div><span class="badge">LOAD MAP</span><h3>Loads around you</h3></div><div class="loadMapStats"><b id="loadMapTotal">0 RESULTS</b><b id="loadMapCount">0 MAPPED</b></div></div>
 <div class="loadMapToolbar">
 <button type="button" class="active" data-load-map-mode="pins">CLUSTERED PINS</button>
-<button type="button" data-load-map-mode="heat">NATIONWIDE HEAT</button>
-<span id="loadMapModeLabel">CLUSTERED PINS</span>
+
+
 </div>
 <div class="loadAreaBar">
 <button id="searchMapArea" type="button">SEARCH THIS MAP AREA</button>
@@ -497,7 +497,7 @@ class="screen active"
 <div class="row" style="margin-top:8px">
 <button id="viewLoadList" type="button" style="background:#15271f;border:1px solid #2b4438">SEE ALL LOADS</button>
 </div>
-<div class="reviewNote"><b>Provider review note</b><span>LIVE results are current provider/public freight. SANDBOX TEST results are LoadBoot test data for integration review. They can run through the full Milecount demo workflow, but are never presented as actually booked or provider-confirmed freight.</span></div>
+
 <div class="sandboxStrip">
  <div><span>LOADBOOT SANDBOX</span><strong id="loadBootSandboxStatus">Checking sandbox…</strong><small>Test freight appears on the same board • clearly labeled and excluded only from the LIVE NOW production count</small></div>
  <button id="viewLoadBootSandbox" type="button">LOADBOOT TEST LOADS</button>
@@ -553,23 +553,17 @@ class="screen active"
 </label>
 
 <button id="find" class="simpleSearchBtn">FIND LOADS</button>
-<button id="smartDispatchLocation" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">📍 SMART DISPATCH • USE MY LOCATION</button>
-<button id="localMoneyMode" type="button" class="simpleSearchBtn" style="background:#0d2118;border:1px solid #2d6b4d;margin-top:8px">🏠 LOCAL MONEY MODE • BUILD MY DAY</button>
+<button id="smartDispatchLocation" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">📍 USE MY CURRENT LOCATION</button>
+<button id="localMoneyMode" type="button" class="simpleSearchBtn" style="background:#0d2118;border:1px solid #2d6b4d;margin-top:8px">💰 BUILD MY LOCAL DAY</button>
 <div id="localMoneyStatus" class="details">Targets up to 5 loads, ≤1,000 total route miles, fuel-only trip economics, and a return to your chosen home.</div>
 <div id="smartDispatchStatus" class="details">Location stays off until you tap this button and approve browser permission.</div>
-<button id="browseLiveLoads" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">SHOW ALL FREIGHT</button>
-<p class="details" style="margin-bottom:0">Searches all connected sources together. LIVE freight and SANDBOX TEST freight are clearly labeled; demo fallback appears only when no connected source matches.</p>
+<button id="browseLiveLoads" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">BROWSE LOCAL LOADS</button>
+<p class="details" style="margin-bottom:0">REAL, SANDBOX and SIM local loads are combined so you can build the best route from one place.</p>
 
 <details class="simpleDetails">
 <summary>Optional search filters</summary>
 <div class="simpleDetailsBody">
-  <div class="quickPills">
-    <button type="button" class="quickLane" data-dest="Anywhere, USA">ANYWHERE</button>
-    <button type="button" class="quickLane" data-dest="Atlanta, GA">ATLANTA</button>
-    <button type="button" class="quickLane" data-dest="Dallas, TX">DALLAS</button>
-    <button type="button" class="quickLane" data-dest="Chicago, IL">CHICAGO</button>
-    <button type="button" class="quickLane" data-dest="Los Angeles, CA">LOS ANGELES</button>
-  </div>
+  
   <div class="filterGrid">
     <label>MAX DEADHEAD (MI)<input id="maxDeadhead" type="number" min="0" value="100"></label>
     <label>MIN RPM ($/MI)<input id="minRPM" type="number" min="0" step="0.05" value="1.75"></label>
@@ -577,7 +571,7 @@ class="screen active"
 </div>
 </details>
 
-<details class="simpleDetails">
+<div id="legacyAdvancedTools" style="display:none" aria-hidden="true"><details class="simpleDetails">
 <summary>I already have cargo on the truck</summary>
 <div class="simpleDetailsBody">
   <p class="details">Optional. Add your current trip so MileCount can rank partials and stacking opportunities around it.</p>
@@ -631,6 +625,7 @@ class="screen active"
 </div>
 </details>
 
+</div>
 <details class="simpleDetails">
 <summary>My truck costs</summary>
 <div class="simpleDetailsBody">
@@ -1203,7 +1198,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260929-local-1000mi1"></script>
+<script src="app.js?v=20260929-local-first-clean1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
