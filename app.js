@@ -605,12 +605,8 @@ let route=null;
  const miles=Number.isFinite(live)&&live>0?live:S.roundTripMiles;S.roundTripMiles=miles;
  const r=typeof calculateMileCountRoundTrip==="function"?calculateMileCountRoundTrip(S.totalPay,S.returnPay,miles,S.origin):null;
  if(r){
-  const monthlyMiles=Math.max(1,val("monthlyMiles",8000));
-  const maintenanceCost=r.miles*Math.max(0,val("maintenanceCPM",.20));
-  const insuranceCost=r.miles*(Math.max(0,val("monthlyInsurance",1800))/monthlyMiles);
-  const paymentCost=r.miles*(Math.max(0,val("monthlyPayment",900))/monthlyMiles);
-  const otherCost=r.miles*(Math.max(0,val("monthlyOther",300))/monthlyMiles);
-  const totalTripCost=r.fuelCost+maintenanceCost+insuranceCost+paymentCost+otherCost;
+  const maintenanceCost=0,insuranceCost=0,paymentCost=0,otherCost=0;
+  const totalTripCost=Number(r.fuelCost||0);
   const tripMargin=r.totalRevenue-totalTripCost;
   const breakEvenRPM=r.miles>0?totalTripCost/r.miles:0;
   if(el("allMilesRPM"))el("allMilesRPM").textContent="$"+r.rpm.toFixed(2);
@@ -644,13 +640,12 @@ let route=null;
 function refreshFinalTripOverview(){
  const miles=Math.max(0,Number(S.roundTripMiles||0));
  const revenue=Math.max(0,Number(S.totalPay||0)+(S.homeAdded?Number(S.returnPay||0):0));
- const fuel=fuelFor(miles),p=costProfile();
- const monthlyMiles=Math.max(1,val("monthlyMiles",8000));
- const maintenance=miles*Math.max(0,val("maintenanceCPM",.20));
- const insurance=miles*(Math.max(0,val("monthlyInsurance",1800))/monthlyMiles);
- const payment=miles*(Math.max(0,val("monthlyPayment",900))/monthlyMiles);
- const other=miles*(Math.max(0,val("monthlyOther",300))/monthlyMiles);
- const cost=Number(fuel.fuelCost||0)+maintenance+insurance+payment+other;
+ const fuel=fuelFor(miles);
+ // Trip economics for this owner: only fuel is charged against trip revenue.
+ // Insurance, maintenance reserve, truck payment and other overhead stay in the
+ // owner's separate personal/business budget and are not trip deductions.
+ const maintenance=0,insurance=0,payment=0,other=0;
+ const cost=Number(fuel.fuelCost||0);
  const margin=revenue-cost;
  if(el("overviewRevenue"))el("overviewRevenue").textContent=money(revenue);
  if(el("overviewMiles"))el("overviewMiles").textContent=Math.round(miles).toLocaleString()+" mi";
@@ -685,7 +680,7 @@ async function saveCurrentTrip(showStatus=false){
  try{
   const s=await MileCountCloud.session();if(!s)return false;
   const miles=S.roundTripMiles||0,total=S.totalPay+(S.homeAdded?S.returnPay:0),fuel=fuelFor(miles),p=costProfile();
-  const estimatedCost=miles*p.breakEven;
+  const estimatedCost=Number(fuel.fuelCost||0);
   await MileCountCloud.saveTrip({origin:S.origin,destination:S.destination,home_city:S.home,primary_pay:S.primaryPay,added_pay:S.addedPay,return_pay:S.homeAdded?S.returnPay:0,road_miles:miles,fuel_cost:fuel.fuelCost,all_miles_rpm:miles?total/miles:0,break_even_rpm:p.breakEven,estimated_trip_cost:estimatedCost,estimated_margin:total-estimatedCost,status:"saved"});
   if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").innerHTML='SAVED ✓ <a href="trips.html" style="color:#8adbb5">VIEW MY TRIPS</a>';
   return true;
