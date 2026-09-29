@@ -1593,6 +1593,13 @@ async function smartAutoStack(){
     (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY.</p>':'');
    if(el("stackPlanResult")){
      if(!state.feasible){
+       el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="autoCorrectDay" type="button" style="margin-top:12px">✨ AUTO-CORRECT MY DAY</button>');
+       el("autoCorrectDay")?.addEventListener("click",async()=>{
+         const b=el("autoCorrectDay");if(b){b.disabled=true;b.textContent="REBUILDING DAY…"}
+         const proposal=await proposeAutoCorrect();
+         if(proposal)renderAutoCorrectProposal(proposal);
+         else if(b){b.disabled=false;b.textContent="NO FEASIBLE COMBINATION FOUND"}
+       });
        const fits=strongFitAlternatives(allLoads,S.allUnifiedLoads||S.candidateLoads||[],startLoc);
        if(fits.length){
          el("stackPlanResult").insertAdjacentHTML("beforeend",'<div class="tripStateNow" style="margin-top:12px"><b>STRONG FIT REPLACEMENTS</b><span>MileCount found nearby alternatives to replace loads that make this day impossible.</span></div><div class="strongFitList">'+fits.map((l,i)=>'<button type="button" class="strongFitPick" data-key="'+escHtml(loadKey(l))+'" style="margin-top:7px;text-align:left"><b>STRONG FIT • '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span style="display:block">'+money(l.pay)+' • '+Math.round(Number(l.loadedMiles||0))+' mi • '+(loadEconomics(l).rpm?("$"+loadEconomics(l).rpm.toFixed(2)+"/mi"):"RPM —")+'</span></button>').join("")+'</div>');
@@ -1626,6 +1633,31 @@ async function smartAutoStack(){
      box.scrollIntoView({behavior:"smooth",block:"center"});
    }
  }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
+}
+async function proposeAutoCorrect(){
+ const p=S.stackPlan;if(!p)return;
+ const pool=S.allUnifiedLoads||S.candidateLoads||[];
+ const current=stackSelectedLoads(),origin=(el("from")?.value||S.origin||"").trim();
+ // Start with current loads ranked strongest; progressively trim the weakest
+ // until the dispatcher can build a feasible day, then fill open slots with Strong Fits.
+ let keep=[...current].sort((a,b)=>strongFitScore(b,origin)-strongFitScore(a,origin));
+ const removed=[];
+ while(keep.length>1){
+   const old=new Set(selectedStackKeys);selectedStackKeys.clear();keep.forEach(l=>selectedStackKeys.add(loadKey(l)));
+   // Build silently by using the same optimizer; proposal is captured after each run.
+   await smartAutoStack();
+   if(S.stackPlan?.valid){const proposed=[...keep];selectedStackKeys.clear();old.forEach(k=>selectedStackKeys.add(k));S.autoCorrectProposal={loads:proposed,removed:[...removed],plan:S.stackPlan};updateStackTray();return S.autoCorrectProposal}
+   const weak=keep.pop();if(weak)removed.push(weak);
+   selectedStackKeys.clear();old.forEach(k=>selectedStackKeys.add(k));
+ }
+ return null;
+}
+function renderAutoCorrectProposal(proposal){
+ const box=el("stackPlanResult");if(!box||!proposal)return;
+ const pay=(proposal.loads||[]).reduce((s,l)=>s+Number(l.pay||0),0);
+ box.insertAdjacentHTML("beforeend",'<div class="tripStateNow autoCorrectProposal" style="margin-top:12px"><b>MILECOUNT AUTO-CORRECT</b><span>I rebuilt the day to fit the schedule. '+proposal.loads.length+' loads • '+money(pay)+(proposal.removed.length?' • removed '+proposal.removed.length+' conflicting load'+(proposal.removed.length===1?'':'s'):'')+'</span><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><button id="acceptAutoCorrect" type="button">ACCEPT ✓</button><button id="rejectAutoCorrect" type="button" style="background:#351818">REJECT ✕</button></div></div>');
+ el("acceptAutoCorrect")?.addEventListener("click",async()=>{selectedStackKeys.clear();proposal.loads.forEach(l=>selectedStackKeys.add(loadKey(l)));S.autoCorrectProposal=null;updateStackTray();await smartAutoStack()});
+ el("rejectAutoCorrect")?.addEventListener("click",()=>{S.autoCorrectProposal=null;el("stackPlanResult")?.querySelector(".autoCorrectProposal")?.remove()});
 }
 function routeOrderIsLegal(events){
  const picked=new Set();
