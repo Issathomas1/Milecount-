@@ -1077,15 +1077,15 @@ async function buildLocalMoneyDay(){
     sandbox:raw.filter(x=>x.isSandbox&&!x.isLocalSim).length,
     sim:raw.filter(x=>x.isLocalSim).length
    };
-   // Route checks used to run serially (up to 80 network calls). Run a smaller,
-   // high-value candidate set concurrently so Local Day feels instant on mobile.
-   const rankedRaw=[...raw].sort((a,b)=>Number(b.pay||0)-Number(a.pay||0)).slice(0,18);
-   const checked=await Promise.all(rankedRaw.map(async l=>{
+   // Progressive Local Day: qualify a fast first wave so drivers see money quickly,
+   // then continue checking the rest of the original 40-load pool in the background.
+   const rankedRaw=[...raw].sort((a,b)=>Number(b.pay||0)-Number(a.pay||0)).slice(0,40);
+   const qualify=async(l,timeout=1100)=>{
      const loaded=Number(l.loadedMiles||0);
      let toPickup=null,back=null;
      try{[toPickup,back]=await Promise.all([
-       withTimeout(roadMilesBetween(home,l.pickup),900,null),
-       withTimeout(roadMilesBetween(l.delivery||l.pickup,home),900,null)
+       withTimeout(roadMilesBetween(home,l.pickup),timeout,null),
+       withTimeout(roadMilesBetween(l.delivery||l.pickup,home),timeout,null)
      ])}catch(e){}
      if(!Number.isFinite(toPickup)||!Number.isFinite(back))return null;
      const sameState=String(l.pickup||"").trim().slice(-2).toUpperCase()===String(home).trim().slice(-2).toUpperCase();
@@ -1093,17 +1093,26 @@ async function buildLocalMoneyDay(){
      l.deadheadMiles=Number(toPickup);l.localSoloMiles=Number(toPickup)+loaded+Number(back);
      l.localAfterGas=Number(l.pay||0)-Number(fuelFor(Math.max(1,Number(toPickup)+loaded)).fuelCost||0);
      return l;
-   }));
-   const nearby=checked.filter(Boolean);
+   };
+   const firstWave=(await Promise.all(rankedRaw.slice(0,10).map(l=>qualify(l,850)))).filter(Boolean);
+   firstWave.sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
+   // Show up to five immediately instead of holding the screen for every route check.
+   const nearby=[...firstWave];
+   S.candidateLoads=nearby.slice(0,5);S.allUnifiedLoads=[...S.candidateLoads];
+   if(S.candidateLoads.length){renderUnifiedLoadList(S.candidateLoads);showScreen(2)}
+   // Continue remaining qualification concurrently; append results when ready.
+   const restPromise=Promise.all(rankedRaw.slice(10).map(l=>qualify(l,1200))).then(rest=>{
+     const merged=dedupeNormalizedLoads([...nearby,...rest.filter(Boolean)]).sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
+     S.candidateLoads=merged.slice(0,40);S.allUnifiedLoads=[...S.candidateLoads];
+     renderUnifiedLoadList(S.candidateLoads);updateStackTray();
+     return merged;
+   });
    nearby.sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
    const picks=nearby.slice(0,5);
    selectedStackKeys.clear();
    picks.forEach(l=>selectedStackKeys.add(loadKey(l)));
-   S.candidateLoads=nearby.slice(0,12);
-   // Keep the unified selection source in sync or selectedStackKeys can resolve
-   // against the old nationwide board instead of these local candidates.
-   S.allUnifiedLoads=[...S.candidateLoads];
-   renderUnifiedLoadList(S.candidateLoads);
+   // First wave is already visible; remaining qualified loads append asynchronously.
+   restPromise.catch(e=>console.warn("Local Day background load qualification",e));
    updateStackTray();
    const sc=S.localSourceCounts||{real:0,sandbox:0,sim:0};
    if(status)status.textContent=picks.length
