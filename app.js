@@ -550,14 +550,22 @@ async function protectReturn(){
      el("getHome").textContent=best.isSandbox?"ADD TO DEMO TRIP":"ADD BEST HOMEBOUND LOAD";
    }
  }else{
-   S.returnPay=0;S.returnSelected=null;
-   if(el("returnPay"))el("returnPay").textContent="$0";
-   if(el("returnSource"))el("returnSource").textContent="NO MATCH";
-   if(el("returnStatus"))el("returnStatus").textContent="0–3 DAYS CHECKED";
-   if(el("returnSourceTag"))el("returnSourceTag").textContent="NO HOMEBOUND FREIGHT";
-   if(el("returnLead"))el("returnLead").textContent="No connected freight currently moves you toward home within the 3-day search window. Try again later or widen the home market.";
-   if(el("homeboundAlternatives"))el("homeboundAlternatives").innerHTML='<div class="details">No ranked homebound alternatives yet.</div>';
-   if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO HOMEBOUND LOAD YET"}
+   const simPickup=delivery;
+   const simDelivery=home;
+   const simMiles=Math.max(1,Number(directMiles||S.homeTargetMiles||250));
+   const simPay=Math.max(250,Math.round((simMiles*1.85)/25)*25);
+   const sim={pickup:simPickup,delivery:simDelivery,pay:simPay,loadedMiles:simMiles,deadheadMiles:0,provider:"MileCount Simulation",isSandbox:true,isSimulatedHome:true,commodity:"SIMULATED HOMEBOUND LOAD"};
+   S.returnPay=simPay;S.demoReturn=true;S.returnSelected=sim;S.returnCandidates=[sim];
+   if(el("returnLane"))el("returnLane").textContent=simPickup+" → "+simDelivery;
+   if(el("returnPay"))el("returnPay").textContent="SIM "+money(simPay);
+   if(el("returnSource"))el("returnSource").textContent="MILECOUNT SIM";
+   if(el("returnStatus"))el("returnStatus").textContent="NOT BOOKABLE";
+   if(el("returnSourceTag"))el("returnSourceTag").textContent="SIMULATED HOMEBOUND";
+   if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+simPay)+" SIM";
+   if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(simMiles).toLocaleString()+" mi";
+   if(el("returnLead"))el("returnLead").textContent="No connected homebound freight matched. MileCount built a simulated route from "+simPickup+" to "+simDelivery+" for planning only.";
+   if(el("homeboundAlternatives"))el("homeboundAlternatives").innerHTML='<div class="homeAlt"><b>SIM • '+escHtml(simPickup)+' → '+escHtml(simDelivery)+'</b><span>'+money(simPay)+' planning estimate • '+Math.round(simMiles)+' mi • NOT BOOKABLE</span></div>';
+   if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="USE SIM ROUTE HOME"}
  }
  setButtonBusy("protect",false,"","FIND MY WAY HOME");
  setBusy(false);
@@ -657,7 +665,7 @@ async function viewUpdatedTrip(){
  renderFinalTripStops();
  await saveCurrentTrip();
  refreshFinalTripOverview();
- showScreen(3);setTimeout(()=>{if(S.homeAdded&&typeof showHomeboundRoute==="function")showHomeboundRoute(S.origin,S.destination,S.home);else updateOutboundMap()},200);
+ showScreen(3);setTimeout(async()=>{try{const stops=(Array.isArray(S.finalRouteStops)?S.finalRouteStops:[]).filter(isRoutableLocation);if(stops.length>1&&typeof showMileCountRoute==="function")await showMileCountRoute(stops);else await updateOutboundMap()}catch(e){console.warn("Final route map",e)}},200);
 }
 async function saveCurrentTrip(showStatus=false){
  S.home=(S.home||el("from")?.value||S.origin||"").trim();
@@ -671,7 +679,7 @@ async function saveCurrentTrip(showStatus=false){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
-function startNewTrip(){S.finalRouteEvents=null;S.finalRouteStops=null;S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -857,6 +865,7 @@ bind("applyTripHome",async function(){
   if(p)p.endLocation=home;
   if(el("tripFinalDestination"))el("tripFinalDestination").textContent=home;
   if(el("tripSaveStatus"))el("tripSaveStatus").textContent="Home/end location set to "+home+" ✓ Homebound Dispatcher will route toward it.";
+  S.homeChosen=true;
   renderFinalTripStops();
   if(typeof showMileCountRoute==="function"&&freightStops.length>1)await showMileCountRoute(freightStops);
   refreshFinalTripOverview();
@@ -1424,6 +1433,9 @@ function renderFinalTripStops(){
     {type:"drop",location:S.destination,label:"Original delivery"}
    ];
  }
+ if(S.homeChosen&&!S.homeAdded&&S.home){
+   events.push({type:"homeTarget",location:S.home,label:"CHOSEN HOME / FINAL DESTINATION • ROUTE HOME PENDING"});
+ }
  if(S.homeAdded&&S.returnPay>0){
    const r=S.returnSelected||{};
    const pickup=r.pickup||S.destination;
@@ -1435,8 +1447,8 @@ function renderFinalTripStops(){
  }
  const rows=events.map((e,i)=>{
    const type=e.type||"stop";
-   const icon=type==="pickup"?"📦":type==="drop"?"🏁":type==="returnPickup"?"💰":type==="returnDrop"?"🏁":type==="home"?"🏠":"🚚";
-   const title=type==="pickup"?"PICKUP":type==="drop"?"DROP":type==="returnPickup"?"RETURN PICKUP":type==="returnDrop"?"RETURN DROP":type==="home"?"HOME":"START";
+   const icon=type==="pickup"?"📦":type==="drop"?"🏁":type==="returnPickup"?"💰":type==="returnDrop"?"🏁":type==="home"||type==="homeTarget"?"🏠":"🚚";
+   const title=type==="pickup"?"PICKUP":type==="drop"?"DROP":type==="returnPickup"?"RETURN PICKUP":type==="returnDrop"?"RETURN DROP":type==="home"?"HOME":type==="homeTarget"?"HOME TARGET":"START";
    const lane=e.load&&(e.load.pickup||e.load.delivery)?escHtml(e.load.pickup||"")+" → "+escHtml(e.load.delivery||""):"";
    const pay=e.load&&Number(e.load.pay)>0?" • "+money(e.load.pay):"";
    const detail=e.label?escHtml(e.label):(title+(lane?" • "+lane:"")+pay);
