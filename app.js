@@ -547,14 +547,24 @@ async function protectReturn(){
      el("getHome").textContent=best.isSandbox?"ADD TO DEMO TRIP":"ADD BEST HOMEBOUND LOAD";
    }
  }else{
-   S.returnPay=0;S.returnSelected=null;
-   if(el("returnPay"))el("returnPay").textContent="$0";
-   if(el("returnSource"))el("returnSource").textContent="NO MATCH";
-   if(el("returnStatus"))el("returnStatus").textContent="0–3 DAYS CHECKED";
-   if(el("returnSourceTag"))el("returnSourceTag").textContent="NO HOMEBOUND FREIGHT";
-   if(el("returnLead"))el("returnLead").textContent="No connected freight currently moves you toward home within the 3-day search window. Try again later or widen the home market.";
-   if(el("homeboundAlternatives"))el("homeboundAlternatives").innerHTML='<div class="details">No ranked homebound alternatives yet.</div>';
-   if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO HOMEBOUND LOAD YET"}
+   // Temporary planning fallback until additional freight APIs are connected.
+   // Always label it as simulation so it cannot be mistaken for bookable freight.
+   const simPickup=delivery||S.destination||"Current delivery";
+   const simDelivery=home||S.home||S.origin||"Home";
+   const simMiles=Math.max(1,Number(directMiles||250));
+   const simPay=Math.max(250,Math.round((simMiles*1.85)/25)*25);
+   const sim={pickup:simPickup,delivery:simDelivery,pay:simPay,loadedMiles:simMiles,deadheadMiles:0,provider:"MileCount Simulation",isSandbox:true,isSimulatedHome:true,commodity:"SIMULATED HOMEBOUND LOAD"};
+   S.returnPay=simPay;S.demoReturn=true;S.returnSelected=sim;
+   if(el("returnLane"))el("returnLane").textContent=simPickup+" → "+simDelivery;
+   if(el("returnPay"))el("returnPay").textContent="SIM "+money(simPay);
+   if(el("returnSource"))el("returnSource").textContent="MILECOUNT SIM";
+   if(el("returnStatus"))el("returnStatus").textContent="NOT BOOKABLE";
+   if(el("returnSourceTag"))el("returnSourceTag").textContent="SIMULATED HOMEBOUND";
+   if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+simPay)+" SIM";
+   if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(simMiles).toLocaleString()+" mi";
+   if(el("returnLead"))el("returnLead").textContent="No connected homebound freight was found, so MileCount built a simulated route home for planning. This is not a real or bookable load.";
+   if(el("homeboundAlternatives"))el("homeboundAlternatives").innerHTML='<div class="homeAlt"><b>SIM • '+escHtml(simPickup)+' → '+escHtml(simDelivery)+'</b><span>'+money(simPay)+' estimated planning pay • '+Math.round(simMiles)+' mi • NOT BOOKABLE</span></div>';
+   if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="USE SIM ROUTE HOME"}
  }
  setButtonBusy("protect",false,"","FIND MY WAY HOME");
  setBusy(false);
