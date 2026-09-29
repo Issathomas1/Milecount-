@@ -12,8 +12,19 @@ const MILECOUNT_PLANS={
  premium:{name:"Premium Pro",price:69,maxTrucks:1,maxStack:10,dispatcher:true,strongFit:true,autoCorrect:true},
  platinum:{name:"Platinum Pro",price:129,maxTrucks:5,maxStack:Infinity,dispatcher:true,strongFit:true,autoCorrect:true,fleet:true}
 };
-function currentPlanKey(){return String(localStorage.getItem("milecount_plan")||"basic").toLowerCase()}
-function currentPlan(){return MILECOUNT_PLANS[currentPlanKey()]||MILECOUNT_PLANS.basic}
+let mcOwnerAccess=false;
+function currentPlanKey(){return mcOwnerAccess?"platinum":String(localStorage.getItem("milecount_plan")||"basic").toLowerCase()}
+function currentPlan(){return mcOwnerAccess?{...MILECOUNT_PLANS.platinum,name:"OWNER • FULL ACCESS",maxTrucks:Infinity,maxStack:Infinity}:MILECOUNT_PLANS[currentPlanKey()]||MILECOUNT_PLANS.basic}
+async function syncOwnerAccess(){
+ try{
+   const s=await window.MileCountCloud?.session?.();
+   // Owner access is granted from the authenticated account's admin role,
+   // never from a client-side email comparison or localStorage flag.
+   mcOwnerAccess=!!(s?.user&&await window.MileCountCloud?.isAdmin?.());
+   document.documentElement.dataset.ownerAccess=mcOwnerAccess?"true":"false";
+ }catch(e){mcOwnerAccess=false}
+ return mcOwnerAccess;
+}
 function requirePlan(feature){
  const p=currentPlan();
  if(feature==="dispatcher"&&!p.dispatcher||feature==="strongFit"&&!p.strongFit||feature==="autoCorrect"&&!p.autoCorrect||feature==="fleet"&&!p.fleet){
@@ -233,7 +244,8 @@ function pickupDateMatches(load,date){
 async function findMoney(){
  captureCapacityInputs();
  setBoardStatus("working","Checking connected freight…");
- applyVehicle(el("vehicleType")?.value||"box26",false);
+ syncOwnerAccess().then(()=>updateStackTray()).catch(()=>{});
+applyVehicle(el("vehicleType")?.value||"box26",false);
  const profile=updateCostUI();
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -772,6 +784,7 @@ bind("analyzeManual",analyzeManualLoad);bind("saveProfile",saveProfile);
 async function refreshAccount(){
  try{
   const s=await MileCountCloud.session(),logged=!!s;
+  await syncOwnerAccess();
   el("authLoggedOut")?.classList.toggle("hidden",logged);el("authLoggedIn")?.classList.toggle("hidden",!logged);
   if(!logged)return;
   if(el("accountEmail"))el("accountEmail").textContent=s.user.email||"Signed in";
