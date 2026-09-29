@@ -1021,11 +1021,22 @@ async function buildLocalMoneyDay(){
    // Local Money must not inherit a stale FROM city from an older search.
    // Prefer the driver's permission-based current truck location when available;
    // otherwise use the currently typed FROM value.
-   const typedHome=(el("from")?.value||"").trim();
+   let typedHome=(el("from")?.value||"").trim();
+   // Location is automatic/background. Manual map/state/FROM selection wins.
+   // Only request browser GPS when the driver has not chosen a planning market.
+   if(!typedHome&&!S.manualTruckLocation&&!S.smartDispatchLocationEnabled&&navigator.geolocation){
+     await new Promise(resolve=>navigator.geolocation.getCurrentPosition(pos=>{
+       const lat=Number(pos.coords.latitude),lng=Number(pos.coords.longitude);
+       S.driverLocation={lat,lng,accuracy:Number(pos.coords.accuracy||0),updatedAt:Date.now()};
+       S.smartDispatchLocationEnabled=true;S.smartDispatchOrigin=lat.toFixed(5)+","+lng.toFixed(5);
+       resolve();
+     },()=>resolve(),{enableHighAccuracy:true,timeout:8000,maximumAge:60000}));
+     typedHome=(el("from")?.value||"").trim();
+   }
    // Local Money should never silently reuse an old trip city. If GPS has not
    // been approved in this session, use the visible FROM field only.
    if(!S.smartDispatchLocationEnabled&&!typedHome){
-     if(status)status.textContent="Choose your current city/state in FROM or tap SMART DISPATCH • USE MY LOCATION first.";
+     if(status)status.textContent="Choose a city/state or tap a state on the map so MileCount knows where the truck is.";
      return;
    }
    const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:typedHome).trim();
@@ -1097,7 +1108,7 @@ async function browseStateLoads(state){
    const seed=stateNames[state]||("Anywhere, "+state);
    // Selecting a state is an explicit planning-location override.
    S.manualTruckLocation=true;S.smartDispatchLocationEnabled=false;S.smartDispatchOrigin="";
-   S.origin=seed;S.home=seed;S.homeChosen=false;
+   S.origin=seed;
    if(el("from"))el("from").value=seed;
    if(status)status.textContent="🚚 TRUCK LOCATION: "+seed+" • Loading local freight…";
    const [truk,direct,sandbox]=await Promise.all([fetchTrukTekLocal(seed),fetchDirectFreightLocal(seed),fetchLoadBootSandbox(false)]);
@@ -1128,7 +1139,6 @@ async function browseStateLoads(state){
    }
  }catch(e){console.warn("State load browser",e);if(status)status.textContent="Could not load this state. Try again."}
 }
-bind("smartDispatchLocation",startSmartDispatchFromLocation);
 bind("localMoneyMode",buildLocalMoneyDay);
 el("stateLoadBrowser")?.addEventListener("change",e=>browseStateLoads(e.target.value));
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
