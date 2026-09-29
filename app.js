@@ -936,6 +936,57 @@ async function startSmartDispatchFromLocation(){
 }
 bind("find",runNormalLoadSearch);
 
+
+function localSimPool(home){
+ const today=dateISOPlus(0);
+ const rows=[
+  ["Forest Park, GA","Marietta, GA",325,42,1800,7,"07:00-08:00","08:15-09:30"],
+  ["Marietta, GA","Alpharetta, GA",240,28,1200,5,"09:15-10:00","10:15-11:15"],
+  ["Duluth, GA","Decatur, GA",275,31,1600,6,"11:00-12:00","12:15-13:30"],
+  ["Atlanta, GA","McDonough, GA",310,34,2200,7,"13:00-14:00","14:30-15:30"],
+  ["Stockbridge, GA","Atlanta, GA",290,24,1500,5,"15:30-16:30","16:30-17:30"],
+  ["College Park, GA","Kennesaw, GA",350,39,2400,8,"07:30-09:00","09:15-10:45"],
+  ["Fairburn, GA","Norcross, GA",375,46,2600,8,"09:00-10:30","10:45-12:15"],
+  ["Smyrna, GA","Lawrenceville, GA",335,41,1900,6,"12:00-13:30","13:30-15:00"],
+  ["Newnan, GA","Atlanta, GA",300,40,1700,6,"14:00-15:30","15:30-17:00"],
+  ["Atlanta, GA","Peachtree City, GA",260,33,1300,5,"08:00-09:30","09:30-11:00"],
+  ["McDonough, GA","Macon, GA",475,72,3200,9,"08:00-10:00","10:00-12:30"],
+  ["Macon, GA","Atlanta, GA",525,85,3500,10,"12:00-14:00","14:00-17:00"],
+  ["Atlanta, GA","Athens, GA",450,72,2800,8,"07:00-09:00","09:00-11:30"],
+  ["Athens, GA","Atlanta, GA",475,72,2500,8,"12:00-14:00","14:00-16:30"],
+  ["Atlanta, GA","Chattanooga, TN",625,118,3400,10,"06:30-08:00","09:30-12:00"],
+  ["Chattanooga, TN","Atlanta, GA",650,118,3000,9,"13:00-14:30","16:00-18:30"]
+ ];
+ return rows.map((r,i)=>({
+  name:"ATL LOCAL SIM "+(i+1),provider:"MileCount Local SIM",providerLoadId:"MC-LOCAL-"+today+"-"+(i+1),
+  pickup:r[0],delivery:r[1],pay:r[2],loadedMiles:r[3],weight:r[4],space:r[5],
+  pickupDate:today,pickupWindow:r[6],deliveryWindow:r[7],equipment:"Box Truck",
+  commodity:"Local palletized freight",isSandbox:true,isLocalSim:true,sandboxLabel:"LOCAL SIM • NOT BOOKABLE"
+ }));
+}
+async function fetchTrukTekLocal(home){
+ const parts=String(home||"Atlanta, GA").split(","),city=(parts[0]||"Atlanta").trim(),state=(parts[1]||"GA").trim().slice(0,2).toUpperCase();
+ try{
+  const url="https://www.truktek.com/api/loads?octy="+encodeURIComponent(city)+"&ost="+encodeURIComponent(state)+"&milesSlider=100&gross_rpm=0";
+  const r=await withTimeout(fetch(url,{cache:"no-store"}),6500,null);if(!r?.ok)return[];
+  const j=await r.json();
+  return enforceWeightCap((j.loads||[]).map(x=>({
+   name:(x.octy+", "+x.ost)+" → "+(x.dcty+", "+x.dst),
+   provider:"TrukTek",providerLoadId:String(x.loadId||""),
+   pickup:x.octy+", "+x.ost,delivery:x.dcty+", "+x.dst,pay:Number(x.ratePay||0),
+   loadedMiles:Number(x.loadDist||0),deadheadMiles:Number(x.o2oDist||0),
+   weight:Number(x.weight||0),space:Number(x.length||0),pickupDate:x.pickupDate||null,
+   deliveryDate:x.deliveryDate||null,equipment:x.equip||"Unknown",isSandbox:false,sourceType:"REAL"
+  })));
+ }catch(e){console.warn("TrukTek local direct search",e);return[]}
+}
+function dedupeNormalizedLoads(loads){
+ const seen=new Set();
+ return (loads||[]).filter(l=>{
+  const k=[laneCity(l.pickup),laneCity(l.delivery),Math.round(Number(l.pay||0)),String(l.pickupDate||"")].join("|");
+  if(seen.has(k))return false;seen.add(k);return true;
+ });
+}
 async function buildLocalMoneyDay(){
  const btn=el("localMoneyMode"),status=el("localMoneyStatus");
  if(btn){btn.disabled=true;btn.textContent="BUILDING LOCAL DAY…"}
@@ -946,7 +997,17 @@ async function buildLocalMoneyDay(){
    // Refresh the connected board, then use road-distance checks to keep only
    // pickups close enough to be candidates for a same-day regional plan.
    await browseLiveLoadBoard(true);
-   const raw=enforceWeightCap(S.candidateLoads||[]);
+   // One normalized pool: connected live board + direct TrukTek public search +
+   // LoadBoot sandbox + MileCount local SIM. The dispatcher treats them the same
+   // for routing while source labels keep REAL / SANDBOX / SIM unmistakable.
+   const [trukLocal,loadBootLocal]=await Promise.all([fetchTrukTekLocal(home),fetchLoadBootSandbox(false)]);
+   const simLocal=localSimPool(home);
+   const raw=dedupeNormalizedLoads(enforceWeightCap([...(S.candidateLoads||[]),...trukLocal,...loadBootLocal,...simLocal]));
+   S.localSourceCounts={
+    real:raw.filter(x=>!x.isSandbox).length,
+    sandbox:raw.filter(x=>x.isSandbox&&!x.isLocalSim).length,
+    sim:raw.filter(x=>x.isLocalSim).length
+   };
    const nearby=[];
    for(const l of raw.slice(0,40)){
      let toPickup=null,loaded=Number(l.loadedMiles||0);
@@ -973,9 +1034,10 @@ async function buildLocalMoneyDay(){
    S.allUnifiedLoads=[...S.candidateLoads];
    renderUnifiedLoadList(S.candidateLoads);
    updateStackTray();
+   const sc=S.localSourceCounts||{real:0,sandbox:0,sim:0};
    if(status)status.textContent=picks.length
-     ?("LOCAL MONEY ✓ Selected "+picks.length+" strong candidates. Smart AutoStack will optimize the combined route and keep the full day under 500 miles when feasible.")
-     :"LOCAL MONEY • No connected loads currently fit a ≤500-mile round-trip day. Use SIM freight for testing or refresh later.";
+     ?("LOCAL MONEY ✓ "+sc.real+" real • "+sc.sandbox+" sandbox • "+sc.sim+" local SIM in the normalized pool. Selected "+picks.length+" candidates for Smart AutoStack.")
+     :"LOCAL MONEY • No candidate currently fits a ≤500-mile round-trip day.";
    showScreen(2);
    if(picks.length>=2)setTimeout(()=>smartAutoStack(),180);
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
