@@ -1596,15 +1596,25 @@ async function smartAutoStack(){
        const fits=strongFitAlternatives(allLoads,S.allUnifiedLoads||S.candidateLoads||[],startLoc);
        if(fits.length){
          el("stackPlanResult").insertAdjacentHTML("beforeend",'<div class="tripStateNow" style="margin-top:12px"><b>STRONG FIT REPLACEMENTS</b><span>MileCount found nearby alternatives to replace loads that make this day impossible.</span></div><div class="strongFitList">'+fits.map((l,i)=>'<button type="button" class="strongFitPick" data-key="'+escHtml(loadKey(l))+'" style="margin-top:7px;text-align:left"><b>STRONG FIT • '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span style="display:block">'+money(l.pay)+' • '+Math.round(Number(l.loadedMiles||0))+' mi • '+(loadEconomics(l).rpm?("$"+loadEconomics(l).rpm.toFixed(2)+"/mi"):"RPM —")+'</span></button>').join("")+'</div>');
-         el("stackPlanResult").querySelectorAll(".strongFitPick").forEach(b=>b.addEventListener("click",()=>{
-           const l=(S.allUnifiedLoads||S.candidateLoads||[]).find(x=>loadKey(x)===b.dataset.key);if(!l)return;
+         el("stackPlanResult").querySelectorAll(".strongFitPick").forEach(b=>b.addEventListener("click",async()=>{
+           const pool=(S.allUnifiedLoads||S.candidateLoads||[]),l=pool.find(x=>loadKey(x)===b.dataset.key);if(!l)return;
+           // Strong Fit is a repair action, not "+ add another load".
+           // Remove one weak/problem selected load first, then insert the replacement.
+           const selected=stackSelectedLoads();
+           const weak=[...selected].sort((a,b)=>strongFitScore(a,startLoc)-strongFitScore(b,startLoc))[0];
+           if(weak)selectedStackKeys.delete(loadKey(weak));
            selectedStackKeys.add(loadKey(l));updateStackTray();
-           b.textContent="ADDED ✓";b.disabled=true;
+           b.textContent="REPLACING • RECALCULATING…";b.disabled=true;
+           await smartAutoStack();
          }));
        }
      }
-     el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="finishAutoStack" type="button" style="margin-top:12px">DONE • SHOW ROUTE</button>');
-     el("finishAutoStack")?.addEventListener("click",finishAutoStack);
+     if(state.feasible){
+       el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="finishAutoStack" type="button" style="margin-top:12px">DONE • SHOW ROUTE</button>');
+       el("finishAutoStack")?.addEventListener("click",finishAutoStack);
+     }else{
+       el("stackPlanResult").insertAdjacentHTML("beforeend",'<div class="tripStateNow" style="margin-top:12px"><b>FIX THE DAY TO CONTINUE</b><span>Choose one Strong Fit replacement or remove/reorder a problem load. MileCount will recalculate automatically.</span></div>');
+     }
      renderEditableStopOrder();
      el("stackPlanResult").scrollIntoView({behavior:"smooth",block:"center"});
    }
@@ -1743,7 +1753,8 @@ async function finishMyPicks(){
 async function finishAutoStack(){
  const p=S.stackPlan;
  if(S.localMoneyMode&&p&&p.valid===false){
-   alert("This Local Money plan does not meet the capacity/time rules. Change the selected loads or route before finishing.");
+   const box=el("stackPlanResult");
+   if(box){box.insertAdjacentHTML("afterbegin",'<div class="stackPlanStatus bad">NOT READY YET • Choose a Strong Fit replacement or remove a problem load.</div>');box.scrollIntoView({behavior:"smooth",block:"center"})}
    return;
  }
  if(!p||!Array.isArray(p.routeStops)||p.routeStops.length<2){
