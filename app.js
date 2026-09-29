@@ -872,7 +872,7 @@ bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
 bind("refreshLiveMap",async()=>{await browseLiveLoadBoard(true);await Promise.all([refreshLiveLoadCount(),refreshUnifiedFreightBoard(true)])});
 bind("viewLoadList",()=>showScreen(2));
 bind("addTrip",addToTrip);
-bind("checkMarketQuote",checkWarpMarketQuote);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
+bind("checkMarketQuote",checkWarpMarketQuote);bind("backToOptions",function(){showScreen(2)});bind("protect",protectReturn);bind("getHome",getHomePaid);bind("finishHomebound",async()=>{if(S.returnPay>0&&!S.homeAdded){await getHomePaid();return}await viewUpdatedTrip()});bind("updatedTrip",viewUpdatedTrip);bind("restart",startNewTrip);
 restoreDriverSearch();
 applyVehicle(el("vehicleType")?.value||"box26",false);
 ["from","to","vehicleType","maxDeadhead","minRPM","pickupDate"].forEach(id=>el(id)?.addEventListener("change",saveDriverSearch));
