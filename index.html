@@ -389,6 +389,7 @@ color:var(--muted);
 }
 
 
+#authGate{box-sizing:border-box}#authGate>.card{flex:0 1 520px;max-width:520px;width:100%!important}body.mcAuthLocked>.app,body.mcAuthLocked>#stackTray,body.mcAuthLocked>#globalBusy{visibility:hidden!important}@media(max-width:600px){#authGate{padding:16px!important;align-items:center!important}#authGate>.card{margin:auto!important}}
 </style>
 
 <!-- deploy-retry-20260927-1657-stable -->
@@ -1212,8 +1213,9 @@ app
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
  try{
   const session=await window.MileCountCloud?.session?.();
-  if(session?.user){gate.style.display="none";return}
+  if(session?.user){gate.style.display="none";document.body.classList.remove("mcAuthLocked");return}
  }catch(e){}
+ document.body.classList.add("mcAuthLocked");
  gate.style.display="flex";
  document.body.style.overflow="hidden";
  document.getElementById("gateSignIn")?.addEventListener("click",async()=>{
@@ -1226,6 +1228,7 @@ app
  });
  document.getElementById("gateCreate")?.addEventListener("click",()=>{
   gate.style.display="none";
+  document.body.classList.remove("mcAuthLocked");
   document.body.style.overflow="";
   document.getElementById("accountButton")?.click();
  });
