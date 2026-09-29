@@ -1075,14 +1075,17 @@ async function browseStateLoads(state){
    const sims=localSimPool(seed);
    const all=dedupeNormalizedLoads(enforceWeightCap([...existing,...truk,...direct,...sandbox,...sims]));
    const inState=all.filter(l=>{
-     const p=String(l.pickup||"").toUpperCase(),d=String(l.delivery||"").toUpperCase();
-     return p.endsWith(", "+state)||d.endsWith(", "+state);
+     // State browsing is LOCAL discovery: the pickup must be inside the state
+     // the driver selected. A load merely delivering into that state belongs to
+     // the pickup state's board, not this one.
+     const p=String(l.pickup||"").trim().toUpperCase();
+     return p.endsWith(", "+state);
    });
    S.candidateLoads=inState;S.allUnifiedLoads=inState;
    updateProviderFilterOptions(inState);renderUnifiedLoadList(inState);
    const profile=updateCostUI();
    if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(inState,{breakEven:profile.breakEven,target:profile.target,origin:seed,destination:""});
-   if(status)status.textContent=inState.length+" loads in/through "+state+" • REAL, SANDBOX and SIM clearly labeled";
+   if(status)status.textContent=inState.length+" local pickup loads in "+state+" • REAL, SANDBOX and SIM clearly labeled";
    const total=el("unifiedFreightCount");if(total)total.textContent=inState.length.toLocaleString();
    // State selection is an action: open the freight results immediately.
    // Do not leave the driver sitting on the map after they chose a state.
