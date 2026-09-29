@@ -968,6 +968,9 @@ async function buildLocalMoneyDay(){
    selectedStackKeys.clear();
    picks.forEach(l=>selectedStackKeys.add(loadKey(l)));
    S.candidateLoads=nearby.slice(0,12);
+   // Keep the unified selection source in sync or selectedStackKeys can resolve
+   // against the old nationwide board instead of these local candidates.
+   S.allUnifiedLoads=[...S.candidateLoads];
    renderUnifiedLoadList(S.candidateLoads);
    updateStackTray();
    if(status)status.textContent=picks.length
@@ -1362,6 +1365,18 @@ async function smartAutoStack(){
    }
    const routeVerified=!!(route&&Number(route.miles)>0);
    if(Number(route?.miles)>0)state.miles=Number(route.miles);
+   if(S.localMoneyMode){
+     const localHome=(S.home||el("from")?.value||startLoc).trim();
+     if(isRoutableLocation(localHome)&&laneCity(cursor)!==laneCity(localHome)){
+       const homeLeg=await legMiles(cursor,localHome);
+       if(Number.isFinite(homeLeg)&&homeLeg<999999){
+         state.miles+=homeLeg;
+         if(routeStops.at(-1)!==localHome)routeStops.push(localHome);
+         state.location=localHome;
+         state.events.push({type:"home",location:localHome,load:{pickup:cursor,delivery:localHome,pay:0},onboardWeight:state.onboardWeight,onboardSpace:state.onboardSpace,ok:true});
+       }
+     }
+   }
    if(S.localMoneyMode&&state.miles>Number(S.localMaxMiles||500)){
      state.feasible=false;
      state.issues.push("LOCAL MONEY limit exceeded: "+Math.round(state.miles)+" miles. Maximum is "+Number(S.localMaxMiles||500)+" miles including the day route.");
@@ -1378,7 +1393,7 @@ async function smartAutoStack(){
     '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
     '<div class="tripStateNow"><b>OPTIMIZED STOP ORDER</b><span>Multiple pickups can happen before drops. MileCount will not intentionally return to a market it already left when a legal on-route pickup was available.</span></div>'+
-    '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
+    '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":e.type==="home"?"HOME":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
     (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY.</p>':'');
    if(el("stackPlanResult")){
@@ -1399,6 +1414,7 @@ async function smartAutoStack(){
 function routeOrderIsLegal(events){
  const picked=new Set();
  for(const e of events){
+  if(e.type==="home")continue;
   const id=tripLoadId(e.load||{});
   if(e.type==="drop"&&!picked.has(id))return {ok:false,event:e};
   if(e.type==="pickup")picked.add(id);
@@ -1421,7 +1437,7 @@ function renderRouteOrderRows(){
  wrap.innerHTML=p.events.map((e,i)=>
   '<div class="routeOrderRow" data-i="'+i+'" draggable="true" style="display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid #1d392d;touch-action:pan-y">'+
    '<button type="button" class="routeDrag" aria-label="Drag stop '+(i+1)+'" style="width:44px;padding:10px;cursor:grab;background:#15271f">☰</button>'+
-   '<span><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"📦 PICKUP":"🏁 DROP")+' • '+escHtml(e.location||"Stop")+'</b><small style="display:block;opacity:.7">'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</small></span>'+
+   '<span><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"📦 PICKUP":e.type==="home"?"🏠 HOME":"🏁 DROP")+' • '+escHtml(e.location||"Stop")+'</b><small style="display:block;opacity:.7">'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</small></span>'+
    '<span style="display:flex;gap:4px"><button type="button" class="routeMoveUp" data-i="'+i+'" '+(i===0?"disabled":"")+' style="width:42px;padding:9px">↑</button><button type="button" class="routeMoveDown" data-i="'+i+'" '+(i===p.events.length-1?"disabled":"")+' style="width:42px;padding:9px">↓</button></span>'+
   '</div>').join("");
  wrap.querySelectorAll(".routeMoveUp").forEach(b=>b.addEventListener("click",()=>moveRouteStop(Number(b.dataset.i),-1)));
@@ -1499,6 +1515,10 @@ async function finishMyPicks(){
 }
 async function finishAutoStack(){
  const p=S.stackPlan;
+ if(S.localMoneyMode&&p&&p.valid===false){
+   alert("This Local Money plan does not meet the 500-mile/capacity rules. Change the selected loads or route before finishing.");
+   return;
+ }
  if(!p||!Array.isArray(p.routeStops)||p.routeStops.length<2){
    alert("Build the Smart AutoStack first.");
    return;
