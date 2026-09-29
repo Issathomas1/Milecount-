@@ -1428,8 +1428,29 @@ function laneCity(v){
   .replace(/\s+/g," ")
   .split(",").slice(0,2).join(",");
 }
-function mcClock(v){const m=String(v||"").match(/(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null}
-function mcWindow(load,type){const raw=type==="pickup"?(load.pickupWindow||load.pickup_time||load.pickupTime):(load.deliveryWindow||load.delivery_time||load.deliveryTime);if(!raw)return null;const p=String(raw).split(/\s*[-–—]\s*/),a=mcClock(p[0]),b=mcClock(p[1]||p[0]);return Number.isFinite(a)?{start:a,end:Number.isFinite(b)?b:a,raw:String(raw)}:null}
+function mcClock(v){
+ const s=String(v||"").trim(),m=s.match(/(\d{1,2}):(\d{2})(?:\s*([AP]M))?/i);if(!m)return null;
+ let h=Number(m[1]),min=Number(m[2]),ap=String(m[3]||"").toUpperCase();
+ if(ap){if(h===12)h=0;if(ap==="PM")h+=12}
+ return h*60+min;
+}
+function mcWindow(load,type){
+ const raw=type==="pickup"?(load.pickupWindow||load.pickup_time||load.pickupTime):(load.deliveryWindow||load.delivery_time||load.deliveryTime);
+ if(!raw)return null;
+ const p=String(raw).split(/\s*[-–—]\s*/),a=mcClock(p[0]),b=mcClock(p[1]||p[0]);
+ if(!Number.isFinite(a))return null;
+ let end=Number.isFinite(b)?b:a;if(end<a)end+=1440;
+ return {start:a,end,raw:String(raw)};
+}
+function mcLoadDate(load,type){
+ const v=type==="pickup"?(load.pickupDate||load.pickup_date):(load.deliveryDate||load.delivery_date||load.pickupDate||load.pickup_date);
+ if(!v)return null;const d=new Date(String(v).slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?null:d;
+}
+function mcDayOffset(load,type){
+ const trip=el("pickupDate")?.value;if(!trip)return 0;
+ const base=new Date(trip+"T00:00:00"),d=mcLoadDate(load,type);if(!d||Number.isNaN(base.getTime()))return 0;
+ return Math.round((d-base)/86400000)*1440;
+}
 function mcTime(m){m=((Math.round(m)%1440)+1440)%1440;const h=Math.floor(m/60),n=m%60;return (h%12||12)+":"+String(n).padStart(2,"0")+" "+(h>=12?"PM":"AM")}
 async function buildDispatchTimeline(events,start){
  let now=mcClock(el("dayStartTime")?.value||"06:00")??360,drive=0,onDuty=0,sinceBreak=0,prev=start;const timeline=[],issues=[];
@@ -1437,8 +1458,10 @@ async function buildDispatchTimeline(events,start){
   const dm=Math.max(0,Number(mi)/50*60);
   if(sinceBreak+dm>480){timeline.push({type:"break",arrival:mcTime(now),location:"MANDATORY BREAK",window:"30 min"});now+=30;onDuty+=30;sinceBreak=0}
   now+=dm;drive+=dm;onDuty+=dm;sinceBreak+=dm;
-  const w=mcWindow(e.load,e.type);if(w&&now<w.start){onDuty+=w.start-now;now=w.start}
-  if(w&&now>w.end)issues.push((e.type==="pickup"?"Pickup":"Delivery")+" missed at "+loc+" • "+mcTime(now)+" > "+mcTime(w.end));
+  const w=mcWindow(e.load,e.type),off=mcDayOffset(e.load,e.type);
+  const ws=w?w.start+off:null,we=w?w.end+off:null;
+  if(w&&now<ws){onDuty+=ws-now;now=ws}
+  if(w&&now>we)issues.push((e.type==="pickup"?"Pickup":"Delivery")+" missed at "+loc+" • "+mcTime(now)+" > "+mcTime(we));
   const service=Math.max(0,Number(e.type==="pickup"?(el("pickupServiceMin")?.value||20):(el("dropServiceMin")?.value||20)));
   timeline.push({type:e.type,arrival:mcTime(now),location:loc,window:w?.raw||"Flexible",service});now+=service;onDuty+=service;prev=loc;
  }
