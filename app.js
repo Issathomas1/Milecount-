@@ -875,7 +875,33 @@ bind("applyTripHome",async function(){
  }finally{setBusy(false)}
 });
 bind("saveTripButton",()=>saveCurrentTrip(true));
+
+async function startSmartDispatchFromLocation(){
+ const status=el("smartDispatchStatus"),btn=el("smartDispatchLocation");
+ if(!navigator.geolocation){if(status)status.textContent="Location is not supported by this browser.";return}
+ if(status)status.textContent="Waiting for your location permission…";
+ if(btn){btn.disabled=true;btn.textContent="LOCATING TRUCK…"}
+ navigator.geolocation.getCurrentPosition(async pos=>{
+   try{
+     const lat=Number(pos.coords.latitude),lng=Number(pos.coords.longitude);
+     S.driverLocation={lat,lng,accuracy:Number(pos.coords.accuracy||0),updatedAt:Date.now()};
+     S.smartDispatchLocationEnabled=true;S.smartDispatchOrigin=lat.toFixed(5)+","+lng.toFixed(5);
+     if(status)status.textContent="Truck location approved ✓ Searching freight that makes sense from your current position…";
+     const oldFrom=el("from")?.value;
+     if(el("from"))el("from").value=S.smartDispatchOrigin;
+     await browseLiveLoadBoard(true);
+     if(el("from"))el("from").value=oldFrom||"";
+     const loads=(S.candidateLoads||[]).slice(0,8);
+     if(status)status.textContent=loads.length?("SMART DISPATCH ✓ "+loads.length+" compatible opportunities found. Pick loads or use Smart AutoStack."):"SMART DISPATCH ✓ No compatible freight is showing right now. Refresh as providers update.";
+   }catch(e){console.warn("Smart Dispatch location search",e);if(status)status.textContent="Location received, but freight search could not finish. Try again."}
+   finally{if(btn){btn.disabled=false;btn.textContent="📍 SMART DISPATCH • REFRESH FROM MY LOCATION"}}
+ },err=>{
+   if(status)status.textContent=err.code===1?"Location permission was not granted. Manual MileCount still works normally.":"Could not get your current location. Try again.";
+   if(btn){btn.disabled=false;btn.textContent="📍 SMART DISPATCH • USE MY LOCATION"}
+ },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
 bind("find",runNormalLoadSearch);
+bind("smartDispatchLocation",startSmartDispatchFromLocation);
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
 bind("refreshLiveMap",async()=>{await browseLiveLoadBoard(true);await Promise.all([refreshLiveLoadCount(),refreshUnifiedFreightBoard(true)])});
 bind("viewLoadList",()=>showScreen(2));

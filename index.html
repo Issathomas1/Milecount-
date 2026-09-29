@@ -553,6 +553,8 @@ class="screen active"
 </label>
 
 <button id="find" class="simpleSearchBtn">FIND LOADS</button>
+<button id="smartDispatchLocation" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">📍 SMART DISPATCH • USE MY LOCATION</button>
+<div id="smartDispatchStatus" class="details">Location stays off until you tap this button and approve browser permission.</div>
 <button id="browseLiveLoads" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">SHOW ALL FREIGHT</button>
 <p class="details" style="margin-bottom:0">Searches all connected sources together. LIVE freight and SANDBOX TEST freight are clearly labeled; demo fallback appears only when no connected source matches.</p>
 
@@ -1199,7 +1201,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260928-direct-details1"></script>
-<script src="app.js?v=20260929-routing-audit2"></script>
+<script src="app.js?v=20260929-smart-dispatch-location1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
