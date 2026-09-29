@@ -571,10 +571,13 @@ async function getHomePaid(){
 let route=null;
  if(typeof showMileCountRoute==="function"){
    try{
-     const baseDelivery=S.selectedCandidate?.delivery||S.selectedLoadDelivery||S.destination;
+     const baseStops=(Array.isArray(S.finalRouteStops)&&S.finalRouteStops.length?S.finalRouteStops:(Array.isArray(S.stackPlan?.routeStops)?S.stackPlan.routeStops:[])).filter(isRoutableLocation);
+     const baseDelivery=baseStops.at(-1)||S.selectedCandidate?.delivery||S.selectedLoadDelivery||S.destination;
      const rp=S.returnSelected?.pickup||baseDelivery;
      const rd=S.returnSelected?.delivery||S.home;
-     const stops=[S.origin,S.selectedCandidate?.pickup,baseDelivery,rp,rd,S.home].filter(isRoutableLocation).filter((x,i,a)=>a.indexOf(x)===i);
+     const stops=[...baseStops];
+     [rp,rd,S.home].filter(isRoutableLocation).forEach(x=>{if(stops.at(-1)!==x)stops.push(x)});
+     S.finalRouteStops=[...stops];
      route=stops.length>=2?await showMileCountRoute(stops):null;
    }catch(e){console.warn(e)}
  }
@@ -612,7 +615,6 @@ let route=null;
  const protectCard=el("protect")?.closest(".alert");
  if(protectCard)protectCard.classList.add("hidden");
  selectedStackKeys.clear();
- S.stackPlan=null;
  updateStackTray();
  el("doneStack")?.classList.add("hidden");
  // Return confirmation is complete; move straight back to the updated trip.
@@ -843,26 +845,20 @@ bind("applyTripHome",async function(){
  setBusy(true,"Recalculating route to your end location…");
  try{
   const p=S.stackPlan;
-  const currentEnd=(p?.routeStops?.at(-1)||S.destination||S.origin);
+  const freightStops=(Array.isArray(S.finalRouteStops)&&S.finalRouteStops.length?S.finalRouteStops:(Array.isArray(p?.routeStops)?p.routeStops:[])).filter(isRoutableLocation);
+  const currentEnd=freightStops.at(-1)||S.destination||S.origin;
   let route=null;
   if(typeof getMileCountRoadRoute==="function"&&isRoutableLocation(currentEnd)&&isRoutableLocation(home)){
     route=await withTimeout(getMileCountRoadRoute([currentEnd,home]),5000,null);
   }
-  const extra=Number(route?.miles||0);
-  const baseMiles=Number(p?.miles||S.roundTripMiles||0);
-  S.roundTripMiles=baseMiles+extra;
-  if(p){
-    p.endLocation=home;
-    p.miles=S.roundTripMiles;
-    if(p.routeStops.at(-1)!==home)p.routeStops.push(home);
-    p.fuel=fuelFor(p.miles);
-    const total=Number(p.livePay||0)+Number(p.testPay||0)+Number(S.returnPay||0);
-    p.rpm=p.miles?total/p.miles:0;
-  }
-  if(el("roadMiles"))el("roadMiles").textContent=Math.round(S.roundTripMiles).toLocaleString()+" mi";
-  if(el("tripStops"))el("tripStops").insertAdjacentHTML("beforeend",'<div class="stop">🏠 <b>'+escHtml(home)+'</b><br>CHOSEN END LOCATION ✓</div>');
-  if(typeof showMileCountRoute==="function"&&p?.routeStops)await showMileCountRoute(p.routeStops);
-  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="End location updated. Trip miles recalculated.";
+  // Home is the target for Homebound Dispatcher, not another freight stop yet.
+  // Keep the finalized freight route intact until a return load is selected.
+  S.homeTargetMiles=Number(route?.miles||0);
+  if(p)p.endLocation=home;
+  if(el("tripFinalDestination"))el("tripFinalDestination").textContent=home;
+  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="Home/end location set to "+home+" ✓ Homebound Dispatcher will route toward it.";
+  renderFinalTripStops();
+  if(typeof showMileCountRoute==="function"&&freightStops.length>1)await showMileCountRoute(freightStops);
   refreshFinalTripOverview();
  }catch(e){
   console.warn("End location route update failed",e);
@@ -1434,8 +1430,8 @@ function renderFinalTripStops(){
    const delivery=r.delivery||S.home;
    events.push({type:"returnPickup",location:pickup,load:r,label:"RETURN LOAD PICKUP • +"+money(S.returnPay)});
    events.push({type:"returnDrop",location:delivery,load:r,label:"RETURN LOAD DROP"});
-   if(S.home&&delivery!==S.home)events.push({type:"home",location:S.home,label:"HOME ✓"});
-   else if(S.home)events.push({type:"home",location:S.home,label:"HOME ✓"});
+   if(S.home&&delivery!==S.home)events.push({type:"home",location:S.home,label:"HOME / FINAL DESTINATION ✓"});
+   else if(S.home&&events.at(-1)?.location!==S.home)events.push({type:"home",location:S.home,label:"HOME / FINAL DESTINATION ✓"});
  }
  const rows=events.map((e,i)=>{
    const type=e.type||"stop";
