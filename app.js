@@ -915,6 +915,7 @@ async function startSmartDispatchFromLocation(){
  navigator.geolocation.getCurrentPosition(async pos=>{
    try{
      const lat=Number(pos.coords.latitude),lng=Number(pos.coords.longitude);
+     S.manualTruckLocation=false;
      S.driverLocation={lat,lng,accuracy:Number(pos.coords.accuracy||0),updatedAt:Date.now()};
      S.smartDispatchLocationEnabled=true;S.smartDispatchOrigin=lat.toFixed(5)+","+lng.toFixed(5);
      if(status)status.textContent="Truck location approved ✓ Searching freight that makes sense from your current position…";
@@ -1094,6 +1095,11 @@ async function browseStateLoads(state){
  try{
    const stateNames={GA:"Atlanta, GA",FL:"Orlando, FL",NC:"Charlotte, NC",SC:"Columbia, SC",TN:"Nashville, TN",AL:"Birmingham, AL",TX:"Dallas, TX",CA:"Los Angeles, CA",IL:"Chicago, IL",NY:"Albany, NY",NJ:"Newark, NJ",PA:"Philadelphia, PA",OH:"Columbus, OH",MI:"Detroit, MI",VA:"Richmond, VA",MD:"Baltimore, MD"};
    const seed=stateNames[state]||("Anywhere, "+state);
+   // Selecting a state is an explicit planning-location override.
+   S.manualTruckLocation=true;S.smartDispatchLocationEnabled=false;S.smartDispatchOrigin="";
+   S.origin=seed;S.home=seed;S.homeChosen=false;
+   if(el("from"))el("from").value=seed;
+   if(status)status.textContent="🚚 TRUCK LOCATION: "+seed+" • Loading local freight…";
    const [truk,direct,sandbox]=await Promise.all([fetchTrukTekLocal(seed),fetchDirectFreightLocal(seed),fetchLoadBootSandbox(false)]);
    const existing=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[];
    const sims=localSimPool(seed);
