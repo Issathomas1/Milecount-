@@ -396,7 +396,179 @@ color:var(--muted);
 
 
 <body>
-<div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 style="margin:14px 0 6px">Sign in to continue</h1><p class="details">Your trips, truck setup and Smart AutoStack plans stay tied to your MileCount account.</p><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><details class="simpleDetails">
+<div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 style="margin:14px 0 6px">Sign in to continue</h1><p class="details">Your trips, truck setup and Smart AutoStack plans stay tied to your MileCount account.</p><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><button id="gateSignIn" type="button">SIGN IN</button><button id="gateCreate" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">CREATE ACCOUNT</button><div id="gateMessage" class="details" style="margin-top:10px"></div></div></div>
+<div id="stackTray" class="stackTray"><div><small>AUTOSTACK SELECTED</small><b><span id="stackCount">0</span> loads • <span id="stackSelectedPay">$0</span></b><small id="stackBaseLabel"></small></div><button id="clearStack" type="button">CLEAR</button><button id="doneStack" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">DONE • USE MY PICKS</button><button id="smartAutoStack" type="button">SMART AUTOSTACK</button></div>
+<div id="globalBusy" class="globalBusy" role="status" aria-live="polite"><div class="busySpinner"></div><span id="globalBusyText">One moment — finding loads…</span></div>
+
+<div class="app">
+
+
+<header>
+
+<a class="logo" href="./" aria-label="MileCount home" style="color:inherit;text-decoration:none;cursor:pointer">
+MileCount<span class="green">.</span>
+</a>
+
+<div style="display:flex;gap:8px;align-items:center">
+<div class="demo" id="dataModeBadge">LIVE LOAD SEARCH</div>
+<select id="driverMenu" aria-label="MileCount menu" style="width:auto;max-width:132px;margin:0;padding:8px 28px 8px 10px;font-size:11px;font-weight:900;background:#15271f;border:1px solid #2b4438;color:#f3f8f5">
+<option value="">MENU ▾</option>
+<option value="planner">PLANNER</option>
+<option value="trips">MY TRIPS</option>
+<option value="account">ACCOUNT</option>
+</select>
+<button id="accountButton" type="button" style="display:none">ACCOUNT</button>
+</div>
+
+</header>
+
+<div class="photoHero">
+  <img src="https://images.pexels.com/photos/7363196/pexels-photo-7363196.jpeg?auto=compress&cs=tinysrgb&w=1600" alt="Box truck being loaded at a warehouse">
+  <div class="photoOverlay"></div>
+  <div style="position:absolute;left:24px;bottom:28px;right:24px;z-index:2;max-width:520px">
+    <div style="color:#4fd487;font-weight:900;font-size:13px;letter-spacing:1px">BOX-TRUCK MONEY.</div>
+    <div style="font-size:42px;line-height:1.02;font-weight:900;margin-top:8px">Make Every<br><span style="color:#31bf72">Mile Count.</span></div>
+    <div style="margin-top:14px;font-size:17px;color:#e1ebe6">Pick where you are. Find local money. Build the best day.</div>
+  </div>
+</div>
+
+<div class="reviewIntro">
+ <b>Local freight. Smarter days.</b>
+ <span>Choose your location, see available local freight, and let MileCount build the route.</span>
+</div>
+
+<div class="hero" style="padding-top:10px;padding-bottom:10px">
+<small>MILECOUNT ROUTE ENGINE</small>
+<p style="margin:6px 0 0">Local dispatch intelligence • real + sandbox + SIM</p>
+</div>
+
+<!-- =====================
+SCREEN 1
+===================== -->
+
+<section
+id="screen1"
+class="screen active"
+>
+
+<div class="quickFlow">
+ <div><b>1</b><span>Choose where you are</span></div>
+ <div><b>2</b><span>Pick local loads</span></div>
+ <div><b>3</b><span>Smart Stack & come home</span></div>
+</div>
+
+<div class="card homeMapCard">
+<div id="boardHealth" class="boardHealth working">Connecting to freight sources…</div>
+<div class="homeMapTitleRow">
+<div>
+  <span class="badge">LIVE LOAD BOARD</span>
+  <h2>Local loads available now</h2>
+  <div class="liveNowStrip"><span>FREIGHT ON BOARD</span><strong id="unifiedFreightCount">Checking…</strong><small id="unifiedFreightSplit">Live + clearly labeled sandbox/test</small></div>
+<div class="liveNowStrip"><span>LIVE NOW</span><strong id="liveLoadCount">Checking…</strong><small id="liveLoadCountSource">Production/public live freight only</small></div>
+  <p class="details">Local box-truck freight appears together here. REAL, SANDBOX and SIM loads stay clearly labeled.</p>
+</div>
+<button id="refreshLiveMap" type="button">REFRESH</button>
+</div>
+<div class="stateBrowseBar">
+<label style="margin:0">BROWSE A STATE
+<select id="stateLoadBrowser">
+<option value="">Tap a state…</option>
+<option value="GA">Georgia</option><option value="FL">Florida</option><option value="NC">North Carolina</option><option value="SC">South Carolina</option><option value="TN">Tennessee</option><option value="AL">Alabama</option>
+<option value="TX">Texas</option><option value="CA">California</option><option value="IL">Illinois</option><option value="NY">New York</option><option value="NJ">New Jersey</option><option value="PA">Pennsylvania</option><option value="OH">Ohio</option><option value="MI">Michigan</option><option value="VA">Virginia</option><option value="MD">Maryland</option>
+</select></label>
+<span id="stateBrowseStatus">Tap a state to place your truck there and show local pickup loads.</span>
+</div>
+<div class="loadMapShell">
+<div class="loadMapHead"><div><span class="badge">LOAD MAP</span><h3>Tap a state. See the loads.</h3></div><div class="loadMapStats"><b id="loadMapTotal">0 RESULTS</b><b id="loadMapCount">0 MAPPED</b></div></div>
+<div class="loadMapToolbar">
+<button type="button" class="active" data-load-map-mode="pins">CLUSTERED PINS</button>
+
+
+</div>
+<div class="loadAreaBar">
+<button id="searchMapArea" type="button">SEARCH THIS MAP AREA</button>
+<button id="clearMapArea" type="button">CLEAR AREA</button>
+<span id="loadAreaStatus">Map area search off</span>
+</div>
+<div id="loadDiscoveryMap" aria-label="Clickable map of matched freight loads"></div>
+<div class="loadMapLegend"><span><i class="dot strong"></i>Strong</span><span><i class="dot works"></i>Works</span><span><i class="dot pass"></i>Pass</span><em>Tap any pin for load details.</em></div>
+</div>
+<div class="providerFilterBar">
+<label>SOURCE
+<select id="providerFilter">
+<option value="all">All Companies</option>
+<option value="live">Live Only</option>
+<option value="sandbox">Sandbox / Test Only</option>
+</select>
+</label>
+<span id="providerFilterShowing">Showing all connected freight</span>
+</div>
+<div class="row" style="margin-top:8px">
+<button id="viewLoadList" type="button" style="background:#15271f;border:1px solid #2b4438">SEE ALL LOADS</button>
+</div>
+
+<div class="sandboxStrip">
+ <div><span>LOADBOOT SANDBOX</span><strong id="loadBootSandboxStatus">Checking sandbox…</strong><small>Test freight appears on the same board • clearly labeled and excluded only from the LIVE NOW production count</small></div>
+ <button id="viewLoadBootSandbox" type="button">LOADBOOT TEST LOADS</button>
+</div>
+</div>
+
+<div class="card simpleSearchCard">
+
+<div class="sectionEyebrow">MILECOUNT LOAD FINDER</div>
+<h1 class="simpleSearchTitle">Search a lane</h1>
+<p class="simpleSearchSub">Enter where the truck is and where you want to go. Milecount calculates the economics.</p>
+
+<div class="compactVehicle">
+  <div>
+    <strong id="vehicleName">26-ft Box Truck</strong><br>
+    <span id="vehicleSummary">9 MPG • 26 ft cargo • Nationwide search ready</span>
+  </div>
+  <label style="min-width:180px;margin:0">TRUCK
+    <select id="vehicleType">
+      <option value="cargo">Cargo Van</option>
+      <option value="sprinter">Sprinter / High-Roof Van</option>
+      <option value="box16">16-ft Box Truck</option>
+      <option value="box20">20-ft Box Truck</option>
+      <option value="box24">24-ft Box Truck</option>
+      <option value="box26" selected>26-ft Box Truck</option>
+    </select>
+  </label>
+</div>
+
+<div style="display:none">
+  <b id="vehicleMPG">9</b>
+  <b id="vehiclePayload">10,000 lb</b>
+</div>
+
+<div class="searchStatus simpleStatus">
+  <div><strong>Authorized freight search</strong><br><span>Live provider freight when available. Simulation is labeled separately.</span></div>
+  <span id="providerCount">API READY</span>
+</div>
+
+<div class="simplePrimaryGrid">
+<label>FROM
+<input id="from" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP" autocomplete="off">
+<datalist id="usLocations"><option>Anywhere, USA</option><option>Atlanta, GA</option><option>Augusta, GA</option><option>Savannah, GA</option><option>Macon, GA</option><option>Columbus, GA</option><option>Birmingham, AL</option><option>Mobile, AL</option><option>Montgomery, AL</option><option>Huntsville, AL</option><option>Charlotte, NC</option><option>Raleigh, NC</option><option>Greensboro, NC</option><option>Wilmington, NC</option><option>Nashville, TN</option><option>Memphis, TN</option><option>Knoxville, TN</option><option>Chattanooga, TN</option><option>Greenville, SC</option><option>Columbia, SC</option><option>Charleston, SC</option><option>Jacksonville, FL</option><option>Orlando, FL</option><option>Tampa, FL</option><option>Miami, FL</option><option>Fort Lauderdale, FL</option><option>Tallahassee, FL</option><option>Dallas, TX</option><option>Houston, TX</option><option>Austin, TX</option><option>San Antonio, TX</option><option>El Paso, TX</option><option>Oklahoma City, OK</option><option>Tulsa, OK</option><option>New Orleans, LA</option><option>Baton Rouge, LA</option><option>Jackson, MS</option><option>Little Rock, AR</option><option>Louisville, KY</option><option>Lexington, KY</option><option>Richmond, VA</option><option>Norfolk, VA</option><option>Washington, DC</option><option>Baltimore, MD</option><option>Philadelphia, PA</option><option>Pittsburgh, PA</option><option>Newark, NJ</option><option>New York, NY</option><option>Boston, MA</option><option>Providence, RI</option><option>Hartford, CT</option><option>Buffalo, NY</option><option>Cleveland, OH</option><option>Columbus, OH</option><option>Cincinnati, OH</option><option>Detroit, MI</option><option>Indianapolis, IN</option><option>Chicago, IL</option><option>Milwaukee, WI</option><option>Minneapolis, MN</option><option>St. Louis, MO</option><option>Kansas City, MO</option><option>Omaha, NE</option><option>Wichita, KS</option><option>Denver, CO</option><option>Albuquerque, NM</option><option>Phoenix, AZ</option><option>Las Vegas, NV</option><option>Salt Lake City, UT</option><option>Boise, ID</option><option>Seattle, WA</option><option>Portland, OR</option><option>Sacramento, CA</option><option>San Francisco, CA</option><option>Fresno, CA</option><option>Los Angeles, CA</option><option>San Diego, CA</option></datalist>
+</label>
+
+<label>TO
+<input id="to" list="usLocations" value="Charlotte, NC" placeholder="City, ST, ZIP or Anywhere, USA" autocomplete="off">
+</label>
+</div>
+
+<label style="margin-top:12px">PICKUP DATE
+<input id="pickupDate" type="date">
+</label>
+
+<button id="find" class="simpleSearchBtn">FIND LOADS</button>
+<button id="localMoneyMode" type="button" class="simpleSearchBtn" style="background:#0d2118;border:1px solid #2d6b4d;margin-top:8px">💰 BUILD MY LOCAL DAY</button>
+<details class="simpleDetails"><summary>Driver day schedule</summary><div class="simpleDetailsBody"><div class="filterGrid"><label>START TIME<input id="dayStartTime" type="time" value="06:00"></label><label>PICKUP SERVICE MIN<input id="pickupServiceMin" type="number" min="0" value="20"></label><label>DROP SERVICE MIN<input id="dropServiceMin" type="number" min="0" value="20"></label></div><p class="details">MileCount checks travel time, provider pickup/delivery windows, service time, breaks, and the 10-driving-hour Local Day target before approving the stack.</p></div></details>
+<div id="localMoneyStatus" class="details">Builds the strongest feasible local day and routes you home.</div>
+<button id="browseLiveLoads" type="button" class="simpleSearchBtn" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">BROWSE LOCAL LOADS</button>
+
+
+<details class="simpleDetails">
 <summary>Optional search filters</summary>
 <div class="simpleDetailsBody">
   
@@ -1034,7 +1206,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260929-state-outlines1"></script>
-<script src="app.js?v=20260929-no-browse-local1"></script>
+<script src="app.js?v=20260929-no-browse-local2"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
