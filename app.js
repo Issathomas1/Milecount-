@@ -1051,15 +1051,24 @@ async function buildLocalMoneyDay(){
    if(status)status.textContent="Finding local money around "+homeLabel+"…";
 
    // Fetch every source concurrently. Do NOT let a slow provider block the first screen.
+   // Local Day must NEVER reuse the nationwide/current candidate board.
+   // Only fresh provider searches + local SIM seeded from the truck market belong here.
+   const localSeed=(typedHome||S.home||"Atlanta, GA").trim();
    const sourceJobs=[
-     Promise.resolve(S.candidateLoads||[]),
      fetchTrukTekLocal(home).catch(()=>[]),
      fetchDirectFreightLocal(home).catch(()=>[]),
      fetchLoadBootSandbox(false).catch(()=>[]),
-     Promise.resolve(localSimPool((typedHome||S.home||"Atlanta, GA").trim()))
+     Promise.resolve(localSimPool(localSeed))
    ];
+   const localState=(String(localSeed).match(/,\s*([A-Z]{2})\s*$/i)||[])[1]?.toUpperCase()||"";
+   const isLocalCandidate=l=>{
+     const p=String(l?.pickup||"").trim().toUpperCase();
+     // When a city/state is known, Local Day starts with pickups in that state.
+     // GPS coordinates cannot yield a state here, so local SIM/direct searches remain eligible.
+     return !localState||p.endsWith(", "+localState)||l?.isLocalSim;
+   };
    const quick=await Promise.all(sourceJobs.map(p=>Promise.race([p,new Promise(r=>setTimeout(()=>r([]),1200))])));
-   let raw=dedupeNormalizedLoads(enforceWeightCap(quick.flat()));
+   let raw=dedupeNormalizedLoads(enforceWeightCap(quick.flat())).filter(isLocalCandidate);
    // Always render a first screen immediately from source data; routing enrichment must never hide loads.
    raw.sort((a,b)=>Number(b.pay||0)-Number(a.pay||0));
    const first=raw.slice(0,5);
@@ -1067,13 +1076,13 @@ async function buildLocalMoneyDay(){
    renderUnifiedLoadList(first);showScreen(2);
    if(status)status.textContent=first.length?"Showing first "+first.length+" • checking more loads…":"Checking connected providers…";
 
-   // Start Smart AutoStack from the visible first five, but don't wait for background enrichment.
-   selectedStackKeys.clear();first.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
-   if(first.length>=2)setTimeout(()=>smartAutoStack(),80);
+   // Show the first local loads immediately. Do NOT auto-select/stack until the
+   // local pool is established; this prevents nationwide sandbox lanes from being mixed in.
+   selectedStackKeys.clear();updateStackTray();
 
    // Full provider results + route enrichment continue in background.
    Promise.all(sourceJobs).then(async all=>{
-     let full=dedupeNormalizedLoads(enforceWeightCap(all.flat())).slice(0,40);
+     let full=dedupeNormalizedLoads(enforceWeightCap(all.flat())).filter(isLocalCandidate).slice(0,40);
      const enriched=await Promise.all(full.map(async l=>{
        const loaded=Number(l.loadedMiles||0);
        try{
@@ -1087,6 +1096,10 @@ async function buildLocalMoneyDay(){
      }));
      enriched.sort((a,b)=>Number(b.localAfterGas??b.pay??0)-Number(a.localAfterGas??a.pay??0));
      S.candidateLoads=enriched;S.allUnifiedLoads=[...enriched];renderUnifiedLoadList(enriched);updateStackTray();
+     // Once the complete LOCAL pool is visible, select the strongest plan candidates.
+     const picks=enriched.slice(0,Math.min(currentPlan().maxStack===Infinity?5:currentPlan().maxStack,5));
+     selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
+     if(picks.length>=2)setTimeout(()=>smartAutoStack(),80);
      const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
      S.localSourceCounts=sc;
      if(status)status.textContent="LOCAL MONEY ✓ "+enriched.length+" loads • "+sc.real+" real • "+sc.sandbox+" sandbox • "+sc.sim+" SIM";
