@@ -1062,11 +1062,12 @@ async function buildLocalMoneyDay(){
    if(status)status.textContent="Searching local/regional freight and building the best local day back to "+homeLabel+"…";
    // Refresh the connected board, then use road-distance checks to keep only
    // pickups close enough to be candidates for a same-day regional plan.
-   await browseLiveLoadBoard(true);
+   // FAST PATH: start provider refreshes in parallel instead of waiting on one board first.
+   const boardRefresh=browseLiveLoadBoard(true).catch(()=>null);
    // One normalized pool: connected live board + direct TrukTek public search +
    // LoadBoot sandbox + MileCount local SIM. The dispatcher treats them the same
    // for routing while source labels keep REAL / SANDBOX / SIM unmistakable.
-   const [trukLocal,directLocal,loadBootLocal]=await Promise.all([fetchTrukTekLocal(home),fetchDirectFreightLocal(home),fetchLoadBootSandbox(false)]);
+   const [trukLocal,directLocal,loadBootLocal]=await Promise.all([fetchTrukTekLocal(home),fetchDirectFreightLocal(home),fetchLoadBootSandbox(false),boardRefresh]).then(x=>x.slice(0,3));
    const simSeed=(el("from")?.value||S.home||home||"Atlanta, GA").trim();
    const simLocal=localSimPool(simSeed);
    const raw=dedupeNormalizedLoads(enforceWeightCap([...(S.candidateLoads||[]),...trukLocal,...directLocal,...loadBootLocal,...simLocal]));
@@ -1076,26 +1077,24 @@ async function buildLocalMoneyDay(){
     sandbox:raw.filter(x=>x.isSandbox&&!x.isLocalSim).length,
     sim:raw.filter(x=>x.isLocalSim).length
    };
-   const nearby=[];
-   for(const l of raw.slice(0,40)){
-     let toPickup=null,loaded=Number(l.loadedMiles||0);
-     try{toPickup=await withTimeout(roadMilesBetween(home,l.pickup),1800,null)}catch(e){}
-     if(!Number.isFinite(toPickup))continue;
-     let back=null;
-     try{back=await withTimeout(roadMilesBetween(l.delivery||l.pickup,home),1800,null)}catch(e){}
-     if(!Number.isFinite(back))continue;
-     const soloMiles=Number(toPickup)+loaded+Number(back);
-     // Local browse should be generous: show state/local opportunities first.
-     // The 500-mile rule belongs to the FINAL combined day plan, not each load's
-     // discovery eligibility.
+   // Route checks used to run serially (up to 80 network calls). Run a smaller,
+   // high-value candidate set concurrently so Local Day feels instant on mobile.
+   const rankedRaw=[...raw].sort((a,b)=>Number(b.pay||0)-Number(a.pay||0)).slice(0,18);
+   const checked=await Promise.all(rankedRaw.map(async l=>{
+     const loaded=Number(l.loadedMiles||0);
+     let toPickup=null,back=null;
+     try{[toPickup,back]=await Promise.all([
+       withTimeout(roadMilesBetween(home,l.pickup),900,null),
+       withTimeout(roadMilesBetween(l.delivery||l.pickup,home),900,null)
+     ])}catch(e){}
+     if(!Number.isFinite(toPickup)||!Number.isFinite(back))return null;
      const sameState=String(l.pickup||"").trim().slice(-2).toUpperCase()===String(home).trim().slice(-2).toUpperCase();
-     if(sameState||Number(toPickup)<=175||l.isLocalSim){
-       l.deadheadMiles=Number(toPickup);
-       l.localSoloMiles=soloMiles;
-       l.localAfterGas=Number(l.pay||0)-Number(fuelFor(Math.max(1,Number(toPickup)+loaded)).fuelCost||0);
-       nearby.push(l);
-     }
-   }
+     if(!(sameState||Number(toPickup)<=175||l.isLocalSim))return null;
+     l.deadheadMiles=Number(toPickup);l.localSoloMiles=Number(toPickup)+loaded+Number(back);
+     l.localAfterGas=Number(l.pay||0)-Number(fuelFor(Math.max(1,Number(toPickup)+loaded)).fuelCost||0);
+     return l;
+   }));
+   const nearby=checked.filter(Boolean);
    nearby.sort((a,b)=>(b.localAfterGas||0)-(a.localAfterGas||0));
    const picks=nearby.slice(0,5);
    selectedStackKeys.clear();
