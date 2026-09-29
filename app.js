@@ -891,8 +891,27 @@ async function startSmartDispatchFromLocation(){
      if(el("from"))el("from").value=S.smartDispatchOrigin;
      await browseLiveLoadBoard(true);
      if(el("from"))el("from").value=oldFrom||"";
-     const loads=(S.candidateLoads||[]).slice(0,8);
-     if(status)status.textContent=loads.length?("SMART DISPATCH ✓ "+loads.length+" compatible opportunities found. Opening your best matches…"):"SMART DISPATCH ✓ No compatible freight is showing right now. Refresh as providers update.";
+     // "Compatible" must include geography. The provider board can return nationwide
+     // freight, so calculate actual deadhead from the truck's GPS position and reject
+     // anything outside the driver's Smart Dispatch radius.
+     const raw=(S.candidateLoads||[]);
+     const maxDH=Math.max(25,Number(el("maxDeadhead")?.value||100));
+     const ranked=[];
+     for(const l of raw.slice(0,30)){
+       let dh=null;
+       try{dh=await withTimeout(roadMilesBetween(S.smartDispatchOrigin,l.pickup),2200,null)}catch(e){}
+       if(!Number.isFinite(dh))continue;
+       l.smartDispatchDeadhead=Number(dh);
+       l.deadheadMiles=Number(dh);
+       if(dh<=maxDH){
+         const econ=loadEconomics(l);
+         l.smartDispatchScore=(Number(econ.afterFuel||l.pay||0))-(dh*Number(costProfile().breakEven||0));
+         ranked.push(l);
+       }
+     }
+     ranked.sort((a,b)=>(b.smartDispatchScore||0)-(a.smartDispatchScore||0));
+     const loads=ranked.slice(0,8);
+     if(status)status.textContent=loads.length?("SMART DISPATCH ✓ "+loads.length+" loads within "+maxDH+" road miles of your truck. Opening best matches…"):("SMART DISPATCH ✓ No loads within "+maxDH+" road miles of your current location.");
      if(loads.length){
        // Smart Dispatch is an action, not a status-only button: take the driver
        // directly to the compatible freight results after location search finishes.
