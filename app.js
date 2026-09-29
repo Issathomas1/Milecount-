@@ -1042,7 +1042,7 @@ async function buildLocalMoneyDay(){
    const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:typedHome).trim();
    S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxMiles=1000;S.localMaxLoads=5;
    const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your current truck location":home;
-   if(status)status.textContent="Searching local/regional freight and building the best ≤1,000-mile day back to "+homeLabel+"…";
+   if(status)status.textContent="Searching local/regional freight and building the best local day back to "+homeLabel+"…";
    // Refresh the connected board, then use road-distance checks to keep only
    // pickups close enough to be candidates for a same-day regional plan.
    await browseLiveLoadBoard(true);
@@ -1561,10 +1561,7 @@ async function smartAutoStack(){
        }
      }
    }
-   if(S.localMoneyMode&&state.miles>Number(S.localMaxMiles||1000)){
-     state.feasible=false;
-     state.issues.push("LOCAL MONEY limit exceeded: "+Math.round(state.miles)+" miles. Maximum is "+Number(S.localMaxMiles||1000)+" miles including the day route.");
-   }
+   
    // MileCount Local Day product rule: keep the completed route under 10
    // driving hours. This is intentionally stricter than the mileage cap.
    const localDriveHours=Number(route?.durationHours||route?.hours||0);
@@ -1745,7 +1742,7 @@ async function finishMyPicks(){
 async function finishAutoStack(){
  const p=S.stackPlan;
  if(S.localMoneyMode&&p&&p.valid===false){
-   alert("This Local Money plan does not meet the 1,000-mile/capacity rules. Change the selected loads or route before finishing.");
+   alert("This Local Money plan does not meet the capacity/time rules. Change the selected loads or route before finishing.");
    return;
  }
  if(!p||!Array.isArray(p.routeStops)||p.routeStops.length<2){
