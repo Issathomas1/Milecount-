@@ -915,8 +915,10 @@ async function browseLiveLoadBoard(stayHome=false){
  }
 }
 bind("applyTripHome",async function(){
- const home=(el("tripHomeChoice")?.value||"").trim();
- if(!home){alert("Enter the city and state where you want the trip to end.");return}
+ let home=(el("tripHomeChoice")?.value||"").trim();
+ if(!home){alert("Enter where you want the trip to end.");return}
+ home=normalizeTripLocation(home,S.origin||S.finalRouteStops?.[0]||"");
+ if(el("tripHomeChoice"))el("tripHomeChoice").value=home;
  S.home=home;
  if(el("tripFinalDestination"))el("tripFinalDestination").textContent=home;
  setBusy(true,"Recalculating route to your end location…");
@@ -1461,6 +1463,12 @@ function toggleStackLoad(index){
  });
  updateStackTray();
 }
+function normalizeTripLocation(v,fallbackState=""){
+ const s=String(v||"").trim();if(!s)return "";
+ if(s.includes(","))return s;
+ const state=String(fallbackState||"").match(/,\s*([A-Z]{2})\s*$/i)?.[1]?.toUpperCase()||"";
+ return state?s+", "+state:s;
+}
 function laneCity(v){
  return String(v||"").trim().toLowerCase()
   .replace(/\s+/g," ")
@@ -1943,9 +1951,27 @@ async function finishAutoStack(){
  S.finalRouteEvents.forEach(e=>{if(isRoutableLocation(e.location)&&laneCity(mapStops.at(-1))!==laneCity(e.location))mapStops.push(e.location)});
  if(S.localMoneyMode&&isRoutableLocation(S.home)&&laneCity(mapStops.at(-1))!==laneCity(S.home))mapStops.push(S.home);
  S.finalRouteStops=[...mapStops];
- // Keep the plan and map on the exact same stop list.
  p.routeStops=[...mapStops];
+ // Finalization has one source of truth: verify this exact stop list and use
+ // that result for map, miles, endpoints and economics.
+ if(S.finalRouteStops.length>=2&&typeof getMileCountRoadRoute==="function"){
+   try{
+     const verified=await withTimeout(getMileCountRoadRoute([...S.finalRouteStops]),6500,null);
+     if(verified&&Number(verified.miles)>0){
+       p.miles=Number(verified.miles);p.routeVerified=true;
+       p.durationHours=Number(verified.durationHours||verified.hours||0);
+       S.roundTripMiles=p.miles;
+     }
+   }catch(e){console.warn("Final trip verification",e)}
+ }
+ S.origin=S.finalRouteStops[0]||first.pickup||S.origin;
+ S.destination=S.finalRouteStops.at(-1)||freightEnd;
+ if(el("tripHomeStart"))el("tripHomeStart").textContent=S.origin||"—";
+ if(el("tripFinalDestination"))el("tripFinalDestination").textContent=S.destination||"—";
+ if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
+ selectedStackKeys.clear();updateStackTray();
  renderFinalTripStops();
+ refreshFinalTripOverview();
  showScreen(3);
  const mapBuildId=mcTripBuildSeq;
  setTimeout(async()=>{
