@@ -256,7 +256,12 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  try{
    const direct=await fetchDirectFreightLocal(S.origin||el("from")?.value||"");
    const requestedDate=el("pickupDate")?.value||"";
-   const matching=enforceWeightCap(direct.filter(l=>laneMatches(l,S.origin,S.destination))).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate)}));
+   // Direct Freight discovery is origin-first. Destination is a preference/ranking
+   // signal, not a hard visibility filter, so carriers can see all current DF
+   // freight around the truck instead of mistaking non-matching lanes for no inventory.
+   const matching=enforceWeightCap(direct).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),destinationPreferred:laneMatches(l,S.origin,S.destination)}))
+     .sort((a,b)=>Number(b.destinationPreferred)-Number(a.destinationPreferred));
+   S.directFreightLiveCount=matching.length;S.directFreightLastUpdated=Date.now();
    if(matching.length){loads=[...loads,...matching];providerResponded=true;liveProvider=true}
  }catch(e){providerErrors.push("Direct Freight");console.warn("Direct Freight lane aggregation unavailable",e)}
  updateProviderFilterOptions(loads);
@@ -1307,10 +1312,10 @@ function updateProviderFilterOptions(loads){
  const seen=new Map();
  (loads||[]).forEach(l=>{
    const key=providerFilterKey(l);
-   const label=isLoadBootRecord(l)?"LoadBoot Sandbox":(l.isLocalSim?"MileCount SIM":(l.provider||"Other Provider"));
+   const label=isLoadBootRecord(l)?"LoadBoot Sandbox":(l.isLocalSim?"MileCount SIM":(String(l.provider||"").toLowerCase()==="direct freight"?"Direct Freight"+(Number.isFinite(S.directFreightLiveCount)?" • "+S.directFreightLiveCount+" live":""):(l.provider||"Other Provider")));
    if(key&&!seen.has(key))seen.set(key,label);
  });
- if(S.directFreightConfigured&&!seen.has("direct-freight"))seen.set("direct-freight","Direct Freight");
+ if(S.directFreightConfigured&&!seen.has("direct-freight"))seen.set("direct-freight","Direct Freight"+(Number.isFinite(S.directFreightLiveCount)?" • "+S.directFreightLiveCount+" live":""));
  const options=[
   ["all","All Companies"],
   ["live","Live Only"],
@@ -1337,7 +1342,10 @@ async function applyProviderFilter(){
  if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(filtered,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
  renderUnifiedLoadList(filtered);
  const showing=el("providerFilterShowing");
- if(showing)showing.textContent="Showing "+filtered.length+" of "+all.length+" freight opportunities";
+ if(showing){
+  const df=mode==="direct-freight",age=S.directFreightLastUpdated?Math.max(0,Math.round((Date.now()-S.directFreightLastUpdated)/60000)):null;
+  showing.textContent=df?"Direct Freight: "+filtered.length+" live load"+(filtered.length===1?"":"s")+" returned • updated "+(age===0?"just now":age+" min ago"):"Showing "+filtered.length+" of "+all.length+" freight opportunities";
+ }
 }
 
 
