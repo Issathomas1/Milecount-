@@ -1805,8 +1805,12 @@ function deleteRouteLoad(i){
  if(removed?.isSandbox)p.testPay=Math.max(0,Number(p.testPay||0)-pay);
  else p.livePay=Math.max(0,Number(p.livePay||0)-pay);
  updateStackTray();
- if(m)m.textContent="Removed "+(removed?.pickup||"load")+" → "+(removed?.delivery||"")+" • Press APPLY MY ROUTE ORDER to recalculate.";
+ if(m)m.textContent="Removed "+(removed?.pickup||"load")+" → "+(removed?.delivery||"")+" • Recalculating route…";
  renderRouteOrderRows();
+ // A deleted load invalidates every derived route/map snapshot immediately.
+ S.finalRouteEvents=[];S.finalRouteStops=[];S.roundTripMiles=0;
+ mcTripBuildSeq++;
+ setTimeout(()=>smartAutoStack(),0);
 }
 function moveRouteStop(i,delta){return moveRouteStopTo(i,i+delta)}
 function moveRouteStopTo(i,j){
@@ -1827,6 +1831,9 @@ async function applyManualRouteOrder(){
  try{
   let route=null;if(stops.length>1&&typeof getMileCountRoadRoute==="function")route=await withTimeout(getMileCountRoadRoute(stops),5000,null);
   p.routeStops=stops;p.routeVerified=!!(route&&Number(route.miles)>0);if(Number(route?.miles)>0)p.miles=Number(route.miles);
+  S.finalRouteStops=[...stops];
+  S.finalRouteEvents=p.events.filter(e=>e.type!=="home").map(e=>({type:e.type,location:e.location,load:e.load}));
+  if(typeof showMileCountRoute==="function")await showMileCountRoute([...stops]);
   const manualDriveHours=Number(route?.durationHours||route?.hours||0)||(Number(p.miles||0)/43.5);
   p.driveHours=manualDriveHours;
   if(S.localMoneyMode&&manualDriveHours>10){p.valid=false;if(m)m.textContent="Route is "+manualDriveHours.toFixed(1)+" driving hours — Local Day maximum is 10. Remove an out-of-way load.";return}
@@ -1897,16 +1904,24 @@ async function finishAutoStack(){
  const events=Array.isArray(p.events)?p.events:[];
  S.finalRouteEvents=events.filter(e=>e.type!=="home").map(e=>({type:e.type,location:e.location,load:e.load}));
  if(S.localMoneyMode&&S.home&&S.finalRouteEvents.at(-1)?.location!==S.home)S.finalRouteEvents.push({type:"home",location:S.home,label:"HOME / FINAL DESTINATION ✓"});
- S.finalRouteStops=Array.isArray(p.routeStops)?[...p.routeStops]:[];
+ const mapStops=[];
+ const mapStart=(S.origin||first.pickup||"").trim();if(isRoutableLocation(mapStart))mapStops.push(mapStart);
+ S.finalRouteEvents.forEach(e=>{if(isRoutableLocation(e.location)&&laneCity(mapStops.at(-1))!==laneCity(e.location))mapStops.push(e.location)});
+ if(S.localMoneyMode&&isRoutableLocation(S.home)&&laneCity(mapStops.at(-1))!==laneCity(S.home))mapStops.push(S.home);
+ S.finalRouteStops=[...mapStops];
+ // Keep the plan and map on the exact same stop list.
+ p.routeStops=[...mapStops];
  renderFinalTripStops();
  showScreen(3);
+ const mapBuildId=mcTripBuildSeq;
  setTimeout(async()=>{
    try{
+     if(mapBuildId!==mcTripBuildSeq)return;
      if(typeof initMileCountMap==="function")initMileCountMap();
-     if(typeof showMileCountRoute==="function")await showMileCountRoute(p.routeStops);
+     if(typeof showMileCountRoute==="function")await showMileCountRoute([...S.finalRouteStops]);
      else if(typeof updateOutboundMap==="function")await updateOutboundMap();
    }catch(e){console.warn("AutoStack route display",e)}
- },250);
+ },120);
 }
 function renderFinalTripStops(){
  const box=el("tripStops");if(!box)return;
