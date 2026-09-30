@@ -586,11 +586,11 @@ async function protectReturn(){
    S.returnSelected=best;
    if(el("returnLane"))el("returnLane").textContent=(best.pickup||delivery)+" → "+(best.delivery||home);
    if(el("returnPay"))el("returnPay").textContent=best.isSandbox?("TEST "+money(best.pay)):money(best.pay);
-   if(el("returnSource"))el("returnSource").textContent=best.isSandbox?"LoadBoot TEST":"TrukTek";
+   if(el("returnSource"))el("returnSource").textContent=best.isSandbox?"LoadBoot TEST":(best.provider||"Live provider");
    if(el("returnStatus"))el("returnStatus").textContent=(best.pickupDate||("+"+best.daysOut+" day"))+(best.isSandbox?" • TEST":" • LIVE");
    if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(Number(best.allMiles||0)).toLocaleString()+" all mi";
    if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay)+(best.isSandbox?" TEST":"");
-   if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • TrukTek";
+   if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • "+(best.provider||"PROVIDER");
     if(el("returnLead"))el("returnLead").textContent="Best homebound option: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
  if(el("homeboundAlternatives")){
    el("homeboundAlternatives").innerHTML=useful.slice(0,5).map((c,i)=>'<div class="homeAlt"><b>'+(i+1)+'. '+(c.pickup||delivery)+' → '+(c.delivery||home)+'</b><span>'+money(c.pay)+' • '+(c.dispatchRPM?("$"+c.dispatchRPM.toFixed(2)+"/mi"):"RPM —")+' • '+Math.round(c.dispatchDeadhead||0)+' mi DH • '+(c.pickupDate||"date n/a")+(c.isSandbox?" • TEST":" • LIVE")+'</span></div>').join("");
@@ -1321,6 +1321,8 @@ function filteredUnifiedLoads(loads){
 }
 async function applyProviderFilter(){
  const all=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[];
+ const selectedProvider=el("providerFilter")?.value||"all";
+ if(selectedProvider==="direct-freight")setBoardStatus("working","Direct Freight • live production freight");
  const filtered=filteredUnifiedLoads(all);
  S.candidateLoads=filtered;
  const profile=updateCostUI();
