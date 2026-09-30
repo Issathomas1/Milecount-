@@ -390,6 +390,9 @@ color:var(--muted);
 
 
 #authGate{box-sizing:border-box}#authGate>.card{flex:0 1 520px;max-width:520px;width:100%!important}body.mcAuthLocked>.app,body.mcAuthLocked>#stackTray,body.mcAuthLocked>#globalBusy{visibility:hidden!important}@media(max-width:600px){#authGate{padding:16px!important;align-items:center!important}#authGate>.card{margin:auto!important}}
+/* Partner-demo polish: keep provider cards readable and production actions consistent */
+.loadBootRef{margin-top:10px;font-size:12px;line-height:1.45;color:#b7c9c0}.loadBootRef a{color:#7fe0b1;font-weight:900}.candidateLoad{overflow:hidden}.loadMeta{line-height:1.35}.sourceTag{white-space:nowrap}
+@media(max-width:520px){.loadTop{align-items:flex-start}.loadPay{font-size:30px}.loadFoot{gap:7px;flex-wrap:wrap}.loadMetrics{grid-template-columns:1fr 1fr}}
 </style>
 
 <!-- deploy-retry-20260927-1657-stable -->
@@ -1207,7 +1210,7 @@ app
 <script src="map.js?v=20260927-recovery16"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260929-state-outlines1"></script>
-<script src="app.js?v=20260930-directfreight10"></script>
+<script src="app.js?v=20260930-partnerpolish11"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
