@@ -699,9 +699,6 @@ function refreshFinalTripOverview(){
  const maintenance=0,insurance=0,payment=0,other=0;
  const cost=Number(fuel.fuelCost||0);
  const margin=revenue-cost;
- const driverPct=Math.max(0,Math.min(100,val("driverPayPct",20)));
- const driverPay=revenue*(driverPct/100);
- const netAfterDriver=margin-driverPay;
  if(el("overviewRevenue"))el("overviewRevenue").textContent=money(revenue);
  if(el("overviewMiles"))el("overviewMiles").textContent=Math.round(miles).toLocaleString()+" mi";
  if(el("overviewRPM"))el("overviewRPM").textContent=miles?"$"+(revenue/miles).toFixed(2):"—";
@@ -714,8 +711,6 @@ function refreshFinalTripOverview(){
  if(el("overviewOther"))el("overviewOther").textContent=money(other);
  if(el("overviewCost"))el("overviewCost").textContent=money(cost);
  if(el("overviewMargin"))el("overviewMargin").textContent=money(margin);
- if(el("overviewDriverPay"))el("overviewDriverPay").textContent=money(driverPay)+" ("+driverPct+"%)";
- if(el("overviewNetAfterDriver"))el("overviewNetAfterDriver").textContent=money(netAfterDriver);
  if(el("overviewFuelDetail"))el("overviewFuelDetail").textContent=Number(fuel.gallons||0).toFixed(1)+" gallons × $"+Number(fuel.dieselPrice||0).toFixed(2)+"/gal • "+(fuel.source||fuel.fuelSource||"fuel estimate");
 }
 async function viewUpdatedTrip(){
@@ -765,7 +760,7 @@ async function analyzeManualLoad(){
  showScreen(2);
 }
 async function saveProfile(){
- const data={vehicleType:el("vehicleType")?.value,monthlyPayment:val("monthlyPayment",0),monthlyInsurance:val("monthlyInsurance",0),maintenanceCPM:val("maintenanceCPM",0),monthlyOther:val("monthlyOther",0),monthlyMiles:val("monthlyMiles",0),driverPayPct:val("driverPayPct",20)};
+ const data={vehicleType:el("vehicleType")?.value,monthlyPayment:val("monthlyPayment",0),monthlyInsurance:val("monthlyInsurance",0),maintenanceCPM:val("maintenanceCPM",0),monthlyOther:val("monthlyOther",0),monthlyMiles:val("monthlyMiles",0)};
  try{localStorage.setItem("milecountProfile",JSON.stringify(data))}catch(e){}
  try{
    const s=await MileCountCloud.session();
@@ -776,11 +771,11 @@ async function saveProfile(){
  }catch(e){if(el("saveStatus"))el("saveStatus").textContent="Local save worked • Cloud: "+e.message}
 }
 function loadProfile(){
- try{const d=JSON.parse(localStorage.getItem("milecountProfile")||"null");if(!d)return;if(el("vehicleType")&&d.vehicleType)el("vehicleType").value=d.vehicleType;["monthlyPayment","monthlyInsurance","maintenanceCPM","monthlyOther","monthlyMiles","driverPayPct"].forEach(id=>{if(el(id)&&d[id]!=null)el(id).value=d[id]});applyVehicle(d.vehicleType||"box26",false);updateCostUI()}catch(e){}
+ try{const d=JSON.parse(localStorage.getItem("milecountProfile")||"null");if(!d)return;if(el("vehicleType")&&d.vehicleType)el("vehicleType").value=d.vehicleType;["monthlyPayment","monthlyInsurance","maintenanceCPM","monthlyOther","monthlyMiles"].forEach(id=>{if(el(id)&&d[id]!=null)el(id).value=d[id]});applyVehicle(d.vehicleType||"box26",false);updateCostUI()}catch(e){}
 }
 function bind(id,fn){const b=el(id);if(b)b.addEventListener("click",fn);else console.warn("Missing button",id)}
 if(el("vehicleType"))el("vehicleType").addEventListener("change",function(){applyVehicle(this.value,true);updateCostUI()});
-["monthlyPayment","monthlyInsurance","maintenanceCPM","monthlyOther","monthlyMiles","driverPayPct"].forEach(id=>{if(el(id))el(id).addEventListener("input",()=>{updateCostUI();refreshFinalTripOverview()})});
+["monthlyPayment","monthlyInsurance","maintenanceCPM","monthlyOther","monthlyMiles"].forEach(id=>{if(el(id))el(id).addEventListener("input",()=>{updateCostUI();refreshFinalTripOverview()})});
 applyVehicle(el("vehicleType")?.value||"box26",false);
 updateCostUI();
 loadProfile();
