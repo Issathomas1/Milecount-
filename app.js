@@ -1969,6 +1969,10 @@ async function finishAutoStack(){
  if(el("tripHomeStart"))el("tripHomeStart").textContent=S.origin||"—";
  if(el("tripFinalDestination"))el("tripFinalDestination").textContent=S.destination||"—";
  if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
+ const finalHours=Number(p.durationHours||0)||(Number(p.miles||0)>0?Number(p.miles)/50:0);
+ window.MileCountFinalRouteEstimate={miles:Number(p.miles||0),hours:finalHours};
+ if(el("driveTime"))el("driveTime").textContent=finalHours?(Math.floor(finalHours)+" hr "+Math.round((finalHours%1)*60)+" min"):"—";
+ if(el("routeSource")&&!p.routeVerified)el("routeSource").textContent="Estimated trip route • road verification pending";
  selectedStackKeys.clear();updateStackTray();
  renderFinalTripStops();
  refreshFinalTripOverview();

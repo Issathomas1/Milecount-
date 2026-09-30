@@ -531,9 +531,17 @@ function showMileCountFallbackRoute(
     coordinates.length <
     2
   ) {
-
+    // Never leave the trip UI stuck on "Loading..." when the fallback cannot
+    // draw unknown cities. Preserve the finalized trip estimate instead.
+    const milesElement=document.getElementById("roadMiles");
+    const timeElement=document.getElementById("driveTime");
+    const sourceElement=document.getElementById("routeSource");
+    const estimated=Number(window.MileCountFinalRouteEstimate?.miles||0);
+    const hours=Number(window.MileCountFinalRouteEstimate?.hours||0);
+    if(milesElement)milesElement.textContent=estimated?estimated.toFixed(1)+" mi":"Route unavailable";
+    if(timeElement)timeElement.textContent=hours?(Math.floor(hours)+" hr "+Math.round((hours%1)*60)+" min"):"Route unavailable";
+    if(sourceElement)sourceElement.textContent="Estimated trip route • live road routing temporarily unavailable";
     return null;
-
   }
 
 
