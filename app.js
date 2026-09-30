@@ -501,7 +501,14 @@ async function protectReturn(){
  const lastFreight=[...plannedEvents].reverse().find(e=>e.type==="drop"&&e.load);
  const delivery=lastFreight?.location||selected?.delivery||S.selectedLoadDelivery||S.destination;
  const chosenEnd=(el("tripHomeChoice")?.value||"").trim();
- const home=(chosenEnd||S.home||el("from")?.value||S.origin||"Atlanta, GA").trim();
+ // Preserve the exact saved city/state. Never infer a state from the current
+ // truck/load location (the bug that produced McDonough, GA → Atlanta, FL).
+ let home=(chosenEnd||S.home||el("from")?.value||S.origin||"Atlanta, GA").trim();
+ if(!home.includes(",")){
+   const authoritative=String(S.home||el("from")?.value||S.origin||"").trim();
+   const sameCity=authoritative.split(",")[0].trim().toLowerCase()===home.toLowerCase();
+   if(sameCity&&authoritative.includes(","))home=authoritative;
+ }
  S.home=home;
  if(S.stackPlan)S.stackPlan.endLocation=home;
  if(el("returnLane"))el("returnLane").textContent=delivery+" → "+home;
@@ -512,6 +519,13 @@ async function protectReturn(){
  if(el("returnLead"))el("returnLead").textContent="Searching connected freight up to 3 days after delivery for loads that move you toward "+home+".";
  showScreen(4);
 
+ const homeParts=home.split(",").map(x=>x.trim());
+ if(homeParts.length<2||!/^[A-Z]{2}$/i.test(homeParts[1])){
+   setBusy(false);setButtonBusy("protect",false,"","FIND MY WAY HOME");
+   if(el("returnStatus"))el("returnStatus").textContent="CHECK END LOCATION";
+   if(el("returnLead"))el("returnLead").textContent="Enter the home/end location as City, ST so MileCount never guesses the wrong state.";
+   return;
+ }
  const candidates=[];
  // Search TrukTek from delivery market toward home on today + next 3 days.
  for(let day=0;day<=3;day++){
