@@ -647,6 +647,7 @@ class="screen active"
   <label>MAINTENANCE RESERVE / MILE<input id="maintenanceCPM" type="number" step="0.01" value="0.20"></label>
   <label>OTHER FIXED COSTS / MONTH<input id="monthlyOther" type="number" value="300"></label>
   <label>EXPECTED MILES / MONTH<input id="monthlyMiles" type="number" value="8000"></label>
+  <label>DRIVER PAY % OF GROSS<input id="driverPayPct" type="number" min="0" max="100" step="1" value="20"></label>
   <div class="row">
     <div class="metric"><small>BREAK-EVEN CPM</small><b id="breakEvenCPM">Calculating...</b></div>
     <div class="metric"><small>TARGET RPM</small><b id="targetRPM">Calculating...</b></div>
@@ -848,9 +849,10 @@ Your trip
   <div class="row" style="margin-top:9px"><div class="metric"><small>FUEL USED</small><b id="overviewGallons">—</b></div><div class="metric"><small>FUEL COST</small><b id="overviewFuel">—</b></div></div>
   <div class="row" style="margin-top:9px"><div class="metric"><small>MAINTENANCE RESERVE</small><b id="overviewMaintenance">—</b></div><div class="metric"><small>INSURANCE ALLOCATION</small><b id="overviewInsurance">—</b></div></div>
   <div class="row" style="margin-top:9px"><div class="metric"><small>TRUCK PAYMENT ALLOCATION</small><b id="overviewPayment">—</b></div><div class="metric"><small>OTHER OVERHEAD</small><b id="overviewOther">—</b></div></div>
-  <div class="row" style="margin-top:9px"><div class="metric"><small>TRIP FUEL COST</small><b id="overviewCost">—</b></div><div class="metric"><small>AFTER-GAS PROFIT</small><b id="overviewMargin" class="green">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>TRIP FUEL COST</small><b id="overviewCost">—</b></div><div class="metric"><small>DRIVER PAY</small><b id="overviewDriverPay">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>AFTER-GAS PROFIT</small><b id="overviewMargin">—</b></div><div class="metric"><small>AFTER FUEL + DRIVER</small><b id="overviewNetAfterDriver" class="green">—</b></div></div>
   <p id="overviewFuelDetail" class="details"></p>
-  <p class="details">Trip view subtracts fuel only. Insurance, maintenance, truck payment and other overhead stay in your separate budget. Tolls, taxes, payroll and unexpected expenses are not included.</p>
+  <p class="details">Driver pay uses your saved gross-revenue percentage. Insurance, maintenance, truck payment and other overhead stay in your separate budget. Tolls, taxes and unexpected expenses are not included.</p>
 </div>
 <button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
   <div id="tripSaveStatus" class="details"></div>
@@ -980,12 +982,12 @@ BEST FREIGHT TOWARD HOME
 <div class="proBox">
 <div class="loadTop"><div><div class="loadLane" id="returnLane">Charlotte, NC → Atlanta, GA</div><div class="loadMeta">Return / backhaul opportunity</div></div><div class="loadPay" id="returnPay">$0</div></div>
 <div class="loadMetrics">
-<div class="loadMetric"><small>RETURN SOURCE</small><b id="returnSource">SIMULATION</b></div>
-<div class="loadMetric"><small>RETURN STATUS</small><b id="returnStatus">DEMO</b></div>
-<div class="loadMetric"><small>ROUND TRIP</small><b id="returnMilesPreview">Calculating</b></div>
-<div class="loadMetric"><small>TRIP TOTAL</small><b id="previewRoundPay">$2,615</b></div>
+<div class="loadMetric"><small>RETURN SOURCE</small><b id="returnSource">SEARCH READY</b></div>
+<div class="loadMetric"><small>RETURN STATUS</small><b id="returnStatus">NOT SEARCHED</b></div>
+<div class="loadMetric"><small>ALL MILES</small><b id="returnMilesPreview">—</b></div>
+<div class="loadMetric"><small>TRIP TOTAL</small><b id="previewRoundPay">—</b></div>
 </div>
-<div class="loadFoot"><span class="sourceTag" id="returnSourceTag">SIMULATION</span><span class="verdictTag">GET HOME PAID</span></div>
+<div class="loadFoot"><span class="sourceTag" id="returnSourceTag">LIVE PROVIDERS</span><span class="verdictTag">GET HOME PAID</span></div>
 </div>
 
 
@@ -1210,7 +1212,7 @@ app
 <script src="map.js?v=20260930-finalfallback14"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260929-state-outlines1"></script>
-<script src="app.js?v=20260930-livehomebound15"></script>
+<script src="app.js?v=20260930-partnerready16"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
