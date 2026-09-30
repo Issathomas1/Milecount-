@@ -8,6 +8,23 @@ const MC_KEY="sb_publishable_6cP65DrMPJFkHgnk6eEAAA_-LQQC1fN";
 const MC_SESSION_KEY="milecount_supabase_session";
 
 window.MileCountCloud=(()=>{
+ let recoveryToken=null;
+ const fragment=new URLSearchParams(location.hash.slice(1));
+ if(fragment.get("type")==="recovery"){
+  recoveryToken=fragment.get("access_token")||"";
+  history.replaceState(null,"",location.pathname+location.search);
+ }
+ function isPasswordRecovery(){return recoveryToken!==null}
+ async function requestPasswordReset(email){
+  const redirect=new URL("./",location.href).href;
+  return jsonFetch(MC_URL+"/auth/v1/recover?redirect_to="+encodeURIComponent(redirect),{method:"POST",headers:authHeaders(),body:JSON.stringify({email})});
+ }
+ async function finishPasswordReset(password){
+  if(!recoveryToken)throw new Error("Reset link expired.");
+  await jsonFetch(MC_URL+"/auth/v1/user",{headers:authHeaders(recoveryToken)});
+  await jsonFetch(MC_URL+"/auth/v1/user",{method:"PUT",headers:authHeaders(recoveryToken),body:JSON.stringify({password})});
+  try{await jsonFetch(MC_URL+"/auth/v1/logout",{method:"POST",headers:authHeaders(recoveryToken)})}catch(e){}finally{recoveryToken="";writeSession(null)}
+ }
  function readSession(){try{return JSON.parse(localStorage.getItem(MC_SESSION_KEY)||"null")}catch(e){return null}}
  function writeSession(s){if(s)localStorage.setItem(MC_SESSION_KEY,JSON.stringify(s));else localStorage.removeItem(MC_SESSION_KEY)}
  async function jsonFetch(url,options={}){
@@ -68,5 +85,5 @@ window.MileCountCloud=(()=>{
  async function plannerTrips(){return rows("planner_trips","select=*&order=pickup_at.asc")}
  async function savePlannerTrip(t){return insert("planner_trips",t)}
  async function updatePlannerTrip(id,obj){const a=await patch("planner_trips","id=eq."+encodeURIComponent(id),obj);return a[0]||a}
- return {isEnabled:()=>true,health,signUp,signIn,signOut,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,isAdmin,rpc,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
+ return {isEnabled:()=>true,health,signUp,signIn,signOut,isPasswordRecovery,requestPasswordReset,finishPasswordReset,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,isAdmin,rpc,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
 })();

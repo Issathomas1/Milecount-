@@ -731,10 +731,10 @@ let route=null;
   if(el("allMilesRPM"))el("allMilesRPM").textContent="$"+r.rpm.toFixed(2);
   if(el("tripBreakEvenRPM"))el("tripBreakEvenRPM").textContent="$"+breakEvenRPM.toFixed(2);
   if(el("costFuel"))el("costFuel").textContent="-"+money(r.fuelCost);
-  if(el("costMaintenance"))el("costMaintenance").textContent="-"+money(maintenanceCost);
-  if(el("costInsurance"))el("costInsurance").textContent="-"+money(insuranceCost);
-  if(el("costPayment"))el("costPayment").textContent="-"+money(paymentCost);
-  if(el("costOther"))el("costOther").textContent="-"+money(otherCost);
+  if(el("costMaintenance"))el("costMaintenance").textContent="Budgeted separately";
+  if(el("costInsurance"))el("costInsurance").textContent="Budgeted separately";
+  if(el("costPayment"))el("costPayment").textContent="Budgeted separately";
+  if(el("costOther"))el("costOther").textContent="Budgeted separately";
   if(el("operatingCost"))el("operatingCost").textContent="-"+money(totalTripCost);
   if(el("roundPay"))el("roundPay").textContent=money(r.totalRevenue);
   if(el("roundMiles"))el("roundMiles").textContent=Math.round(r.miles).toLocaleString();
@@ -743,7 +743,7 @@ let route=null;
   if(el("fuelDetails"))el("fuelDetails").textContent=r.gallons.toFixed(1)+" gallons • $"+r.dieselPrice.toFixed(2)+"/gal • "+r.fuelSource+(r.fuelUpdated?" • "+r.fuelUpdated:"");
   if(el("afterFuel"))el("afterFuel").textContent=money(tripMargin);
  }
- if(el("returnConfirmationBadge"))el("returnConfirmationBadge").textContent=S.demoReturn?"SANDBOX RETURN ADDED • DEMO ONLY":"LIVE RETURN LOAD ADDED";
+ if(el("returnConfirmationBadge"))el("returnConfirmationBadge").textContent=S.demoReturn?"SANDBOX RETURN ADDED • DEMO ONLY":"LIVE RETURN PLANNED • CONFIRM WITH PROVIDER";
  el("homeResult")?.classList.remove("hidden");
  if(el("getHome")){el("getHome").textContent=S.demoReturn?"DEMO RETURN ADDED ✓":"HOMEBOUND LOAD ADDED ✓";el("getHome").disabled=true}
  // The return is now part of the trip. Remove stale search CTA and selection tray.
@@ -765,6 +765,9 @@ function refreshFinalTripOverview(){
  // Insurance, maintenance reserve, truck payment and other overhead stay in the
  // owner's separate personal/business budget and are not trip deductions.
  const maintenance=0,insurance=0,payment=0,other=0;
+ const profile=costProfile(),budgetCost=Number(fuel.fuelCost||0)+miles*(profile.maintenance+profile.fixed/Math.max(1,val("monthlyMiles",8000)));
+ if(el("overviewBudgetCost"))el("overviewBudgetCost").textContent=money(budgetCost);
+ if(el("overviewBudgetMargin"))el("overviewBudgetMargin").textContent=money(revenue-budgetCost);
  const cost=Number(fuel.fuelCost||0);
  const margin=revenue-cost;
  if(el("overviewRevenue"))el("overviewRevenue").textContent=money(revenue);
@@ -808,10 +811,10 @@ function renderBookingChecklist(){
  if(el("bookingCount"))el("bookingCount").textContent=loads.length+" live load"+(loads.length===1?"":"s")+" • booking checklist";
  box.innerHTML=loads.length?loads.map((l,i)=>{
   const k=loadKey(l),done=!!S.bookingConfirmed[k],provider=l.provider||"Provider",url=l.sourceUrl||"";
-  return '<div class="homeAlt"><b>'+(i+1)+'. '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span>'+escHtml(provider)+' • '+money(l.pay)+'</span><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:7px">'+(url?'<a class="miniBtn" href="'+escHtml(url)+'" target="_blank" rel="noopener">VIEW / BOOK ON '+escHtml(provider).toUpperCase()+'</a>':'<span class="sourceTag">CONTACT '+escHtml(provider).toUpperCase()+'</span>')+'<button type="button" class="bookingConfirm" data-key="'+escHtml(k)+'">'+(done?'✓ BOOKED / CLAIMED':'MARK BOOKED / CLAIMED')+'</button></div></div>';
+  return '<div class="homeAlt"><b>'+(i+1)+'. '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span>'+escHtml(provider)+' • '+money(l.pay)+'</span><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:7px">'+(url?'<a class="miniBtn" href="'+escHtml(url)+'" target="_blank" rel="noopener">CONTINUE WITH '+escHtml(provider).toUpperCase()+'</a>':'<span class="sourceTag">CONTACT '+escHtml(provider).toUpperCase()+'</span>')+'<button type="button" class="bookingConfirm" data-key="'+escHtml(k)+'">'+(done?'✓ HANDOFF COMPLETED (SELF-REPORTED)':'I COMPLETED THE PROVIDER HANDOFF')+'</button></div></div>';
  }).join(""):'<div class="details">No live provider loads are attached to this trip.</div>';
  box.querySelectorAll(".bookingConfirm").forEach(b=>b.onclick=()=>{S.bookingConfirmed[b.dataset.key]=!S.bookingConfirmed[b.dataset.key];syncTruckBrain("booking-confirmed");renderBookingChecklist()});
- const allDone=loads.length>0&&loads.every(l=>S.bookingConfirmed[loadKey(l)]);
+ const allDone=loads.length>0&&loads.every(l=>window.MileCountBooking?.isConfirmed?.(l));
  el("startBookedTrip")?.classList.toggle("hidden",!allDone);
 }
 function openBookingHandoffs(){renderBookingChecklist();el("bookingHandoff")?.scrollIntoView({behavior:"smooth",block:"start"})}
@@ -1027,7 +1030,7 @@ bind("applyTripHome",async function(){
 });
 bind("saveTripButton",()=>saveCurrentTrip(true));
 bind("bookAllLoads",openBookingHandoffs);
-bind("startBookedTrip",async()=>{const ok=await saveCurrentTrip(true);if(ok&&el("tripSaveStatus"))el("tripSaveStatus").textContent="TRIP READY ✓ Provider bookings/claims marked complete.";});
+bind("startBookedTrip",async()=>{const ok=await saveCurrentTrip(true);if(ok&&el("tripSaveStatus"))el("tripSaveStatus").textContent="Trip saved. Provider confirmation is tracked separately.";});
 
 async function startSmartDispatchFromLocation(){
  const status=el("smartDispatchStatus"),btn=el("smartDispatchLocation");

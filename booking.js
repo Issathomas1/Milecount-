@@ -74,7 +74,7 @@ function injectStyles(){
 }
 function cls(st){if(st===STATES.ACCEPTED)return"accepted";if([STATES.REQUESTING,STATES.PENDING,STATES.ACTION_REQUIRED].indexOf(st)>=0)return"pending";if([STATES.DECLINED,STATES.EXPIRED,STATES.CANCELLED].indexOf(st)>=0)return"bad";return""}
 function label(st){return{AVAILABLE:"AVAILABLE",REQUESTING:"CHECKING...",PENDING:"PENDING PROVIDER",ACCEPTED:"CONFIRMED",DECLINED:"DECLINED",EXPIRED:"UNAVAILABLE",ACTION_REQUIRED:"FINISH WITH PROVIDER",CANCELLED:"CANCELLED",NOT_BOOKABLE:"NOT BOOKABLE"}[st]||st}
-function actionLabel(st){if(st===STATES.ACCEPTED)return"CONFIRMED";if(st===STATES.REQUESTING)return"CHECKING...";if(st===STATES.PENDING)return"PENDING";if(st===STATES.ACTION_REQUIRED)return"CONTINUE BOOKING";if(st===STATES.EXPIRED)return"UNAVAILABLE";return"BOOK LOAD"}
+function actionLabel(st){if(st===STATES.ACCEPTED)return"CONFIRMED";if(st===STATES.REQUESTING)return"CHECKING...";if(st===STATES.PENDING)return"PENDING";if(st===STATES.ACTION_REQUIRED)return"CONTINUE WITH PROVIDER";if(st===STATES.EXPIRED)return"UNAVAILABLE";return"REVIEW BOOKING"}
 
 function ensureTop(){
  if(document.getElementById("mcBookingCenterBtn"))return;var h=document.querySelector("header");if(!h)return;

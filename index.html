@@ -393,6 +393,30 @@ color:var(--muted);
 /* Partner-demo polish: keep provider cards readable and production actions consistent */
 .loadBootRef{margin-top:10px;font-size:12px;line-height:1.45;color:#b7c9c0}.loadBootRef a{color:#7fe0b1;font-weight:900}.candidateLoad{overflow:hidden}.loadMeta{line-height:1.35}.sourceTag{white-space:nowrap}
 @media(max-width:520px){.loadTop{align-items:flex-start}.loadPay{font-size:30px}.loadFoot{gap:7px;flex-wrap:wrap}.loadMetrics{grid-template-columns:1fr 1fr}.stackTray{left:50%!important;right:auto!important;bottom:10px!important;width:calc(100% - 24px)!important;max-width:626px;max-height:none;overflow:visible}.stackTray.active{transform:translate(-50%,0)!important}.screen{padding-bottom:190px}.globalBusy{top:62px;padding:8px 12px}.homeboundAltBox{max-height:260px;overflow:auto}}
+
+/* Driver polish: readable economics and comfortable mobile controls. */
+.details,.simpleSearchSub,.stackHelp span,.loadMeta,.mapLabel{font-size:13px;line-height:1.55;color:#b4c7bd}
+label{font-size:12px;color:#c1d2c8;letter-spacing:.035em}
+.metric small,.loadMetrics small,.stackPlanMetrics small{font-size:11px;color:#b4c7bd;line-height:1.35}
+.metric b,.loadMetrics b,.stackPlanMetrics b{font-size:19px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.money,.loadPay{font-variant-numeric:tabular-nums;color:#64dda0}
+.stackHelp b,.stackRoute b,.tripStateNow b{font-size:13px}
+.stackRoute span,.tripStateNow span,.stackHelp span,.homeAlt span{font-size:12px;line-height:1.5}
+.sourceTag,.stackPick,.mcBookingState{font-size:11px!important}
+.mcBookingItem p,.mcBookingActionRow small,.mcCommitSummary,.mcPlanCommitNotice{font-size:12px!important;line-height:1.5}
+.mcBookingItem b{font-size:14px!important}
+.mcBookingItemActions button,.mcBookingActionRow button,.stackTray button{font-size:12px!important;min-height:44px}
+.stackTray small{font-size:11px}.stackTray b{font-size:14px}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #7de5b3;outline-offset:3px}
+button{cursor:pointer}button:disabled{cursor:default}
+.authActions{display:flex;justify-content:space-between;gap:12px;margin:4px 0 8px}
+.authActions button{width:auto;min-height:44px;margin:0;padding:8px 0;background:transparent;color:#8ee7ba;font-size:13px;font-weight:600}
+#gateMessage:empty{display:none}#authGate .details{font-size:14px;color:#bdcec4}
+.photoHero{height:240px}.reviewIntro{padding-bottom:8px}.hero{display:none}
+.simpleSearchCard{border-color:#365a47}.simpleDetails summary{font-size:14px;min-height:44px;padding:12px 0;cursor:pointer}
+@media(max-width:520px){.photoHero{height:210px}.photoHero>div:last-child{left:18px!important;bottom:20px!important}.photoHero>div:last-child>div:nth-child(2){font-size:34px!important}.metric{min-width:0;padding:10px}.metric b{font-size:17px}.row{flex-wrap:wrap}.row>.metric{flex:1 1 130px}.compactVehicle{flex-wrap:wrap}.compactVehicle label{min-width:0!important;width:100%}.stackTray{bottom:calc(10px + env(safe-area-inset-bottom))!important}.screen{padding-bottom:245px}.loadFoot{flex-wrap:wrap}.mcBookingItemTop{gap:8px}.mcBookingOverlay{padding-bottom:calc(14px + env(safe-area-inset-bottom))!important}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
 </style>
 
 <!-- deploy-retry-20260927-1657-stable -->
@@ -400,7 +424,7 @@ color:var(--muted);
 
 
 <body>
-<div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px;width:100vw;height:100dvh;overflow:auto"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 style="margin:14px 0 6px">Sign in to continue</h1><p class="details">Your trips, truck setup and Smart AutoStack plans stay tied to your MileCount account.</p><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><button id="gateSignIn" type="button">SIGN IN</button><button id="gateCreate" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">CREATE ACCOUNT</button><div id="gateMessage" class="details" style="margin-top:10px"></div></div></div>
+<div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px;width:100vw;height:100dvh;overflow:auto"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 id="gateTitle" style="margin:14px 0 6px">Welcome to MileCount</h1><p class="details">Plan profitable routes and keep your truck setup and trips in one place.</p><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label id="gatePasswordLabel">PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><div class="authActions"><button id="gateShowPassword" type="button" aria-controls="gatePassword" aria-pressed="false">Show password</button><button id="gateForgotPassword" type="button">Forgot password?</button></div><button id="gateSignIn" type="button">SIGN IN</button><button id="gateCreate" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">CREATE ACCOUNT</button><div id="gateMessage" class="details" role="status" aria-live="polite" style="margin-top:10px"></div></div></div>
 <div id="dfDetailsModal" class="hidden" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;overflow:auto">
  <div class="card" style="max-width:650px;margin:7vh auto;background:#07150f">
   <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><span class="badge">LIVE • DIRECT FREIGHT</span><h2 id="dfDetailLane" style="margin:8px 0">Load details</h2></div><button id="closeDfDetails" type="button" style="width:auto;padding:10px 14px">CLOSE</button></div>
@@ -409,7 +433,7 @@ color:var(--muted);
   <a id="dfDetailLink" class="btn" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:14px">VIEW ON DIRECT FREIGHT</a>
  </div>
 </div>
-<div id="stackTray" class="stackTray"><div><small>AUTOSTACK SELECTED</small><b><span id="stackCount">0</span> loads • <span id="stackSelectedPay">$0</span></b><small id="stackBaseLabel"></small></div><button id="clearStack" type="button">CLEAR</button><button id="doneStack" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">DONE • USE MY PICKS</button><button id="smartAutoStack" type="button">SMART AUTOSTACK</button></div>
+<div id="stackTray" class="stackTray"><div><small>AUTOSTACK SELECTED</small><b><span id="stackCount">0</span> loads • <span id="stackSelectedPay">$0</span></b><small id="stackBaseLabel"></small></div><button id="clearStack" type="button">CLEAR</button><button id="doneStack" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">REVIEW MY ROUTE</button><button id="smartAutoStack" type="button">OPTIMIZE MY PICKS</button></div>
 <div id="globalBusy" class="globalBusy" role="status" aria-live="polite"><div class="busySpinner"></div><span id="globalBusyText">One moment — finding loads…</span></div>
 
 <div class="app">
@@ -438,9 +462,9 @@ MileCount<span class="green">.</span>
   <img src="https://images.pexels.com/photos/7363196/pexels-photo-7363196.jpeg?auto=compress&cs=tinysrgb&w=1600" alt="Box truck being loaded at a warehouse">
   <div class="photoOverlay"></div>
   <div style="position:absolute;left:24px;bottom:28px;right:24px;z-index:2;max-width:520px">
-    <div style="color:#4fd487;font-weight:900;font-size:13px;letter-spacing:1px">BOX-TRUCK MONEY.</div>
+    <div style="color:#4fd487;font-weight:900;font-size:13px;letter-spacing:1px">FREIGHT FOR YOUR TRUCK.</div>
     <div style="font-size:42px;line-height:1.02;font-weight:900;margin-top:8px">Make Every<br><span style="color:#31bf72">Mile Count.</span></div>
-    <div style="margin-top:14px;font-size:17px;color:#e1ebe6">Pick where you are. Find local money. Build the best day.</div>
+    <div style="margin-top:14px;font-size:17px;color:#e1ebe6">Find freight. Plan your route. Make every mile count.</div>
   </div>
 </div>
 
@@ -467,62 +491,6 @@ class="screen active"
  <div><b>1</b><span>Choose where you are</span></div>
  <div><b>2</b><span>Pick local loads</span></div>
  <div><b>3</b><span>Smart Stack & come home</span></div>
-</div>
-
-<div class="card homeMapCard">
-<div id="boardHealth" class="boardHealth working">Connecting to freight sources…</div>
-<div class="homeMapTitleRow">
-<div>
-  <span class="badge">LIVE LOAD BOARD</span>
-  <h2>Local loads available now</h2>
-  <div class="liveNowStrip"><span>FREIGHT ON BOARD</span><strong id="unifiedFreightCount">Checking…</strong><small id="unifiedFreightSplit">Live + clearly labeled sandbox/test</small></div>
-<div class="liveNowStrip"><span>LIVE NOW</span><strong id="liveLoadCount">Checking…</strong><small id="liveLoadCountSource">Production/public live freight only</small></div>
-  <p class="details">Local box-truck freight appears together here. REAL, SANDBOX and SIM loads stay clearly labeled.</p>
-</div>
-<button id="refreshLiveMap" type="button">REFRESH</button>
-</div>
-<div class="stateBrowseBar">
-<label style="margin:0">BROWSE A STATE
-<select id="stateLoadBrowser">
-<option value="">Tap a state…</option>
-<option value="GA">Georgia</option><option value="FL">Florida</option><option value="NC">North Carolina</option><option value="SC">South Carolina</option><option value="TN">Tennessee</option><option value="AL">Alabama</option>
-<option value="TX">Texas</option><option value="CA">California</option><option value="IL">Illinois</option><option value="NY">New York</option><option value="NJ">New Jersey</option><option value="PA">Pennsylvania</option><option value="OH">Ohio</option><option value="MI">Michigan</option><option value="VA">Virginia</option><option value="MD">Maryland</option>
-</select></label>
-<span id="stateBrowseStatus">Tap a state to place your truck there and show local pickup loads.</span>
-</div>
-<div class="loadMapShell">
-<div class="loadMapHead"><div><span class="badge">LOAD MAP</span><h3>Tap a state. See the loads.</h3></div><div class="loadMapStats"><b id="loadMapTotal">0 RESULTS</b><b id="loadMapCount">0 MAPPED</b></div></div>
-<div class="loadMapToolbar">
-<button type="button" class="active" data-load-map-mode="pins">CLUSTERED PINS</button>
-
-
-</div>
-<div class="loadAreaBar">
-<button id="searchMapArea" type="button">SEARCH THIS MAP AREA</button>
-<button id="clearMapArea" type="button">CLEAR AREA</button>
-<span id="loadAreaStatus">Map area search off</span>
-</div>
-<div id="loadDiscoveryMap" aria-label="Clickable map of matched freight loads"></div>
-<div class="loadMapLegend"><span><i class="dot strong"></i>Strong</span><span><i class="dot works"></i>Works</span><span><i class="dot pass"></i>Pass</span><em>Tap any pin for load details.</em></div>
-</div>
-<div class="providerFilterBar">
-<label>SOURCE
-<select id="providerFilter">
-<option value="all">All Companies</option>
-<option value="live">Live Only</option>
-<option value="sandbox">Sandbox / Test Only</option>
-</select>
-</label>
-<span id="providerFilterShowing">Showing all connected freight</span>
-</div>
-<div class="row" style="margin-top:8px">
-<button id="viewLoadList" type="button" style="background:#15271f;border:1px solid #2b4438">SEE ALL LOADS</button>
-</div>
-
-<div class="sandboxStrip">
- <div><span>LOADBOOT SANDBOX</span><strong id="loadBootSandboxStatus">Checking sandbox…</strong><small>Test freight appears on the same board • clearly labeled and excluded only from the LIVE NOW production count</small></div>
- <button id="viewLoadBootSandbox" type="button">LOADBOOT TEST LOADS</button>
-</div>
 </div>
 
 <div class="card simpleSearchCard">
@@ -555,7 +523,7 @@ class="screen active"
 
 <div class="searchStatus simpleStatus">
   <div><strong>Authorized freight search</strong><br><span>Live provider freight when available. Simulation is labeled separately.</span></div>
-  <span id="providerCount">API READY</span>
+  <span id="providerCount">CHECKING SOURCES</span>
 </div>
 
 <div class="simplePrimaryGrid">
@@ -665,6 +633,62 @@ class="screen active"
 </details>
 
 </div>
+<div class="card homeMapCard">
+<div id="boardHealth" class="boardHealth working">Connecting to freight sources…</div>
+<div class="homeMapTitleRow">
+<div>
+  <span class="badge">LIVE LOAD BOARD</span>
+  <h2>Local loads available now</h2>
+  <div class="liveNowStrip"><span>FREIGHT ON BOARD</span><strong id="unifiedFreightCount">Checking…</strong><small id="unifiedFreightSplit">Live + clearly labeled sandbox/test</small></div>
+<div class="liveNowStrip"><span>LIVE NOW</span><strong id="liveLoadCount">Checking…</strong><small id="liveLoadCountSource">Production/public live freight only</small></div>
+  <p class="details">Local box-truck freight appears together here. REAL, SANDBOX and SIM loads stay clearly labeled.</p>
+</div>
+<button id="refreshLiveMap" type="button">REFRESH</button>
+</div>
+<div class="stateBrowseBar">
+<label style="margin:0">BROWSE A STATE
+<select id="stateLoadBrowser">
+<option value="">Tap a state…</option>
+<option value="GA">Georgia</option><option value="FL">Florida</option><option value="NC">North Carolina</option><option value="SC">South Carolina</option><option value="TN">Tennessee</option><option value="AL">Alabama</option>
+<option value="TX">Texas</option><option value="CA">California</option><option value="IL">Illinois</option><option value="NY">New York</option><option value="NJ">New Jersey</option><option value="PA">Pennsylvania</option><option value="OH">Ohio</option><option value="MI">Michigan</option><option value="VA">Virginia</option><option value="MD">Maryland</option>
+</select></label>
+<span id="stateBrowseStatus">Tap a state to place your truck there and show local pickup loads.</span>
+</div>
+<div class="loadMapShell">
+<div class="loadMapHead"><div><span class="badge">LOAD MAP</span><h3>Tap a state. See the loads.</h3></div><div class="loadMapStats"><b id="loadMapTotal">0 RESULTS</b><b id="loadMapCount">0 MAPPED</b></div></div>
+<div class="loadMapToolbar">
+<button type="button" class="active" data-load-map-mode="pins">CLUSTERED PINS</button>
+
+
+</div>
+<div class="loadAreaBar">
+<button id="searchMapArea" type="button">SEARCH THIS MAP AREA</button>
+<button id="clearMapArea" type="button">CLEAR AREA</button>
+<span id="loadAreaStatus">Map area search off</span>
+</div>
+<div id="loadDiscoveryMap" aria-label="Clickable map of matched freight loads"></div>
+<div class="loadMapLegend"><span><i class="dot strong"></i>Strong</span><span><i class="dot works"></i>Works</span><span><i class="dot pass"></i>Pass</span><em>Tap any pin for load details.</em></div>
+</div>
+<div class="providerFilterBar">
+<label>SOURCE
+<select id="providerFilter">
+<option value="all">All Companies</option>
+<option value="live">Live Only</option>
+<option value="sandbox">Sandbox / Test Only</option>
+</select>
+</label>
+<span id="providerFilterShowing">Showing all connected freight</span>
+</div>
+<div class="row" style="margin-top:8px">
+<button id="viewLoadList" type="button" style="background:#15271f;border:1px solid #2b4438">SEE ALL LOADS</button>
+</div>
+
+<div class="sandboxStrip">
+ <div><span>LOADBOOT SANDBOX</span><strong id="loadBootSandboxStatus">Checking sandbox…</strong><small>Test freight appears on the same board • clearly labeled and excluded only from the LIVE NOW production count</small></div>
+ <button id="viewLoadBootSandbox" type="button">LOADBOOT TEST LOADS</button>
+</div>
+</div>
+
 </section>
 
 
@@ -699,9 +723,7 @@ Load results.
 <div
 id="added"
 class="money"
->
-+$475
-</div>
+>—</div>
 
 
 <div class="row">
@@ -712,9 +734,7 @@ class="money"
 CURRENT TRIP
 </small>
 
-<b id="current">
-$1,400
-</b>
+<b id="current">—</b>
 
 </div>
 
@@ -725,9 +745,7 @@ $1,400
 NEW TRIP
 </small>
 
-<b id="newTotal">
-$1,875
-</b>
+<b id="newTotal">—</b>
 
 </div>
 
@@ -751,8 +769,8 @@ AUTOSTACK DECISION
 </div>
 
 <div class="row" style="margin-bottom:10px">
-  <div class="metric"><small>LOAD SPACE</small><b id="spaceUsed">7 ft</b></div>
-  <div class="metric"><small>LOAD WEIGHT</small><b id="weightUsed">2,450 lb</b></div>
+  <div class="metric"><small>LOAD SPACE</small><b id="spaceUsed">—</b></div>
+  <div class="metric"><small>LOAD WEIGHT</small><b id="weightUsed">—</b></div>
 </div>
 
 <small>
@@ -788,13 +806,9 @@ MileCount Fuel Engine
 Truck after loading
 </b>
 
-<p id="remainingSpace">
-7 ft remaining
-</p>
+<p id="remainingSpace">—</p>
 
-<p id="remainingWeight">
-3,750 lb remaining
-</p>
+<p id="remainingWeight">—</p>
 
 </div>
 
@@ -850,59 +864,28 @@ Your trip
   <div class="row" style="margin-top:9px"><div class="metric"><small>LANE START</small><b id="tripHomeStart">—</b></div><div class="metric"><small>FINAL DESTINATION</small><b id="tripFinalDestination">—</b></div></div><label style="margin-top:12px">HOME / END LOCATION<input id="tripHomeChoice" type="text" placeholder="City, State — e.g. Atlanta, GA" autocomplete="address-level2"></label><p class="details" style="margin-top:6px">Choose where you actually want this trip to end. It can be different from where the lane started.</p><button id="applyTripHome" type="button" style="background:#15271f;border:1px solid #2b4438">SET END LOCATION & RECALCULATE</button>
   <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL TRIP PAY</small><b id="tripDetailPay">—</b></div><div class="metric"><small>RETURN LOAD</small><b id="tripDetailReturn">—</b></div></div>
   <div id="tripOverview" class="fuelBox" style="margin-top:14px">
-  <small>FINAL TRIP OVERVIEW</small>
-  <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL REVENUE</small><b id="overviewRevenue">—</b></div><div class="metric"><small>ROAD MILES</small><b id="overviewMiles">—</b></div></div>
+  <small>TRIP SUMMARY</small>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>PLANNED REVENUE</small><b id="overviewRevenue">—</b></div><div class="metric"><small>ROAD MILES</small><b id="overviewMiles">—</b></div></div>
   <div class="row" style="margin-top:9px"><div class="metric"><small>ALL-MILE RPM</small><b id="overviewRPM">—</b></div><div class="metric"><small>DRIVE TIME</small><b id="overviewDriveTime">—</b></div></div>
   <div class="row" style="margin-top:9px"><div class="metric"><small>FUEL USED</small><b id="overviewGallons">—</b></div><div class="metric"><small>FUEL COST</small><b id="overviewFuel">—</b></div></div>
-  <div class="row" style="margin-top:9px"><div class="metric"><small>TRIP FUEL COST</small><b id="overviewCost">—</b></div><div class="metric"><small>AFTER-GAS PROFIT</small><b id="overviewMargin" class="green">—</b></div></div>
-  <p id="overviewFuelDetail" class="details"></p>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>FUEL DEDUCTION</small><b id="overviewCost">—</b></div><div class="metric"><small>AFTER FUEL</small><b id="overviewMargin" class="green">—</b></div></div>
+  <p id="overviewFuelDetail" class="details"></p><details class="simpleDetails"><summary>After estimated operating costs</summary><div class="simpleDetailsBody"><div class="row"><div class="metric"><small>ESTIMATED COSTS</small><b id="overviewBudgetCost">—</b></div><div class="metric"><small>AFTER ESTIMATED COSTS</small><b id="overviewBudgetMargin">—</b></div></div><p class="details">Uses fuel plus your truck-cost assumptions, allocated by miles. Estimates exclude taxes, tolls, labor, fees and unexpected expenses. Planned pay is not guaranteed revenue.</p></div></details>
 
 </div>
 <div id="bookingHandoff" class="card" style="margin-top:14px;background:#09150f">
-  <span class="badge">READY TO BOOK</span>
+  <span class="badge">PROVIDER BOOKING</span>
   <h2 id="bookingCount">Booking checklist</h2>
   <p class="details">Complete each live provider handoff before starting the trip. MileCount does not claim a load until the provider confirms it.</p>
   <div id="bookingChecklist" style="display:grid;gap:8px;margin:12px 0"></div>
-  <button id="bookAllLoads" type="button">BOOK / CLAIM ALL LOADS</button>
-  <button id="startBookedTrip" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">TRIP READY ✓ • SAVE & START</button>
+  <button id="bookAllLoads" type="button">REVIEW BOOKING STEPS</button>
+  <button id="startBookedTrip" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">SAVE CONFIRMED TRIP</button>
 </div>
 <button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
   <div id="tripSaveStatus" class="details"></div>
 </div>
 
 
-<div id="tripStops">
-
-<div class="stop">
-
-🚚 <b>Atlanta, GA</b>
-
-<br>
-
-START / PRIMARY CARGO
-
-</div>
-
-
-<div class="stop">
-
-📦 <b>Greenville, SC</b>
-
-<br>
-
-MileCount partial delivery
-
-</div>
-
-
-<div class="stop">
-
-🏁 <b>Charlotte, NC</b>
-
-<br>
-
-Original delivery
-
+<div id="tripStops"><p class="details">Your pickup and delivery stops appear after route review.</p>
 </div>
 
 </div>
@@ -920,9 +903,7 @@ Original delivery
 TRIP PAY
 </small>
 
-<b id="tripPay">
-$1,875
-</b>
+<b id="tripPay">—</b>
 
 </div>
 
@@ -936,9 +917,7 @@ MILECOUNT ADDED
 <b
 id="tripAdded"
 class="green"
->
-+$475
-</b>
+>—</b>
 
 </div>
 
@@ -992,7 +971,7 @@ BEST FREIGHT TOWARD HOME
 
 
 <div class="proBox">
-<div class="loadTop"><div><div class="loadLane" id="returnLane">Charlotte, NC → Atlanta, GA</div><div class="loadMeta">Return / backhaul opportunity</div></div><div class="loadPay" id="returnPay">$0</div></div>
+<div class="loadTop"><div><div class="loadLane" id="returnLane">—</div><div class="loadMeta">Return / backhaul opportunity</div></div><div class="loadPay" id="returnPay">—</div></div>
 <div class="loadMetrics">
 <div class="loadMetric"><small>RETURN SOURCE</small><b id="returnSource">SEARCH READY</b></div>
 <div class="loadMetric"><small>RETURN STATUS</small><b id="returnStatus">NOT SEARCHED</b></div>
@@ -1024,7 +1003,7 @@ class="card hidden"
 >
 
 <span class="badge" id="returnConfirmationBadge">
-LIVE RETURN LOAD ADDED
+RETURN LOAD PLANNED
 </span>
 
 
@@ -1036,9 +1015,7 @@ Total Round Trip
 <div
 id="roundPay"
 class="money"
->
-$2,615
-</div>
+>—</div>
 
 
 <div class="row">
@@ -1049,9 +1026,7 @@ $2,615
 ROUND TRIP MILES
 </small>
 
-<b id="roundMiles">
-524
-</b>
+<b id="roundMiles">—</b>
 
 </div>
 
@@ -1062,9 +1037,7 @@ ROUND TRIP MILES
 ROUND TRIP RPM
 </small>
 
-<b id="roundRPM">
-$4.99
-</b>
+<b id="roundRPM">—</b>
 
 </div>
 
@@ -1102,13 +1075,13 @@ Waiting for MileCount Fuel Engine...
 </div>
 
 <div class="card" style="margin-top:12px;background:#0a1510">
-<b>Trip Cost Breakdown</b>
+<b>Fuel deduction and separate budget</b>
 <div class="stop"><span>Fuel</span><b id="costFuel" style="float:right">—</b></div>
 <div class="stop"><span>Maintenance reserve</span><b id="costMaintenance" style="float:right">—</b></div>
 <div class="stop"><span>Insurance allocation</span><b id="costInsurance" style="float:right">—</b></div>
 <div class="stop"><span>Vehicle payment allocation</span><b id="costPayment" style="float:right">—</b></div>
 <div class="stop"><span>Other fixed-cost allocation</span><b id="costOther" style="float:right">—</b></div>
-<div class="stop"><span>Total estimated trip cost</span><b id="operatingCost" style="float:right">—</b></div>
+<div class="stop"><span>Fuel deducted from trip pay</span><b id="operatingCost" style="float:right">—</b></div>
 </div>
 
 <div class="row">
@@ -1116,7 +1089,7 @@ Waiting for MileCount Fuel Engine...
 <div class="metric">
 
 <small>
-AFTER-GAS PROFIT
+AFTER FUEL
 </small>
 
 <b id="afterFuel">
@@ -1143,7 +1116,7 @@ $0
 
 <p class="details">
 
-After-gas profit subtracts estimated fuel from trip revenue only. Insurance, maintenance, truck payment and other overhead are handled separately. Taxes, tolls, labor, fees and unexpected expenses are not included.
+After fuel subtracts estimated fuel from trip revenue only. Insurance, maintenance, truck payment and other overhead are handled separately. Taxes, tolls, labor, fees and unexpected expenses are not included.
 
 </p>
 
@@ -1190,7 +1163,7 @@ START NEW ORIGINAL TRIP
 
 <footer>
 
-<span id="footerMode">LIVE LOAD SEARCH • PROVIDER-SOURCED FREIGHT ONLY</span>
+<span id="footerMode">PROVIDER FREIGHT • TEST LOADS CLEARLY LABELED</span>
 
 <br><br>
 
@@ -1219,31 +1192,60 @@ map
 fuel
 app
 ===================== -->
-<script src="cloud.js?v=50-admin-ui"></script>
+<script src="cloud.js?v=20260930-polish1"></script>
 <script src="routing.js?v=20260928-routecache1"></script>
 <script src="map.js?v=20260930-finalfallback14"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260929-state-outlines1"></script>
-<script src="app.js?v=20260930-homefeasible28"></script>
-<script src="booking.js?v=20260930-booking1"></script>
+<script src="app.js?v=20260930-polish1"></script>
+<script src="booking.js?v=20260930-polish1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
+ const signInButton=document.getElementById("gateSignIn"),passwordInput=document.getElementById("gatePassword");
+ const recovery=window.MileCountCloud.isPasswordRecovery();
+ document.getElementById("gateShowPassword").addEventListener("click",function(){
+  const show=passwordInput.type==="password";passwordInput.type=show?"text":"password";
+  this.textContent=show?"Hide password":"Show password";this.setAttribute("aria-pressed",String(show));
+ });
+ document.getElementById("gateForgotPassword").addEventListener("click",async function(){
+  const email=document.getElementById("gateEmail");
+  if(!email.value.trim()||!email.checkValidity()){msg.textContent="Enter a valid email address above to request a reset link.";email.focus();return}
+  this.disabled=true;msg.textContent="Requesting reset link…";
+  try{await window.MileCountCloud.requestPasswordReset(email.value.trim());msg.textContent="If an account exists for this email, a password reset link will arrive shortly. Check your spam folder too."}
+  catch(e){msg.textContent="Could not request a reset link. Please try again later."}
+  finally{this.disabled=false}
+ });
+ if(recovery){
+  document.getElementById("gateTitle").textContent="Choose a new password";
+  document.getElementById("gateEmail").closest("label").hidden=true;
+  document.getElementById("gateForgotPassword").hidden=true;
+  document.getElementById("gateCreate").hidden=true;
+  passwordInput.autocomplete="new-password";passwordInput.minLength=8;
+  signInButton.textContent="SAVE NEW PASSWORD";
+ }
+
  try{
   const session=await window.MileCountCloud?.session?.();
-  if(session?.user){gate.style.display="none";document.body.classList.remove("mcAuthLocked");return}
+  if(session?.user&&!recovery){gate.style.display="none";document.body.classList.remove("mcAuthLocked");return}
  }catch(e){}
  document.body.classList.add("mcAuthLocked");
  gate.style.display="flex";
  document.body.style.overflow="hidden";
- document.getElementById("gateSignIn")?.addEventListener("click",async()=>{
+ signInButton.addEventListener("click",async()=>{
+  const email=document.getElementById("gateEmail");
+  if(!recovery&&(!email.value.trim()||!email.checkValidity())){msg.textContent="Enter a valid email address.";email.focus();return}
+  if(!passwordInput.value||(recovery&&passwordInput.value.length<8)){msg.textContent=recovery?"Use at least 8 characters for your new password.":"Enter your password.";passwordInput.focus();return}
+  signInButton.disabled=true;
   try{
-   msg.textContent="Signing in…";
-   await window.MileCountCloud.signIn(document.getElementById("gateEmail").value.trim(),document.getElementById("gatePassword").value);
-   msg.textContent="SIGNED IN ✓";
-   location.reload();
-  }catch(e){msg.textContent=e.message}
+   msg.textContent=recovery?"Updating password…":"Signing in…";
+   if(recovery){await window.MileCountCloud.finishPasswordReset(passwordInput.value);passwordInput.value="";msg.textContent="Password updated. Return to sign in with your new password.";signInButton.hidden=true;const link=document.createElement("a");link.href="./";link.textContent="Return to sign in";msg.appendChild(document.createElement("br"));msg.appendChild(link);return}
+   await window.MileCountCloud.signIn(email.value.trim(),passwordInput.value);
+   msg.textContent="Signed in. Opening your workspace…";location.reload();
+  }catch(e){msg.textContent=recovery?"This reset link may have expired. Request a new link from the sign-in page.":"Couldn't sign in. Check your email and password, or use Forgot password."}
+  finally{signInButton.disabled=false}
  });
+ passwordInput.addEventListener("keydown",e=>{if(e.key==="Enter"&&!signInButton.disabled)signInButton.click()});
  document.getElementById("gateCreate")?.addEventListener("click",()=>{
   gate.style.display="none";
   document.body.classList.remove("mcAuthLocked");
