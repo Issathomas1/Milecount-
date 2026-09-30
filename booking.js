@@ -122,7 +122,7 @@ function setProviderStatus(l,status,payload){status=String(status||"").toUpperCa
 
 function init(){
  injectStyles();ensureTop();ensureCenter();decorate();refreshCommittedSummary();
- var target=document.getElementById("loadCandidates")||document.body;var obs=new MutationObserver(function(){decorate();refreshCommittedSummary()});obs.observe(target,{childList:true,subtree:true});
+ var target=document.getElementById("loadCandidates")||document.body;var obs=new MutationObserver(function(){decorate();refreshCommittedSummary()});obs.observe(target,{childList:true,subtree:false});
  setInterval(refreshCommittedSummary,1500)
 }
 window.MileCountBooking={STATES:STATES,statusForLoad:statusFor,isConfirmed:isConfirmed,registerProvider:registerProvider,setProviderStatus:setProviderStatus,refreshCommittedSummary:refreshCommittedSummary,openCenter:openCenter};
