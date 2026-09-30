@@ -746,6 +746,26 @@ async function viewUpdatedTrip(){
  refreshFinalTripOverview();
  showScreen(3);setTimeout(async()=>{try{const stops=(Array.isArray(S.finalRouteStops)?S.finalRouteStops:[]).filter(isRoutableLocation);if(stops.length>1&&typeof showMileCountRoute==="function")await showMileCountRoute(stops);else await updateOutboundMap()}catch(e){console.warn("Final route map",e)}},200);
 }
+function bookingLoadsForTrip(){
+ const ev=Array.isArray(S.finalRouteEvents)&&S.finalRouteEvents.length?S.finalRouteEvents:(S.stackPlan?.events||[]);
+ const seen=new Set(),out=[];
+ ev.filter(e=>e.type==="pickup"&&e.load).forEach(e=>{const l=e.load,k=loadKey(l);if(!seen.has(k)){seen.add(k);out.push(l)}});
+ (S.homeboundHops||[]).forEach(l=>{const k=loadKey(l);if(!seen.has(k)){seen.add(k);out.push(l)}});
+ return out.filter(l=>!l.isSandbox&&!l.isLocalSim);
+}
+function renderBookingChecklist(){
+ const loads=bookingLoadsForTrip(),box=el("bookingChecklist");if(!box)return;
+ S.bookingConfirmed=S.bookingConfirmed||{};
+ if(el("bookingCount"))el("bookingCount").textContent=loads.length+" live load"+(loads.length===1?"":"s")+" • booking checklist";
+ box.innerHTML=loads.length?loads.map((l,i)=>{
+  const k=loadKey(l),done=!!S.bookingConfirmed[k],provider=l.provider||"Provider",url=l.sourceUrl||"";
+  return '<div class="homeAlt"><b>'+(i+1)+'. '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span>'+escHtml(provider)+' • '+money(l.pay)+'</span><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:7px">'+(url?'<a class="miniBtn" href="'+escHtml(url)+'" target="_blank" rel="noopener">VIEW / BOOK ON '+escHtml(provider).toUpperCase()+'</a>':'<span class="sourceTag">CONTACT '+escHtml(provider).toUpperCase()+'</span>')+'<button type="button" class="bookingConfirm" data-key="'+escHtml(k)+'">'+(done?'✓ BOOKED / CLAIMED':'MARK BOOKED / CLAIMED')+'</button></div></div>';
+ }).join(""):'<div class="details">No live provider loads are attached to this trip.</div>';
+ box.querySelectorAll(".bookingConfirm").forEach(b=>b.onclick=()=>{S.bookingConfirmed[b.dataset.key]=!S.bookingConfirmed[b.dataset.key];renderBookingChecklist()});
+ const allDone=loads.length>0&&loads.every(l=>S.bookingConfirmed[loadKey(l)]);
+ el("startBookedTrip")?.classList.toggle("hidden",!allDone);
+}
+function openBookingHandoffs(){renderBookingChecklist();el("bookingHandoff")?.scrollIntoView({behavior:"smooth",block:"start"})}
 async function saveCurrentTrip(showStatus=false){
  S.home=(S.home||el("from")?.value||S.origin||"").trim();
  if(S.demoTrip||S.demoReturn){if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent="TEST / SANDBOX trips are not saved as live trip history.";return false}
@@ -957,6 +977,8 @@ bind("applyTripHome",async function(){
  }finally{setBusy(false)}
 });
 bind("saveTripButton",()=>saveCurrentTrip(true));
+bind("bookAllLoads",openBookingHandoffs);
+bind("startBookedTrip",async()=>{const ok=await saveCurrentTrip(true);if(ok&&el("tripSaveStatus"))el("tripSaveStatus").textContent="TRIP READY ✓ Provider bookings/claims marked complete.";});
 
 async function startSmartDispatchFromLocation(){
  const status=el("smartDispatchStatus"),btn=el("smartDispatchLocation");

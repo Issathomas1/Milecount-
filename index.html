@@ -850,6 +850,14 @@ Your trip
   <p id="overviewFuelDetail" class="details"></p>
 
 </div>
+<div id="bookingHandoff" class="card" style="margin-top:14px;background:#09150f">
+  <span class="badge">READY TO BOOK</span>
+  <h2 id="bookingCount">Booking checklist</h2>
+  <p class="details">Complete each live provider handoff before starting the trip. MileCount does not claim a load until the provider confirms it.</p>
+  <div id="bookingChecklist" style="display:grid;gap:8px;margin:12px 0"></div>
+  <button id="bookAllLoads" type="button">BOOK / CLAIM ALL LOADS</button>
+  <button id="startBookedTrip" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">TRIP READY ✓ • SAVE & START</button>
+</div>
 <button id="saveTripButton" type="button">SAVE TO MY TRIPS</button>
   <div id="tripSaveStatus" class="details"></div>
 </div>
@@ -1208,7 +1216,7 @@ app
 <script src="map.js?v=20260930-finalfallback14"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260929-state-outlines1"></script>
-<script src="app.js?v=20260930-dfvisibility20"></script>
+<script src="app.js?v=20260930-booking21"></script>
 <script src="booking.js?v=20260930-booking1"></script>
 <script>
 (async function mileCountRequireLogin(){
