@@ -1650,18 +1650,30 @@ async function smartAutoStack(){
        break;
      }
 
-     // Look one stop ahead so we do not greedily leave a pickup market and
-     // later backtrack hundreds of miles for freight that was already nearby.
+     // Global anti-backtrack scoring. Before leaving a region, account for
+     // every remaining pickup. A tempting drop hundreds of miles north is
+     // penalized when it would force the truck to drive back south afterward.
+     // Also reward progress toward the chosen final/home corridor.
+     const targetLoc=(S.home||el("to")?.value||S.destination||"").trim();
      for(const o of options){
-       let lookAhead=0,bestNext=Infinity;
+       let bestNext=Infinity;
        const futurePickups=unpicked.filter((x,j)=>!(o.type==="pickup"&&j===o.i));
        for(const x of futurePickups){
          if(!isRoutableLocation(x.pickup))continue;
          const m=await legMiles(o.loc,x.pickup);
          if(m<bestNext)bestNext=m;
        }
-       if(bestNext<Infinity)lookAhead=bestNext*.18;
-       o.score+=lookAhead;
+       // A large nearest-future-pickup distance means this stop strands
+       // uncollected freight behind us. Weight it heavily enough to prevent
+       // FL → GA → FL patterns.
+       if(bestNext<Infinity)o.score+=bestNext*.72;
+       if(isRoutableLocation(targetLoc)){
+         const nowHome=await legMiles(cursor,targetLoc),afterHome=await legMiles(o.loc,targetLoc);
+         if(nowHome<999999&&afterHome<999999){
+           const away=Math.max(0,afterHome-nowHome);
+           o.score+=away*.65;
+         }
+       }
      }
      options.sort((a,b)=>a.score-b.score);
      const next=options[0];
@@ -1700,8 +1712,26 @@ async function smartAutoStack(){
    if(routeStops.length>=2&&typeof getMileCountRoadRoute==="function"){
      try{route=await withTimeout(getMileCountRoadRoute(routeStops),5000,null)}catch(e){console.warn("AutoStack route verification",e)}
    }
-   const routeVerified=!!(route&&Number(route.miles)>0);
+   let routeVerified=!!(route&&Number(route.miles)>0);
    if(Number(route?.miles)>0)state.miles=Number(route.miles);
+   // Sanity-check against a legal pickup-first route. If the greedy route is
+   // dramatically longer, rebuild rather than shipping a geographically absurd trip.
+   if(allLoads.length>1&&typeof getMileCountRoadRoute==="function"){
+     const pickupFirst=[startLoc,...allLoads.map(l=>l.pickup),...allLoads.map(l=>l.delivery||l.stop)].filter(isRoutableLocation)
+       .filter((x,i,a)=>i===0||laneCity(x)!==laneCity(a[i-1]));
+     try{
+       const alt=await withTimeout(getMileCountRoadRoute(pickupFirst),5000,null);
+       if(Number(alt?.miles)>0&&state.miles>Number(alt.miles)*1.28){
+         // Rebuild state events in legal pickup-first order.
+         const rebuilt=createTripState(startLoc),pending=[...allLoads],aboard=[];
+         for(const l of pending){if(fits.call(null,l)){applyTripPickup(rebuilt,l);aboard.push(l)}}
+         for(const l of aboard)applyTripDrop(rebuilt,l);
+         state.events=rebuilt.events;state.completed=rebuilt.completed;state.liveRevenue=rebuilt.liveRevenue;state.testRevenue=rebuilt.testRevenue;
+         state.miles=Number(alt.miles);routeStops.length=0;pickupFirst.forEach(x=>routeStops.push(x));
+         cursor=routeStops.at(-1)||cursor;state.location=cursor;route=alt;routeVerified=true;
+       }
+     }catch(e){console.warn("Backtrack sanity check",e)}
+   }
    if(S.localMoneyMode){
      const localHome=(S.home||el("from")?.value||startLoc).trim();
      if(isRoutableLocation(localHome)&&laneCity(cursor)!==laneCity(localHome)){
@@ -2002,7 +2032,7 @@ async function finishAutoStack(){
      }
    }catch(e){console.warn("Final trip verification",e)}
  }
- S.origin=S.finalRouteStops[0]||first.pickup||S.origin;
+ S.origin=first.pickup||S.finalRouteStops[0]||S.origin;
  S.destination=S.finalRouteStops.at(-1)||freightEnd;
  if(el("tripHomeStart"))el("tripHomeStart").textContent=S.origin||"—";
  if(el("tripFinalDestination"))el("tripFinalDestination").textContent=S.destination||"—";
