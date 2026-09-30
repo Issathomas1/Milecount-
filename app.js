@@ -6,6 +6,31 @@ Stable buttons + simulated AutoStack optimizer + routing + fuel
 (function(){
 "use strict";
 const S={primaryPay:1400,addedPay:0,totalPay:1400,returnPay:0,extraMiles:0,roundTripMiles:0,homeAdded:false,origin:"Atlanta, GA",destination:"Charlotte, NC",home:"Atlanta, GA",selectedStop:"Greenville, SC",liveOnlyBrowse:false,stayHomeAfterSearch:false};
+function mcCanonicalLocation(value,fallback=""){
+ const raw=String(value||"").trim(),fb=String(fallback||"").trim();
+ if(!raw)return fb;
+ if(raw.includes(","))return raw.replace(/\s*,\s*/,", ");
+ if(fb&&fb.includes(",")&&fb.split(",")[0].trim().toLowerCase()===raw.toLowerCase())return fb;
+ return raw;
+}
+function syncTruckBrain(reason="sync"){
+ const cap=typeof currentCapacity==="function"?currentCapacity():{availableWeight:0,availableSpace:0};
+ const events=Array.isArray(S.finalRouteEvents)&&S.finalRouteEvents.length?S.finalRouteEvents:(S.stackPlan?.events||[]);
+ const last=events.length?events[events.length-1]:null;
+ const home=mcCanonicalLocation(S.home,el("from")?.value||S.origin||"");
+ const current=mcCanonicalLocation(last?.location||S.tripState?.location||S.smartDispatchOrigin||S.origin||el("from")?.value||"",S.origin||"");
+ S.truckBrain={
+  currentLocation:current,homeLocation:home,
+  onboardLoads:Array.isArray(S.tripState?.onboard)?[...S.tripState.onboard]:[],
+  onboardWeight:Number(S.tripState?.onboardWeight||0),onboardSpace:Number(S.tripState?.onboardSpace||0),
+  availableWeight:Number(cap.availableWeight||0),availableSpace:Number(cap.availableSpace||0),
+  finalRouteStops:Array.isArray(S.finalRouteStops)?[...S.finalRouteStops]:[],
+  updatedAt:Date.now(),reason
+ };
+ return S.truckBrain;
+}
+function truckBrain(){return syncTruckBrain("read")}
+window.MileCountTruckBrain={get:()=>truckBrain()};
 const MILECOUNT_PLANS={
  basic:{name:"Basic",price:19,maxTrucks:1,maxStack:3,dispatcher:false,strongFit:false,autoCorrect:false},
  gold:{name:"Gold Pro",price:39,maxTrucks:1,maxStack:5,dispatcher:true,strongFit:true,autoCorrect:false},
@@ -496,20 +521,21 @@ async function protectReturn(){
  // Do not overwrite it with the original FROM field or a stale load destination.
  setBusy(true,"One moment — dispatching your way home…");
  setButtonBusy("protect",true,"SEARCHING 0–3 DAYS…","FIND MY WAY HOME");
+ const brain=syncTruckBrain("homebound-start");
  const selected=S.selectedCandidate;
  const plannedEvents=Array.isArray(S.stackPlan?.events)?S.stackPlan.events:[];
  const lastFreight=[...plannedEvents].reverse().find(e=>e.type==="drop"&&e.load);
- const delivery=lastFreight?.location||selected?.delivery||S.selectedLoadDelivery||S.destination;
+ const delivery=brain.currentLocation||lastFreight?.location||selected?.delivery||S.selectedLoadDelivery||S.destination;
  const chosenEnd=(el("tripHomeChoice")?.value||"").trim();
  // Preserve the exact saved city/state. Never infer a state from the current
  // truck/load location (the bug that produced McDonough, GA → Atlanta, FL).
- let home=(chosenEnd||S.home||el("from")?.value||S.origin||"Atlanta, GA").trim();
+ let home=(chosenEnd||brain.homeLocation||S.home||el("from")?.value||S.origin||"Atlanta, GA").trim();
  if(!home.includes(",")){
    const authoritative=String(S.home||el("from")?.value||S.origin||"").trim();
    const sameCity=authoritative.split(",")[0].trim().toLowerCase()===home.toLowerCase();
    if(sameCity&&authoritative.includes(","))home=authoritative;
  }
- S.home=home;
+ S.home=home;syncTruckBrain("home-selected");
  if(S.stackPlan)S.stackPlan.endLocation=home;
  if(el("returnLane"))el("returnLane").textContent=delivery+" → "+home;
  if(el("returnSource"))el("returnSource").textContent="SEARCHING";
@@ -793,7 +819,7 @@ async function saveCurrentTrip(showStatus=false){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
-function startNewTrip(){S.homeboundHops=[];S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.home="";S.origin=(el("from")?.value||"").trim();S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){S.truckBrain=null;S.homeboundHops=[];S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.home="";S.origin=(el("from")?.value||"").trim();S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -1600,7 +1626,8 @@ async function smartAutoStack(){
  setBusy(true,"One moment — optimizing every pickup and drop…");
  setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
  try{
-   const startLoc=(el("from")?.value||S.origin||base?.pickup||chosen[0]?.pickup||"").trim();
+   const brain=syncTruckBrain("autostack-start");
+   const startLoc=(brain.currentLocation||el("from")?.value||S.origin||base?.pickup||chosen[0]?.pickup||"").trim();
    const state=createTripState(startLoc);
    const allLoads=[];
    if(base)allLoads.push(base);
@@ -2032,7 +2059,7 @@ async function finishAutoStack(){
  const mapStart=(S.origin||first.pickup||"").trim();if(isRoutableLocation(mapStart))mapStops.push(mapStart);
  S.finalRouteEvents.forEach(e=>{if(isRoutableLocation(e.location)&&laneCity(mapStops.at(-1))!==laneCity(e.location))mapStops.push(e.location)});
  if(S.localMoneyMode&&isRoutableLocation(S.home)&&laneCity(mapStops.at(-1))!==laneCity(S.home))mapStops.push(S.home);
- S.finalRouteStops=[...mapStops];
+ S.finalRouteStops=[...mapStops];syncTruckBrain("trip-finalized");
  p.routeStops=[...mapStops];
  // Finalization has one source of truth: verify this exact stop list and use
  // that result for map, miles, endpoints and economics.
