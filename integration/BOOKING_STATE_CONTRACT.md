@@ -46,3 +46,13 @@ Fallback where webhooks are unavailable: provider-approved status polling with b
 
 ## TrukTek
 Current published developer docs support public/authenticated search, rate checks, load chaining, mileage, Bandit and enterprise integration. Do not claim direct booking until TrukTek provides a documented/authorized booking endpoint. Use broker verification/contact workflow in the meantime.
+
+
+## Browser implementation (Booking Center v1)
+- booking.js owns the provider-neutral booking UI and status badges.
+- Only ACCEPTED is treated as provider-confirmed/committed.
+- REQUESTING, PENDING, and ACTION_REQUIRED remain tentative.
+- Direct Freight is live-rechecked through the existing server-side adapter before provider handoff.
+- Booking Center local persistence contains workflow metadata only (provider, reference, status, timestamps, request/confirmation IDs, message); provider load-board data is not persisted there.
+- AutoStack remains a planning engine. Booking Center separately displays confirmed/committed revenue and capacity.
+- Future provider adapters can register requestBooking/getRequestStatus/cancelRequest methods without changing the booking UI.

@@ -1453,6 +1453,7 @@ function updateStackTray(){
  if(count)count.textContent=chosen.length;
  if(pay)pay.textContent=money(chosen.reduce((s,l)=>s+Number(l.pay||0),0));
  if(tray)tray.classList.toggle("active",chosen.length>0);
+  window.MileCountBooking?.refreshCommittedSummary?.();
  // Manual choice is valid with one or more selected loads; AutoStack remains optional.
  const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
 }
@@ -2099,6 +2100,25 @@ async function showLoadBootSandbox(){
 bind("viewLoadBootSandbox",showLoadBootSandbox);
 fetchLoadBootSandbox(false);
 
+window.MileCountBookingBridge={
+ getLoad(index){return (S.candidateLoads||[])[Number(index)]||null},
+ getLoads(){return Array.isArray(S.candidateLoads)?[...S.candidateLoads]:[]},
+ getPlannedLoads(){return stackSelectedLoads()},
+ getLoadKey(load){return loadKey(load)},
+ async refreshLoad(load){
+  if(!load||load.isSandbox||load.isLocalSim)return load||null;
+  const provider=String(load.provider||"").toLowerCase();
+  if(provider==="direct freight"){
+   const refreshed=await fetchDirectFreightLocal(load.pickup||S.origin||el("from")?.value||"");
+   return refreshed.find(x=>String(x.providerLoadId||x.bookingReference||"")===String(load.providerLoadId||load.bookingReference||""))||null;
+  }
+  if(provider==="truktek"){
+   const refreshed=await fetchTrukTekLocal(load.pickup||S.origin||el("from")?.value||"");
+   return refreshed.find(x=>String(x.providerLoadId||x.bookingReference||"")===String(load.providerLoadId||load.bookingReference||""))||null;
+  }
+  return load;
+ }
+};
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 bind("smartAutoStack",smartAutoStack);
