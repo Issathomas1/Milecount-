@@ -1513,10 +1513,18 @@ function strongFitScore(l,origin){
  const timeBonus=(l.pickupWindow||l.pickup_time||l.pickupTime)?40:0;
  return (rpm*110)+(pay/20)-dh+timeBonus;
 }
-function strongFitAlternatives(excluded,all,origin){if(!currentPlan().strongFit)return[];
- const used=new Set((excluded||[]).map(loadKey));
- return (all||[]).filter(l=>!used.has(loadKey(l))&&isRoutableLocation(l.pickup)&&isRoutableLocation(l.delivery))
-  .sort((a,b)=>strongFitScore(b,origin)-strongFitScore(a,origin)).slice(0,5);
+async function strongFitAlternatives(excluded,all,origin){if(!currentPlan().strongFit)return[];
+ const used=new Set((excluded||[]).map(loadKey)),from=String(origin||S.origin||"").trim(),ranked=[];
+ for(const l of (all||[])){
+  if(used.has(loadKey(l))||!isRoutableLocation(l.pickup)||!isRoutableLocation(l.delivery))continue;
+  const dh=await withTimeout(roadMilesBetween(from,l.pickup),1400,null);
+  if(!Number.isFinite(dh))continue;
+  const maxDh=Math.min(175,Math.max(50,Number(el("maxDeadhead")?.value||100)));
+  if(Number(dh)>maxDh)continue;
+  const loaded=Math.max(1,Number(l.loadedMiles||0)),allMiles=Number(dh)+loaded,rpm=allMiles>0?Number(l.pay||0)/allMiles:0;
+  ranked.push({...l,strongFitDeadhead:Number(dh),strongFitAllMiles:allMiles,strongFitRPM:rpm,strongFitRouteScore:(rpm*120)+(Number(l.pay||0)/25)-Number(dh)});
+ }
+ return ranked.sort((a,b)=>b.strongFitRouteScore-a.strongFitRouteScore).slice(0,5);
 }
 let mcTripBuildSeq=0;
 async function smartAutoStack(){
@@ -1592,6 +1600,7 @@ async function smartAutoStack(){
      if(!options.length){
        state.feasible=false;
        state.issues.push("No legal next stop fits the current truck state.");
+       state.blockedAt=cursor;
        break;
      }
 
@@ -1692,9 +1701,10 @@ async function smartAutoStack(){
          if(proposal)renderAutoCorrectProposal(proposal);
          else if(b){b.disabled=false;b.textContent="NO FEASIBLE COMBINATION FOUND"}
        });
-       const fits=strongFitAlternatives(allLoads,S.allUnifiedLoads||S.candidateLoads||[],startLoc);
+       const repairOrigin=state.blockedAt||state.events.at(-1)?.location||startLoc;
+       const fits=await strongFitAlternatives(allLoads,S.allUnifiedLoads||S.candidateLoads||[],repairOrigin);
        if(fits.length){
-         el("stackPlanResult").insertAdjacentHTML("beforeend",'<div class="tripStateNow" style="margin-top:12px"><b>STRONG FIT REPLACEMENTS</b><span>MileCount found nearby alternatives to replace loads that make this day impossible.</span></div><div class="strongFitList">'+fits.map((l,i)=>'<button type="button" class="strongFitPick" data-key="'+escHtml(loadKey(l))+'" style="margin-top:7px;text-align:left"><b>STRONG FIT • '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span style="display:block">'+money(l.pay)+' • '+Math.round(Number(l.loadedMiles||0))+' mi • '+(loadEconomics(l).rpm?("$"+loadEconomics(l).rpm.toFixed(2)+"/mi"):"RPM —")+'</span></button>').join("")+'</div>');
+         el("stackPlanResult").insertAdjacentHTML("beforeend",'<div class="tripStateNow" style="margin-top:12px"><b>STRONG FIT REPLACEMENTS NEAR '+escHtml(repairOrigin)+'</b><span>Only reachable alternatives within your deadhead limit are shown. RPM includes the deadhead from the truck’s current position.</span></div><div class="strongFitList">'+fits.map((l,i)=>'<button type="button" class="strongFitPick" data-key="'+escHtml(loadKey(l))+'" style="margin-top:7px;text-align:left"><b>STRONG FIT • '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span style="display:block">'+money(l.pay)+' • '+Math.round(Number(l.strongFitAllMiles||l.loadedMiles||0))+' all mi • '+Math.round(Number(l.strongFitDeadhead||0))+' mi deadhead • '+(Number(l.strongFitRPM||0)?("$"+Number(l.strongFitRPM).toFixed(2)+"/mi"):"RPM —")+'</span></button>').join("")+'</div>');
          el("stackPlanResult").querySelectorAll(".strongFitPick").forEach(b=>b.addEventListener("click",async()=>{
            const pool=(S.allUnifiedLoads||S.candidateLoads||[]),l=pool.find(x=>loadKey(x)===b.dataset.key);if(!l)return;
            // Strong Fit is a repair action, not "+ add another load".
@@ -1707,6 +1717,19 @@ async function smartAutoStack(){
            await smartAutoStack();
          }));
        }
+     }
+     if(!state.feasible&&!S.localMoneyMode&&!S.autoPruneRunning&&chosen.length>1){
+       S.autoPruneRunning=true;
+       const completedKeys=new Set(state.completed.map(loadKey));
+       const feasibleSelected=allLoads.filter(l=>completedKeys.has(loadKey(l)));
+       const failedSelected=allLoads.filter(l=>!completedKeys.has(loadKey(l)));
+       if(feasibleSelected.length&&failedSelected.length){
+         selectedStackKeys.clear();feasibleSelected.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
+         S.autoPruneRunning=false;
+         setTimeout(()=>smartAutoStack(),0);
+         return;
+       }
+       S.autoPruneRunning=false;
      }
      if(state.feasible){
        el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="finishAutoStack" type="button" style="margin-top:12px">DONE • SHOW ROUTE</button>');
