@@ -252,6 +252,14 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  let loads=[];let liveProvider=false; let providerErrors=[];
  let providerResponded=false,providerLiveFound=0,resolvedLane=null;
  try{const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:S.liveOnlyBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})}),10000,null);if(!r)throw new Error("TrukTek request timed out");if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));loads=enforceWeightCap(loads);if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e);setBoardStatus("warn","TrukTek is temporarily slow/unavailable. Other connected freight can still display.")}
+ // Direct Freight production board: query in real time for this lane's origin.
+ try{
+   const direct=await fetchDirectFreightLocal(S.origin||el("from")?.value||"");
+   const requestedDate=el("pickupDate")?.value||"";
+   const matching=enforceWeightCap(direct.filter(l=>laneMatches(l,S.origin,S.destination))).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate)}));
+   if(matching.length){loads=[...loads,...matching];providerResponded=true;liveProvider=true}
+ }catch(e){providerErrors.push("Direct Freight");console.warn("Direct Freight lane aggregation unavailable",e)}
+ updateProviderFilterOptions(loads);
  // Every lane search aggregates every connected source. LoadBoot is sandbox/test
  // only, so it is clearly labeled and never contributes to live trip revenue.
  if(!S.liveOnlyBrowse){
@@ -1294,6 +1302,7 @@ function updateProviderFilterOptions(loads){
    const label=isLoadBootRecord(l)?"LoadBoot Sandbox":(l.isLocalSim?"MileCount SIM":(l.provider||"Other Provider"));
    if(key&&!seen.has(key))seen.set(key,label);
  });
+ if(S.directFreightConfigured&&!seen.has("direct-freight"))seen.set("direct-freight","Direct Freight");
  const options=[
   ["all","All Companies"],
   ["live","Live Only"],
@@ -1968,6 +1977,7 @@ function unifiedSourceLabel(l){
  return "LIVE • "+(l.provider||"Provider");
 }
 function renderUnifiedLoadList(loads){
+ updateProviderFilterOptions(loads||[]);
  const profile=updateCostUI();
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
    const loaded=Math.max(0,Number(l.loadedMiles||0));
