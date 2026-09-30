@@ -534,11 +534,7 @@ async function protectReturn(){
    }catch(e){console.warn("Homebound TrukTek search",e)}
  }
 
- // Include LoadBoot sandbox opportunities for dispatcher UX, but label test data.
- try{
-   const sb=await fetchLoadBootSandbox(false);
-   sb.forEach(x=>candidates.push({...x,deadheadMiles:0,daysOut:0}));
- }catch(e){}
+ // Homebound production search is LIVE ONLY. Test/SIM freight never enters candidates.
 
  // Rank by direction toward home, then economics. Road distance calls are capped.
  let directHome=null;
@@ -600,22 +596,17 @@ async function protectReturn(){
      el("getHome").textContent=best.isSandbox?"ADD TO DEMO TRIP":"ADD BEST HOMEBOUND LOAD";
    }
  }else{
-   const simPickup=delivery;
-   const simDelivery=home;
-   const simMiles=Math.max(1,Number(directMiles||S.homeTargetMiles||250));
-   const simPay=Math.max(250,Math.round((simMiles*1.85)/25)*25);
-   const sim={pickup:simPickup,delivery:simDelivery,pay:simPay,loadedMiles:simMiles,deadheadMiles:0,provider:"MileCount Simulation",isSandbox:true,isSimulatedHome:true,commodity:"SIMULATED DIRECT HOMEBOUND LOAD"};
-   S.returnPay=simPay;S.demoReturn=true;S.returnSelected=sim;S.returnCandidates=[sim];
-   if(el("returnLane"))el("returnLane").textContent=simPickup+" → "+simDelivery;
-   if(el("returnPay"))el("returnPay").textContent="SIM "+money(simPay);
-   if(el("returnSource"))el("returnSource").textContent="MILECOUNT SIM";
-   if(el("returnStatus"))el("returnStatus").textContent="NOT BOOKABLE";
-   if(el("returnSourceTag"))el("returnSourceTag").textContent="SIMULATED HOMEBOUND";
-   if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+simPay)+" SIM";
-   if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(simMiles).toLocaleString()+" mi";
-   if(el("returnLead"))el("returnLead").textContent="No connected homebound freight matched. MileCount built a simulated route from "+simPickup+" to "+simDelivery+" for planning only.";
-   if(el("homeboundAlternatives"))el("homeboundAlternatives").innerHTML='<div class="homeAlt"><b>SIM • '+escHtml(simPickup)+' → '+escHtml(simDelivery)+'</b><span>'+money(simPay)+' planning estimate • '+Math.round(simMiles)+' mi • NOT BOOKABLE</span></div>';
-   if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="USE SIM ROUTE HOME"}
+   S.returnPay=0;S.demoReturn=false;S.returnSelected=null;S.returnCandidates=[];
+   if(el("returnLane"))el("returnLane").textContent=delivery+" → "+home;
+   if(el("returnPay"))el("returnPay").textContent="—";
+   if(el("returnSource"))el("returnSource").textContent="LIVE SEARCH";
+   if(el("returnStatus"))el("returnStatus").textContent="NO MATCH";
+   if(el("returnSourceTag"))el("returnSourceTag").textContent="NO LIVE RETURN FOUND";
+   if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay);
+   if(el("returnMilesPreview"))el("returnMilesPreview").textContent=directMiles?Math.round(directMiles).toLocaleString()+" mi home":"—";
+   if(el("returnLead"))el("returnLead").textContent="No live homebound load matched this route within the current deadhead and date window. Your existing trip has not been changed.";
+   if(el("homeboundAlternatives"))el("homeboundAlternatives").innerHTML='<div class="homeAlt"><b>NO LIVE RETURN FOUND</b><span>Try a larger deadhead radius, another end location, or search again later. No simulated revenue was added.</span></div>';
+   if(el("getHome")){el("getHome").disabled=true;el("getHome").textContent="NO LIVE LOAD TO ADD"}
  }
  setButtonBusy("protect",false,"","FIND MY WAY HOME");
  setBusy(false);
