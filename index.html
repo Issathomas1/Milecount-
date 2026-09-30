@@ -401,6 +401,14 @@ color:var(--muted);
 
 <body>
 <div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px;width:100vw;height:100dvh;overflow:auto"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 style="margin:14px 0 6px">Sign in to continue</h1><p class="details">Your trips, truck setup and Smart AutoStack plans stay tied to your MileCount account.</p><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><button id="gateSignIn" type="button">SIGN IN</button><button id="gateCreate" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">CREATE ACCOUNT</button><div id="gateMessage" class="details" style="margin-top:10px"></div></div></div>
+<div id="dfDetailsModal" class="hidden" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;overflow:auto">
+ <div class="card" style="max-width:650px;margin:7vh auto;background:#07150f">
+  <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><span class="badge">LIVE • DIRECT FREIGHT</span><h2 id="dfDetailLane" style="margin:8px 0">Load details</h2></div><button id="closeDfDetails" type="button" style="width:auto;padding:10px 14px">CLOSE</button></div>
+  <div id="dfDetailBody" class="loadMetrics" style="margin-top:12px"></div>
+  <div id="dfDetailNote" class="details" style="margin-top:12px"></div>
+  <a id="dfDetailLink" class="btn" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:14px">VIEW ON DIRECT FREIGHT</a>
+ </div>
+</div>
 <div id="stackTray" class="stackTray"><div><small>AUTOSTACK SELECTED</small><b><span id="stackCount">0</span> loads • <span id="stackSelectedPay">$0</span></b><small id="stackBaseLabel"></small></div><button id="clearStack" type="button">CLEAR</button><button id="doneStack" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">DONE • USE MY PICKS</button><button id="smartAutoStack" type="button">SMART AUTOSTACK</button></div>
 <div id="globalBusy" class="globalBusy" role="status" aria-live="polite"><div class="busySpinner"></div><span id="globalBusyText">One moment — finding loads…</span></div>
 
