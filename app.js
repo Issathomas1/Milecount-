@@ -571,6 +571,7 @@ async function protectReturn(){
  // the provider returned it for the lane query.
  const seenReturn=new Set();
  const useful=weightSafeCandidates.filter(c=>{
+   if(!(Number(c.pay||0)>0))return false;
    const key=[laneCity(c.pickup),laneCity(c.delivery),Number(c.pay||0),String(c.pickupDate||"")].join("|");
    if(seenReturn.has(key))return false;seenReturn.add(key);
    const dh=Number(c.dispatchDeadhead||0);
@@ -579,10 +580,13 @@ async function protectReturn(){
    if(dh>maxReturnDH)return false;
    if(directMiles>0&&progress<=0)return false;
    return true;
- }).sort((a,b)=>b.score-a.score).slice(0,8);
+ }).sort((a,b)=>{
+   const ar=Number(a.dispatchRPM||0),br=Number(b.dispatchRPM||0);
+   if(Math.abs(br-ar)>.05)return br-ar;
+   return Number(b.homeProgress||0)-Number(a.homeProgress||0);
+ }).slice(0,8);
  S.returnCandidates=useful;
- const bestLive=useful.find(c=>!c.isSandbox);
- const best=bestLive||useful[0];
+ const best=useful[0];
 
  if(best){
    S.returnPay=Number(best.pay||0); S.demoReturn=!!best.isSandbox;
@@ -594,7 +598,7 @@ async function protectReturn(){
    if(el("returnMilesPreview"))el("returnMilesPreview").textContent=Math.round(Number(best.allMiles||0)).toLocaleString()+" all mi";
    if(el("previewRoundPay"))el("previewRoundPay").textContent=money(S.totalPay+S.returnPay)+(best.isSandbox?" TEST":"");
    if(el("returnSourceTag"))el("returnSourceTag").textContent=best.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • "+(best.provider||"PROVIDER");
-    if(el("returnLead"))el("returnLead").textContent="Best live homebound hop: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
+    if(el("returnLead"))el("returnLead").textContent="Best paid live homebound hop: "+(best.pickup||delivery)+" → "+(best.delivery||home)+" • "+money(best.pay)+" • "+(best.dispatchRPM?("$"+best.dispatchRPM.toFixed(2)+"/all-mile"):"RPM pending")+" • "+Math.round(best.dispatchDeadhead||0)+" mi deadhead"+(best.homeProgress>0?" • moves "+Math.round(best.homeProgress)+" mi closer to home":"")+".";
  if(el("homeboundAlternatives")){
    el("homeboundAlternatives").innerHTML=useful.slice(0,5).map((c,i)=>'<div class="homeAlt"><b>'+(i+1)+'. '+(c.pickup||delivery)+' → '+(c.delivery||home)+'</b><span>'+money(c.pay)+' • '+(c.dispatchRPM?("$"+c.dispatchRPM.toFixed(2)+"/mi"):"RPM —")+' • '+Math.round(c.dispatchDeadhead||0)+' mi DH • '+(c.pickupDate||"date n/a")+(c.isSandbox?" • TEST":" • LIVE")+'</span></div>').join("");
  }
