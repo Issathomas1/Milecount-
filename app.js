@@ -455,17 +455,18 @@ window.MileCountOpenLoadDetails=function(index){
  if(card)setTimeout(()=>card.scrollIntoView({behavior:"smooth",block:"center"}),80);
 };
 async function updateOutboundMap(){
+ const brain=syncTruckBrain("map");
  const l=S.selectedCandidate;
  if(l?.provider&&Array.isArray(l.routeCoordinates)&&l.routeCoordinates.length>1&&typeof showMileCountProviderRoute==="function")return await showMileCountProviderRoute(l);
  if(typeof showMileCountRoute!=="function")return null;
  if(l?.provider){
   const pickup=l.pickup||S.selectedLoadPickup||S.origin;
   const delivery=l.delivery||S.selectedLoadDelivery||S.destination;
-  const stops=[S.origin,pickup,delivery].filter(isRoutableLocation).filter((x,i,a)=>a.indexOf(x)===i);
+  const stops=[brain.currentLocation||S.origin,pickup,delivery].filter(isRoutableLocation).filter((x,i,a)=>a.indexOf(x)===i);
   if(stops.length<2)return null;
   return await showMileCountRoute(stops);
  }
- const stops=[S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);return await showMileCountRoute(stops);
+ const stops=[brain.currentLocation||S.origin];if(S.selectedStop&&S.selectedStop!==S.origin&&S.selectedStop!==S.destination)stops.push(S.selectedStop);if(stops.at(-1)!==S.destination)stops.push(S.destination);return await showMileCountRoute(stops);
 }
 async function addToTrip(){
  captureCapacityInputs();
@@ -751,6 +752,7 @@ let route=null;
 }
 
 function refreshFinalTripOverview(){
+ const brain=syncTruckBrain("economics");
  const miles=Math.max(0,Number(S.roundTripMiles||0));
  const revenue=Math.max(0,Number(S.totalPay||0)+(S.homeAdded?Number(S.returnPay||0):0));
  const fuel=fuelFor(miles);
@@ -788,6 +790,7 @@ async function viewUpdatedTrip(){
  showScreen(3);setTimeout(async()=>{try{const stops=(Array.isArray(S.finalRouteStops)?S.finalRouteStops:[]).filter(isRoutableLocation);if(stops.length>1&&typeof showMileCountRoute==="function")await showMileCountRoute(stops);else await updateOutboundMap()}catch(e){console.warn("Final route map",e)}},200);
 }
 function bookingLoadsForTrip(){
+ const brain=syncTruckBrain("booking");
  const ev=Array.isArray(S.finalRouteEvents)&&S.finalRouteEvents.length?S.finalRouteEvents:(S.stackPlan?.events||[]);
  const seen=new Set(),out=[];
  ev.filter(e=>e.type==="pickup"&&e.load).forEach(e=>{const l=e.load,k=loadKey(l);if(!seen.has(k)){seen.add(k);out.push(l)}});
@@ -795,14 +798,14 @@ function bookingLoadsForTrip(){
  return out.filter(l=>!l.isSandbox&&!l.isLocalSim);
 }
 function renderBookingChecklist(){
- const loads=bookingLoadsForTrip(),box=el("bookingChecklist");if(!box)return;
+ const brain=syncTruckBrain("booking-render"),loads=bookingLoadsForTrip(),box=el("bookingChecklist");if(!box)return;
  S.bookingConfirmed=S.bookingConfirmed||{};
  if(el("bookingCount"))el("bookingCount").textContent=loads.length+" live load"+(loads.length===1?"":"s")+" • booking checklist";
  box.innerHTML=loads.length?loads.map((l,i)=>{
   const k=loadKey(l),done=!!S.bookingConfirmed[k],provider=l.provider||"Provider",url=l.sourceUrl||"";
   return '<div class="homeAlt"><b>'+(i+1)+'. '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span>'+escHtml(provider)+' • '+money(l.pay)+'</span><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:7px">'+(url?'<a class="miniBtn" href="'+escHtml(url)+'" target="_blank" rel="noopener">VIEW / BOOK ON '+escHtml(provider).toUpperCase()+'</a>':'<span class="sourceTag">CONTACT '+escHtml(provider).toUpperCase()+'</span>')+'<button type="button" class="bookingConfirm" data-key="'+escHtml(k)+'">'+(done?'✓ BOOKED / CLAIMED':'MARK BOOKED / CLAIMED')+'</button></div></div>';
  }).join(""):'<div class="details">No live provider loads are attached to this trip.</div>';
- box.querySelectorAll(".bookingConfirm").forEach(b=>b.onclick=()=>{S.bookingConfirmed[b.dataset.key]=!S.bookingConfirmed[b.dataset.key];renderBookingChecklist()});
+ box.querySelectorAll(".bookingConfirm").forEach(b=>b.onclick=()=>{S.bookingConfirmed[b.dataset.key]=!S.bookingConfirmed[b.dataset.key];syncTruckBrain("booking-confirmed");renderBookingChecklist()});
  const allDone=loads.length>0&&loads.every(l=>S.bookingConfirmed[loadKey(l)]);
  el("startBookedTrip")?.classList.toggle("hidden",!allDone);
 }
@@ -1097,6 +1100,7 @@ function localSimPool(home){
  return rows.map((r,i)=>({name:state+" LOCAL SIM "+(i+1),provider:"MileCount Local SIM",providerLoadId:"MC-"+state+"-"+today+"-"+(i+1),pickup:r[0],delivery:r[1],pay:r[2],loadedMiles:r[3],weight:r[4],space:r[5],pickupDate:today,pickupWindow:null,deliveryWindow:null,simSuggestedPickup:r[6],simSuggestedDelivery:r[7],equipment:"Box Truck",commodity:"Local palletized freight",isSandbox:true,isLocalSim:true,sandboxLabel:"LOCAL SIM • NOT BOOKABLE"}));
 }
 async function fetchDirectFreightLocal(home){
+ home=String(home||syncTruckBrain("df-search").currentLocation||S.origin||"").trim();
  try{
   const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:1000,max_weight:9999,limit:60})}),8000,null);
   if(!r)return[];
@@ -1106,6 +1110,7 @@ async function fetchDirectFreightLocal(home){
  }catch(e){console.warn("Direct Freight adapter",e);return[]}
 }
 async function fetchTrukTekLocal(home){
+ home=String(home||syncTruckBrain("truktek-search").currentLocation||S.origin||"Atlanta, GA").trim();
  const parts=String(home||"Atlanta, GA").split(","),city=(parts[0]||"Atlanta").trim(),state=(parts[1]||"GA").trim().slice(0,2).toUpperCase();
  try{
   const url="https://www.truktek.com/api/loads?octy="+encodeURIComponent(city)+"&ost="+encodeURIComponent(state)+"&milesSlider=100&gross_rpm=0";
@@ -1433,6 +1438,7 @@ function syncCapacityState(weight,space,writeInputs=true){
    availableWeight:Math.min(c.maxWeight,Math.max(0,Number(weight))),
    availableSpace:Math.min(c.maxSpace,Math.max(0,Number(space)))
  };
+ if(S.truckBrain)syncTruckBrain("capacity");
  if(writeInputs){
    if(el("weight"))el("weight").value=Math.round(S.capacityState.availableWeight);
    if(el("space"))el("space").value=Number(S.capacityState.availableSpace.toFixed(1));
@@ -1524,6 +1530,7 @@ function updateStackTray(){
  if(count)count.textContent=chosen.length;
  if(pay)pay.textContent=money(chosen.reduce((s,l)=>s+Number(l.pay||0),0));
  if(tray)tray.classList.toggle("active",chosen.length>0);
+ if(S.truckBrain){S.truckBrain.committedLoads=[...chosen];S.truckBrain.updatedAt=Date.now();S.truckBrain.reason="stack-selection"}
   window.MileCountBooking?.refreshCommittedSummary?.();
  // Manual choice is valid with one or more selected loads; AutoStack remains optional.
  const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
@@ -1600,7 +1607,7 @@ function strongFitScore(l,origin){
  return (rpm*110)+(pay/20)-dh+timeBonus;
 }
 async function strongFitAlternatives(excluded,all,origin){if(!currentPlan().strongFit)return[];
- const used=new Set((excluded||[]).map(loadKey)),from=String(origin||S.origin||"").trim(),ranked=[];
+ const brain=syncTruckBrain("strong-fit"),used=new Set((excluded||[]).map(loadKey)),from=String(origin||brain.currentLocation||S.origin||"").trim(),ranked=[];
  for(const l of (all||[])){
   if(used.has(loadKey(l))||!isRoutableLocation(l.pickup)||!isRoutableLocation(l.delivery))continue;
   const dh=await withTimeout(roadMilesBetween(from,l.pickup),1400,null);
