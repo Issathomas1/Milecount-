@@ -363,6 +363,7 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  <div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>${rpm?"$"+rpm.toFixed(2):"—"}</b></div><div class="loadMetric"><small>DEADHEAD</small><b>${dh.toFixed(0)} mi</b></div><div class="loadMetric"><small>WEIGHT</small><b>${Number(l.weight||0).toLocaleString()} lb</b></div><div class="loadMetric"><small>EST. AFTER FUEL*</small><b>${money(margin)}</b></div></div>
  <div class="loadFoot"><span class="sourceTag">${source}</span><span class="stackPick" data-stack-index="${i}">＋ STACK</span><span class="verdictTag">${i===0&&verdict!=="PASS"?"BEST FIT • ":""}${verdict}</span></div></button>`}).join(""):'<div class="details">No compatible freight matched these filters. Adjust deadhead/RPM or use simulation mode for the demo.</div>'; document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
  document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
+ document.querySelectorAll(".dfDetailsOpen").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();openDirectFreightDetails((S.candidateLoads||[])[Number(x.dataset.dfIndex)]); }));
  document.querySelectorAll(".candidateLoad").forEach((b,i)=>{const l=(S.candidateLoads||[])[i];b.classList.toggle("stackChosen",!!l&&selectedStackKeys.has(loadKey(l)))});
  updateStackTray();
 
@@ -2068,6 +2069,21 @@ function unifiedSourceLabel(l){
  if(l?.isLocalSim||String(l?.provider||"").includes("MileCount"))return "SIM • MileCount • NOT BOOKABLE";
  return "LIVE • "+(l.provider||"Provider");
 }
+function directFreightDetailValue(v,suffix=""){return v!==null&&v!==undefined&&String(v).trim()!==""&&Number(v)!==0?escHtml(String(v))+suffix:"Not provided by Direct Freight"}
+function openDirectFreightDetails(l){
+ if(!l||String(l.provider||"").toLowerCase()!=="direct freight")return;
+ if(el("dfDetailLane"))el("dfDetailLane").textContent=(l.pickup||"Pickup")+" → "+(l.delivery||"Delivery");
+ const fields=[
+  ["RATE / PAY",Number(l.pay||0)>0?money(l.pay):null],["LOADED MILES",Number(l.loadedMiles||0)>0?Math.round(l.loadedMiles)+" mi":null],
+  ["WEIGHT",Number(l.weight||0)>0?Number(l.weight).toLocaleString()+" lb":null],["EQUIPMENT",l.equipment],
+  ["COMMODITY",l.commodity],["PICKUP DATE",l.pickupDate],["PICKUP WINDOW",l.pickupWindow],
+  ["DELIVERY DATE",l.deliveryDate],["DELIVERY WINDOW",l.deliveryWindow],["DIRECT FREIGHT REF",l.providerLoadId||l.bookingReference]
+ ];
+ if(el("dfDetailBody"))el("dfDetailBody").innerHTML=fields.map(([k,v])=>'<div class="loadMetric"><small>'+k+'</small><b>'+(v?escHtml(String(v)):"Not provided by Direct Freight")+'</b></div>').join("");
+ if(el("dfDetailNote"))el("dfDetailNote").textContent="MileCount displays only fields returned by the authorized Direct Freight response. Additional broker/company/contact details may require Direct Freight end-user authentication and the appropriate subscription.";
+ if(el("dfDetailLink")){el("dfDetailLink").href=l.sourceUrl||"#";el("dfDetailLink").classList.toggle("hidden",!l.sourceUrl)}
+ el("dfDetailsModal")?.classList.remove("hidden");
+}
 function renderUnifiedLoadList(loads){
  updateProviderFilterOptions(loads||[]);
  const profile=updateCostUI();
@@ -2080,7 +2096,7 @@ function renderUnifiedLoadList(loads){
    return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
     '<div class="loadTop"><div><div class="loadLane">'+(l.pickup||"Pickup")+' → '+(l.delivery||"Delivery")+'</div><div class="loadMeta">'+unifiedSourceLabel(l)+' • '+(l.equipment||activeVehicle.name)+(l.commodity?" • "+l.commodity:"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
     '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+(Number(l.weight||0)>0?Number(l.weight).toLocaleString()+" lb":"UNKNOWN")+'</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(isLoadBootRecord(l)?"via LoadBoot":(l.isLocalSim?"MileCount SIM":(l.provider||"LIVE")))+'</b></div></div>'+
-    (isLoadBootRecord(l)?'<div class="loadBootRef"><b>LoadBoot ref: '+escHtml(l.providerLoadId)+'</b> • <a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on LoadBoot</a></div>':(String(l.provider||"").toLowerCase()==="direct freight"?'<div class="loadBootRef"><b>Direct Freight'+(l.providerLoadId?' ref: '+escHtml(l.providerLoadId):'')+'</b>'+(l.sourceUrl?' • <a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on Direct Freight</a>':' • LIVE PROVIDER')+'</div>':''))+
+    (isLoadBootRecord(l)?'<div class="loadBootRef"><b>LoadBoot ref: '+escHtml(l.providerLoadId)+'</b> • <a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on LoadBoot</a></div>':(String(l.provider||"").toLowerCase()==="direct freight"?'<div class="loadBootRef"><b>Direct Freight'+(l.providerLoadId?' ref: '+escHtml(l.providerLoadId):'')+'</b>'+(l.sourceUrl?' • <a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on Direct Freight</a>':' • LIVE PROVIDER')+' • <span class="dfDetailsOpen" data-df-index="'+i+'" style="text-decoration:underline;font-weight:900;cursor:pointer">DETAILS</span></div>':''))+
     '<div class="loadFoot"><span class="sourceTag">'+(isLoadBootRecord(l)?"LOADBOOT SANDBOX":(l.isLocalSim?"MILECOUNT SIM":"LIVE • "+(l.provider||"PROVIDER")))+'</span><span class="stackPick" data-stack-index="'+i+'">＋ STACK</span><span class="verdictTag">'+verdict+'</span></div></button>';
  }).join(""):'<div class="details">No freight is currently available from connected sources.</div>';
  document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
@@ -2168,3 +2184,5 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden){silentAud
 captureCapacityInputs();
 console.log("MileCount App Engine V2 Ready");
 })();
+el("closeDfDetails")?.addEventListener("click",()=>el("dfDetailsModal")?.classList.add("hidden"));
+el("dfDetailsModal")?.addEventListener("click",e=>{if(e.target===el("dfDetailsModal"))el("dfDetailsModal").classList.add("hidden")});
