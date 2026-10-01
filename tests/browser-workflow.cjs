@@ -37,6 +37,8 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    return route.fulfill({status:503,body:'External service deliberately unavailable in QA'});
   });
   await page.goto(base,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.MileCountTruckBrain?.get?.().actualLocationVerified);await page.waitForFunction(()=>document.documentElement.dataset.ownerAccess==='true');await page.waitForFunction(()=>document.querySelector('#commercialTruckForm [name=heightFt]')?.value==='12');
+
+
   await page.locator('#from').fill(f.start);await page.locator('#to').fill(f.home);await page.locator('#pickupDate').fill('2026-10-01');await page.evaluate(({payload,space})=>{for(const [id,value] of Object.entries({minRPM:0,maxDeadhead:2000,weight:payload,space})){const input=document.getElementById(id);input.value=value;input.dispatchEvent(new Event('input'));}},f);await page.locator('#find').click();await page.waitForFunction(n=>document.querySelectorAll('.stackPick').length===n&&!document.getElementById('find').disabled,f.loads.length);
   for(let i=0;i<f.loads.length;i++)await page.locator('.stackPick').nth(i).click();
   if(f===fixtures.cases[0]){
@@ -112,6 +114,19 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    await page.waitForFunction(()=>!document.getElementById('localMoneyMode').disabled);
    assert((await page.evaluate(()=>window.MileCountBookingBridge.getLoads())).every(l=>!l.isLocalSim&&!l.isSandbox&&!['TEST','SIM'].includes(l.mode)));
    assert.deepEqual(errors,[]);console.log('PASS browser mixed-mode error → remove TEST/SIM → finalized route → individual removal → LIVE-only Local Day');
+  }
+  if(f===fixtures.cases[0]){
+   await page.locator('#clearStack').click();
+   await page.locator('#truckBrainPanel > summary').click();
+   for(const key of ['emptyWeightLb','heightFt','widthFt','vehicleLengthFt','axleCount','axleWeightLb','trailerCount'])await page.locator('#commercialTruckForm [name='+key+']').fill('');
+   await page.getByRole('button',{name:'Save truck details',exact:true}).click();
+   assert.match(await page.locator('#truckSaveMessage').textContent(),/Truck details saved/);
+   let saved=await page.evaluate(()=>window.MileCountTruckBrain.get());
+   assert.equal(saved.commercialProfile.heightFt,null);assert.equal(saved.payload,10000);assert.equal(saved.cargoCapacity,26);
+   await page.reload({waitUntil:'domcontentloaded'});
+   await page.waitForFunction(()=>document.querySelector('#commercialTruckForm [name=payloadLb]')?.value==='10000');
+   assert.equal(await page.locator('#commercialTruckForm [name=heightFt]').inputValue(),'');
+   console.log('PASS optional truck measurements: actual Save button succeeds, known capacity retained, unknown values survive reload');
   }
   await ctx.close();
  }

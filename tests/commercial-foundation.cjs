@@ -3,6 +3,23 @@ const truck=require('../truck-brain.js'),dispatch=require('../dispatch-brain.js'
 const profile={type:'box-truck',commercial:true,gvwrLb:26000,payloadLb:10000,emptyWeightLb:16000,cargoLengthFt:26,heightFt:12,widthFt:8.5,vehicleLengthFt:35,axleCount:2,axleWeightLb:13000,trailerCount:0,hazmat:false,tollPreference:'avoid',avoidFerries:true};
 const load=(id,weight=6000,space=16)=>({id,provider:'Live Carrier',pickup:'Atlanta, GA',delivery:'Charlotte, NC',weight,space,pay:1200});
 (async()=>{
+ // Incomplete profiles save and survive reload, while routing stays strict.
+ const partial=new truck.Brain();
+ partial.setProfile({type:'box-truck',payloadLb:10000,cargoLengthFt:26});
+ const restored=new truck.Brain(partial.state);
+ assert.equal(restored.get().remainingWeight,10000);
+ assert.equal(restored.get().remainingSpace,26);
+ assert.equal(restored.get().profile.heightFt,null);
+ assert.equal(restored.get().currentGrossWeightLb,null);
+ assert(!truck.validateProfile(restored.get().profile).ok);
+ restored.setProfile({heightFt:12});assert.equal(restored.get().profile.payloadLb,10000);
+ restored.setProfile({heightFt:''});assert.equal(restored.get().profile.heightFt,null);
+ assert.throws(()=>restored.setProfile({payloadLb:-1}));
+ assert.throws(()=>restored.setProfile({gvwrLb:26000,emptyWeightLb:20000}));
+ assert.throws(()=>restored.setProfile({vehicleLengthFt:20}));
+ restored.setActual('Atlanta, GA',[{id:'onboard',provider:'test-provider',weight:4000,space:8}]);
+ assert.equal(restored.get().remainingWeight,6000);assert.equal(restored.get().remainingSpace,18);
+ assert.throws(()=>restored.setProfile({payloadLb:3000}));
  assert(truck.validateProfile(profile).ok);for(const field of ['heightFt','widthFt','gvwrLb','payloadLb','emptyWeightLb','vehicleLengthFt','axleCount','trailerCount','hazmat'])assert(!truck.validateProfile({...profile,[field]:null}).ok,field);
  assert(!truck.validateProfile({...profile,payloadLb:12000}).ok);assert(!truck.validateProfile({...profile,cargoLengthFt:40}).ok);
  const brain=new truck.Brain();brain.setProfile(profile);brain.setActual('Atlanta, GA',[]);
