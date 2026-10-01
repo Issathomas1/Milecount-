@@ -114,6 +114,8 @@ function resolveMileCountLocation(value){
 }
 async function resolveMileCountLocationNow(value){
  const q=String(value||"").trim();if(!q)throw new Error("Location required");
+ const gps=q.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+ if(gps&&Math.abs(Number(gps[1]))<=90&&Math.abs(Number(gps[2]))<=180){const x={lat:Number(gps[1]),lon:Number(gps[2]),label:q,source:'Driver coordinates'};mileCountGeoCache.set(q,x);return x;}
  if(mileCountGeoCache.has(q))return mileCountGeoCache.get(q);
  if(MileCountLocations[q]){const x={lon:MileCountLocations[q][0],lat:MileCountLocations[q][1],label:q,source:"MileCount verified city table"};mileCountGeoCache.set(q,x);return x}
  let query=q;
@@ -250,7 +252,7 @@ GET ROAD ROUTE
 ------------------------------
 */
 
-function getMileCountRoadRoute(stops){
+function getMileCountGeneralRoadRoute(stops){
  const key=Array.isArray(stops)?stops.map(x=>String(x||"").trim().toLowerCase()).join(" -> "):"";
  if(mileCountRoutePending.has(key))return mileCountRoutePending.get(key);
  const request=fetchMileCountRoadRoute(stops).finally(()=>mileCountRoutePending.delete(key));
@@ -649,3 +651,27 @@ async function mileCountRoutingTest() {
   }
 
 }
+
+// One directed road matrix for the complete decision problem, not hundreds of
+// sequential nearest-leg requests. Null/unreachable cells stay unreachable.
+async function getMileCountGeneralRoadMatrix(stops){
+ const resolved=await buildResolvedCoordinates(stops);
+ const {response,data}=await mileCountFetchTimed('https://router.project-osrm.org/table/v1/driving/'+resolved.coordinateString+'?annotations=distance,duration',{},15000);
+ if(!response.ok||data.code!=='Ok'||!data.distances||!data.durations)throw Error('Complete road matrix unavailable. Selected loads are preserved.');
+ return {matrix:data.distances.map((row,i)=>row.map((meters,j)=>meters==null||data.durations[i][j]==null?null:{miles:meters/1609.344,minutes:data.durations[i][j]/60})),points:resolved.points,source:'OSRM directed road matrix'};
+}
+
+// All planning and map callers use this boundary; general estimates remain labeled.
+let mileCountCommercialRouter;
+function sharedMileCountRouter(){
+ if(typeof window==='undefined'||!window.MileCountCommercialRouting)return null;
+ if(!mileCountCommercialRouter)mileCountCommercialRouter=new window.MileCountCommercialRouting.Router({
+  getProfile:async()=>{await window.MileCountTruckBrain?.ready;const b=window.MileCountTruckBrain?.get?.();if(!b?.actualLocationVerified)throw Error('Set the actual truck position first');if(b.reservedWeight||b.reservedSpace)throw Error('Account for all onboard cargo before commercial routing');return {...b.commercialProfile,currentGrossWeightLb:b.currentGrossWeightLb};},
+  resolve:async stops=>(await buildResolvedCoordinates(stops)).points,
+  transport:async request=>{await window.MileCountTruckBrain?.ready;if(!window.MileCountCloud?.commercialRoute)throw Error('Commercial backend is not connected');return window.MileCountCloud.commercialRoute(request);},
+  generalRoute:getMileCountGeneralRoadRoute,generalMatrix:getMileCountGeneralRoadMatrix,
+  onStatus:result=>{window.MileCountRoutingStatus=result;const box=document.getElementById('commercialRouteStatus');if(box){box.textContent=result.routingStatus+(result.routingFailure?' • '+result.routingFailure:'');box.dataset.verified=String(result.commercialVerified);}}
+ });return mileCountCommercialRouter;
+}
+function getMileCountRoadRoute(stops,options){const r=sharedMileCountRouter();return r?r.route(stops,options):getMileCountGeneralRoadRoute(stops);}
+function getMileCountRoadMatrix(stops,options){const r=sharedMileCountRouter();return r?r.matrix(stops,options):getMileCountGeneralRoadMatrix(stops);}

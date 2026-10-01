@@ -1,0 +1,464 @@
+[
+  {
+    "name": "Requested Georgia four-load example",
+    "oldMiles": 730.8147294798378,
+    "newMiles": 642.2201219875925,
+    "savedMiles": 88.59460749224525,
+    "newOrder": [
+      {
+        "type": "pickup",
+        "location": "Stockbridge, GA",
+        "load": "C",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "pickup",
+        "location": "Newnan, GA",
+        "load": "A",
+        "onboardWeight": 3000,
+        "onboardSpace": 8
+      },
+      {
+        "type": "drop",
+        "location": "Fairburn, GA",
+        "load": "C",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "pickup",
+        "location": "Atlanta, GA",
+        "load": "B",
+        "onboardWeight": 3000,
+        "onboardSpace": 8
+      },
+      {
+        "type": "drop",
+        "location": "Smyrna, GA",
+        "load": "A",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "pickup",
+        "location": "Lawrenceville, GA",
+        "load": "D",
+        "onboardWeight": 3000,
+        "onboardSpace": 8
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "B",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "drop",
+        "location": "McDonough, GA",
+        "load": "D",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      },
+      {
+        "type": "home",
+        "location": "Riverdale, GA",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      }
+    ],
+    "oldOrder": [
+      {
+        "type": "pickup",
+        "location": "Newnan, GA",
+        "load": "A"
+      },
+      {
+        "type": "drop",
+        "location": "Smyrna, GA",
+        "load": "A"
+      },
+      {
+        "type": "pickup",
+        "location": "Atlanta, GA",
+        "load": "B"
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "B"
+      },
+      {
+        "type": "pickup",
+        "location": "Stockbridge, GA",
+        "load": "C"
+      },
+      {
+        "type": "drop",
+        "location": "Fairburn, GA",
+        "load": "C"
+      },
+      {
+        "type": "pickup",
+        "location": "Lawrenceville, GA",
+        "load": "D"
+      },
+      {
+        "type": "drop",
+        "location": "McDonough, GA",
+        "load": "D"
+      },
+      {
+        "type": "home",
+        "location": "Riverdale, GA"
+      }
+    ],
+    "routeStops": [
+      "Riverdale, GA",
+      "Stockbridge, GA",
+      "Newnan, GA",
+      "Fairburn, GA",
+      "Atlanta, GA",
+      "Smyrna, GA",
+      "Lawrenceville, GA",
+      "Charlotte, NC",
+      "McDonough, GA",
+      "Riverdale, GA"
+    ],
+    "optimal": true,
+    "expanded": 2032,
+    "totalPay": 1750,
+    "addedPay": 1500,
+    "deadhead": 32.05417859699355,
+    "driveHours": 13.314416666666666,
+    "afterGas": 1364.6679268074445
+  },
+  {
+    "name": "Florida pickups before leaving Florida",
+    "oldMiles": 1938.3624632148255,
+    "newMiles": 732.1257605583394,
+    "savedMiles": 1206.2367026564862,
+    "newOrder": [
+      {
+        "type": "pickup",
+        "location": "Orlando, FL",
+        "load": "A",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "pickup",
+        "location": "Jacksonville, FL",
+        "load": "B",
+        "onboardWeight": 3000,
+        "onboardSpace": 8
+      },
+      {
+        "type": "pickup",
+        "location": "Jacksonville, FL",
+        "load": "C",
+        "onboardWeight": 4500,
+        "onboardSpace": 12
+      },
+      {
+        "type": "drop",
+        "location": "Atlanta, GA",
+        "load": "A",
+        "onboardWeight": 3000,
+        "onboardSpace": 8
+      },
+      {
+        "type": "drop",
+        "location": "Greenville, SC",
+        "load": "B",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "C",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      },
+      {
+        "type": "home",
+        "location": "Charlotte, NC",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      }
+    ],
+    "oldOrder": [
+      {
+        "type": "pickup",
+        "location": "Orlando, FL",
+        "load": "A"
+      },
+      {
+        "type": "drop",
+        "location": "Atlanta, GA",
+        "load": "A"
+      },
+      {
+        "type": "pickup",
+        "location": "Jacksonville, FL",
+        "load": "B"
+      },
+      {
+        "type": "drop",
+        "location": "Greenville, SC",
+        "load": "B"
+      },
+      {
+        "type": "pickup",
+        "location": "Jacksonville, FL",
+        "load": "C"
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "C"
+      },
+      {
+        "type": "home",
+        "location": "Charlotte, NC"
+      }
+    ],
+    "routeStops": [
+      "Orlando, FL",
+      "Orlando, FL",
+      "Jacksonville, FL",
+      "Jacksonville, FL",
+      "Atlanta, GA",
+      "Greenville, SC",
+      "Charlotte, NC",
+      "Charlotte, NC"
+    ],
+    "optimal": true,
+    "expanded": 306,
+    "totalPay": 2350,
+    "addedPay": 1550,
+    "deadhead": 0,
+    "driveHours": 13.875638888888888,
+    "afterGas": 1910.7245436649964
+  },
+  {
+    "name": "Atlanta pickups before Charlotte corridor",
+    "oldMiles": 1044.6682623478882,
+    "newMiles": 313.63101984411037,
+    "savedMiles": 731.0372425037779,
+    "newOrder": [
+      {
+        "type": "pickup",
+        "location": "Stockbridge, GA",
+        "load": "C",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "pickup",
+        "location": "Atlanta, GA",
+        "load": "A",
+        "onboardWeight": 3000,
+        "onboardSpace": 8
+      },
+      {
+        "type": "drop",
+        "location": "Atlanta, GA",
+        "load": "C",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "pickup",
+        "location": "Lawrenceville, GA",
+        "load": "B",
+        "onboardWeight": 3000,
+        "onboardSpace": 8
+      },
+      {
+        "type": "drop",
+        "location": "Greenville, SC",
+        "load": "B",
+        "onboardWeight": 1500,
+        "onboardSpace": 4
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "A",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      },
+      {
+        "type": "home",
+        "location": "Charlotte, NC",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      }
+    ],
+    "oldOrder": [
+      {
+        "type": "pickup",
+        "location": "Atlanta, GA",
+        "load": "A"
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "A"
+      },
+      {
+        "type": "pickup",
+        "location": "Lawrenceville, GA",
+        "load": "B"
+      },
+      {
+        "type": "drop",
+        "location": "Greenville, SC",
+        "load": "B"
+      },
+      {
+        "type": "pickup",
+        "location": "Stockbridge, GA",
+        "load": "C"
+      },
+      {
+        "type": "drop",
+        "location": "Atlanta, GA",
+        "load": "C"
+      },
+      {
+        "type": "home",
+        "location": "Charlotte, NC"
+      }
+    ],
+    "routeStops": [
+      "Newnan, GA",
+      "Stockbridge, GA",
+      "Atlanta, GA",
+      "Atlanta, GA",
+      "Lawrenceville, GA",
+      "Greenville, SC",
+      "Charlotte, NC",
+      "Charlotte, NC"
+    ],
+    "optimal": true,
+    "expanded": 294,
+    "totalPay": 1800,
+    "addedPay": 800,
+    "deadhead": 40.722493140062035,
+    "driveHours": 6.538749999999999,
+    "afterGas": 1611.8213880935339
+  },
+  {
+    "name": "Capacity release permits next pickup",
+    "oldMiles": 287.0106701861131,
+    "newMiles": 287.0106701861131,
+    "savedMiles": 0,
+    "newOrder": [
+      {
+        "type": "pickup",
+        "location": "Newnan, GA",
+        "load": "A",
+        "onboardWeight": 2000,
+        "onboardSpace": 6
+      },
+      {
+        "type": "drop",
+        "location": "Fairburn, GA",
+        "load": "A",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      },
+      {
+        "type": "pickup",
+        "location": "Atlanta, GA",
+        "load": "B",
+        "onboardWeight": 2000,
+        "onboardSpace": 6
+      },
+      {
+        "type": "drop",
+        "location": "Greenville, SC",
+        "load": "B",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      },
+      {
+        "type": "pickup",
+        "location": "Greenville, SC",
+        "load": "C",
+        "onboardWeight": 2000,
+        "onboardSpace": 6
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "C",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      },
+      {
+        "type": "home",
+        "location": "Charlotte, NC",
+        "onboardWeight": 0,
+        "onboardSpace": 0
+      }
+    ],
+    "oldOrder": [
+      {
+        "type": "pickup",
+        "location": "Newnan, GA",
+        "load": "A"
+      },
+      {
+        "type": "drop",
+        "location": "Fairburn, GA",
+        "load": "A"
+      },
+      {
+        "type": "pickup",
+        "location": "Atlanta, GA",
+        "load": "B"
+      },
+      {
+        "type": "drop",
+        "location": "Greenville, SC",
+        "load": "B"
+      },
+      {
+        "type": "pickup",
+        "location": "Greenville, SC",
+        "load": "C"
+      },
+      {
+        "type": "drop",
+        "location": "Charlotte, NC",
+        "load": "C"
+      },
+      {
+        "type": "home",
+        "location": "Charlotte, NC"
+      }
+    ],
+    "routeStops": [
+      "Newnan, GA",
+      "Newnan, GA",
+      "Fairburn, GA",
+      "Atlanta, GA",
+      "Greenville, SC",
+      "Greenville, SC",
+      "Charlotte, NC",
+      "Charlotte, NC"
+    ],
+    "optimal": true,
+    "expanded": 132,
+    "totalPay": 1300,
+    "addedPay": 1100,
+    "deadhead": 20.20966306768472,
+    "driveHours": 5.809638888888888,
+    "afterGas": 1127.7935978883322
+  }
+]

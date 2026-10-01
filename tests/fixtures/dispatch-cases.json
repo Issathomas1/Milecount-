@@ -1,0 +1,15 @@
+{
+ "coordinateNote":"Illustrative city-center points. OSRM general-driving road miles, not truck-restriction certified or broker street addresses.",
+ "coordinates":{
+  "Riverdale, GA":[-84.4133,33.5726],"Newnan, GA":[-84.7997,33.3807],"Smyrna, GA":[-84.5144,33.8839],
+  "Atlanta, GA":[-84.388,33.749],"Charlotte, NC":[-80.8431,35.2271],"Stockbridge, GA":[-84.2338,33.5443],
+  "Fairburn, GA":[-84.581,33.5671],"Lawrenceville, GA":[-83.9879,33.9562],"McDonough, GA":[-84.1469,33.4473],
+  "Orlando, FL":[-81.3792,28.5383],"Jacksonville, FL":[-81.6557,30.3322],"Greenville, SC":[-82.394,34.8526]
+ },
+ "cases":[
+  {"name":"Requested Georgia four-load example","start":"Riverdale, GA","home":"Riverdale, GA","payload":10000,"space":26,"loads":[["A","Newnan, GA","Smyrna, GA",1500,4,250],["B","Atlanta, GA","Charlotte, NC",1500,4,1000],["C","Stockbridge, GA","Fairburn, GA",1500,4,200],["D","Lawrenceville, GA","McDonough, GA",1500,4,300]]},
+  {"name":"Florida pickups before leaving Florida","start":"Orlando, FL","home":"Charlotte, NC","payload":10000,"space":26,"loads":[["A","Orlando, FL","Atlanta, GA",1500,4,800],["B","Jacksonville, FL","Greenville, SC",1500,4,700],["C","Jacksonville, FL","Charlotte, NC",1500,4,850]]},
+  {"name":"Atlanta pickups before Charlotte corridor","start":"Newnan, GA","home":"Charlotte, NC","payload":10000,"space":26,"loads":[["A","Atlanta, GA","Charlotte, NC",1500,4,1000],["B","Lawrenceville, GA","Greenville, SC",1500,4,600],["C","Stockbridge, GA","Atlanta, GA",1500,4,200]]},
+  {"name":"Capacity release permits next pickup","start":"Newnan, GA","home":"Charlotte, NC","payload":3000,"space":10,"loads":[["A","Newnan, GA","Fairburn, GA",2000,6,200],["B","Atlanta, GA","Greenville, SC",2000,6,700],["C","Greenville, SC","Charlotte, NC",2000,6,400]]}
+ ]
+}

@@ -543,7 +543,7 @@ class="screen active"
 
 <button id="find" class="simpleSearchBtn">FIND LOADS</button>
 <button id="localMoneyMode" type="button" class="simpleSearchBtn" style="background:#0d2118;border:1px solid #2d6b4d;margin-top:8px">💰 BUILD MY LOCAL DAY</button>
-<details class="simpleDetails"><summary>Driver day schedule</summary><div class="simpleDetailsBody"><div class="filterGrid"><label>START TIME<input id="dayStartTime" type="time" value="06:00"></label><label>PICKUP SERVICE MIN<input id="pickupServiceMin" type="number" min="0" value="20"></label><label>DROP SERVICE MIN<input id="dropServiceMin" type="number" min="0" value="20"></label></div><p class="details">MileCount checks travel time, provider pickup/delivery windows, service time, breaks, and the 10-driving-hour Local Day target before approving the stack.</p></div></details>
+<details class="simpleDetails"><summary>Driver day schedule</summary><div class="simpleDetailsBody"><div class="filterGrid"><label>START TIME<input id="dayStartTime" type="time" value="06:00"></label><label>DISPATCH TIMEZONE<select id="dispatchTimeZone"><option value="America/New_York">Eastern</option><option value="America/Chicago">Central</option><option value="America/Denver">Mountain</option><option value="America/Los_Angeles">Pacific</option></select></label><label>DRIVING LIMITS<select id="dispatchHos"><option value="unconfigured">Confirm applicability with carrier</option><option value="us-property">US property-carrying single shift</option></select></label><label>DRIVE MIN ALREADY USED<input id="hosDriveUsed" type="number" min="0" value="0"></label><label>MIN SINCE SHIFT START<input id="hosDutyUsed" type="number" min="0" value="0"></label><label>DRIVE MIN SINCE LAST BREAK<input id="hosSinceBreak" type="number" min="0" value="0"></label><label>WEEKLY CYCLE MIN REMAINING<input id="hosCycleRemaining" type="number" min="0" placeholder="Required when using driving limits"></label><label>PICKUP SERVICE MIN<input id="pickupServiceMin" type="number" min="0" value="20"></label><label>DROP SERVICE MIN<input id="dropServiceMin" type="number" min="0" value="20"></label></div><p class="details">Supplied broker appointments require dates and timezones. SIM times stay flexible. Configure driving limits when applicable; confirm your duty status with the carrier. Local Day keeps a 10-hour driving target. Road routes currently use general driving geography; verify truck restrictions before dispatch.</p></div></details>
 <div id="localMoneyStatus" class="details">Builds the strongest feasible local day and routes you home.</div>
 
 
@@ -862,7 +862,7 @@ Your trip
 <div id="finalTripDetails" class="fuelBox" style="margin-bottom:12px">
   <small>TRIP DETAILS</small>
   <div class="row" style="margin-top:9px"><div class="metric"><small>LANE START</small><b id="tripHomeStart">—</b></div><div class="metric"><small>FINAL DESTINATION</small><b id="tripFinalDestination">—</b></div></div><label style="margin-top:12px">HOME / END LOCATION<input id="tripHomeChoice" type="text" placeholder="City, State — e.g. Atlanta, GA" autocomplete="address-level2"></label><p class="details" style="margin-top:6px">Choose where you actually want this trip to end. It can be different from where the lane started.</p><button id="applyTripHome" type="button" style="background:#15271f;border:1px solid #2b4438">SET END LOCATION & RECALCULATE</button>
-  <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL TRIP PAY</small><b id="tripDetailPay">—</b></div><div class="metric"><small>RETURN LOAD</small><b id="tripDetailReturn">—</b></div></div>
+  <div class="row" style="margin-top:9px"><div class="metric"><small>TOTAL TRIP PAY</small><b id="tripDetailPay">—</b></div><div class="metric"><small>REVENUE STATUS</small><b id="tripDetailReturn">—</b></div></div>
   <div id="tripOverview" class="fuelBox" style="margin-top:14px">
   <small>TRIP SUMMARY</small>
   <div class="row" style="margin-top:9px"><div class="metric"><small>PLANNED REVENUE</small><b id="overviewRevenue">—</b></div><div class="metric"><small>ROAD MILES</small><b id="overviewMiles">—</b></div></div>
@@ -1149,12 +1149,10 @@ START NEW ORIGINAL TRIP
 </div>
 <div id="authMessage" class="details"></div>
 <div class="card" style="margin-top:14px;background:#0a1510">
-<span class="badge">MILECOUNT PRO</span>
-<h3 style="margin-bottom:5px">$19.99/month</h3>
-<p class="details">AutoStack • Backhaul Finder • Get Me Home Paid • advanced analytics. Cancel anytime.</p>
-<a href="https://buy.stripe.com/cNicN63Lt3G83H9dPn9EI01" style="display:block;text-align:center;text-decoration:none;background:#18b66d;color:white;font-weight:900;padding:14px;border-radius:12px;margin-top:10px">GO PRO MONTHLY</a>
-<a href="https://buy.stripe.com/8x24gA4Px3G81z16mV9EI02" style="display:block;text-align:center;text-decoration:none;background:#15271f;color:white;font-weight:900;padding:14px;border:1px solid #2b4438;border-radius:12px;margin-top:8px">SAVE WITH $199/YEAR</a>
-<p class="details">Payments are securely handled by Stripe. Pro access activation is being connected to verified subscription status.</p>
+<span class="badge">MILECOUNT PLANS</span>
+<h3>Choose the dispatch tools your truck needs</h3>
+<p class="details">Billing activation is pending verified plan mapping. Comparing plans does not charge you or activate a subscription.</p>
+<a href="pricing.html" class="miniBtn">COMPARE PLANS</a>
 </div>
 <button id="closeAccount" type="button">BACK TO MILECOUNT</button>
 </div>
@@ -1190,13 +1188,22 @@ map
 fuel
 app
 ===================== -->
-<script src="cloud.js?v=20260930-polish1"></script>
-<script src="routing.js?v=20260930-speed1"></script>
-<script src="map.js?v=20260930-finalfallback14"></script>
+<script src="cloud.js?v=20261001-dispatch2"></script>
+<script src="brain-storage.js?v=20261001-dispatch2"></script>
+<script src="truck-brain.js?v=20261001-dispatch2"></script>
+<script src="dispatch-brain.js?v=20261001-dispatch2"></script>
+<script src="commercial-routing.js?v=20261001-dispatch2"></script>
+<script src="routing.js?v=20261001-dispatch2"></script>
+<script src="map.js?v=20261001-dispatch2"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260930-speed1"></script>
-<script src="app.js?v=20260930-speed1"></script>
-<script src="booking.js?v=20260930-polish1"></script>
+<script src="pickup-delivery.js?v=20261001-dispatch2"></script>
+<script src="dispatch-planner.js?v=20261001-dispatch2"></script>
+<script src="provider-inventory.js?v=20261001-dispatch2"></script>
+<script src="optimizer-client.js?v=20261001-dispatch2"></script>
+<script src="app.js?v=20261001-dispatch2"></script>
+<script src="truck-profile-ui.js?v=20261001-dispatch2"></script>
+<script src="booking.js?v=20261001-dispatch2"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");

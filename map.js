@@ -1,3 +1,4 @@
+let mileCountMapRenderGeneration=0;
 /*
 ==================================================
 MILECOUNT MAP ENGINE V2
@@ -181,6 +182,7 @@ CLEAR ROUTE
 */
 
 function clearMileCountMap() {
+  mileCountMapRenderGeneration++;
 
   if (!mileCountMap) {
 
@@ -222,7 +224,7 @@ CREATE NUMBERED MARKER
 ==================================================
 */
 
-function createMileCountMarker(city,index,totalStops,overrideLocation) {
+function createMileCountMarker(city,index,totalStops,overrideLocation,event=null) {
   const location=overrideLocation||MileCountMapLocations[city];
   if(!location)return null;
 
@@ -263,7 +265,7 @@ function createMileCountMarker(city,index,totalStops,overrideLocation) {
       'font-weight:900;' +
       'box-shadow:0 2px 8px rgba(0,0,0,.25);' +
       '">' +
-      (index + 1) +
+      (index) +
       '</div>';
 
   }
@@ -326,12 +328,14 @@ function createMileCountMarker(city,index,totalStops,overrideLocation) {
 
     label =
       "STOP " +
-      (index + 1) +
+      (index) +
       " • " +
       city;
 
   }
 
+
+  if(event&&index>0)label="STOP "+index+" • "+String(event.type||"stop").toUpperCase()+" • "+city;
 
   marker.bindPopup(
     "<strong>" +
@@ -357,7 +361,7 @@ SHOW REAL ROAD ROUTE
 */
 
 async function showMileCountRoute(
-  stops
+  stops, verifiedRoute=null
 ) {
 
   if (!mileCountMap) {
@@ -368,7 +372,7 @@ async function showMileCountRoute(
 
 
   clearMileCountMap();
-
+  const renderGeneration=mileCountMapRenderGeneration;
 
   /*
   Add markers immediately so the
@@ -391,10 +395,8 @@ async function showMileCountRoute(
     try {
 
       const roadRoute =
-        await
-        getMileCountRoadRoute(
-          stops
-        );
+        verifiedRoute&&JSON.stringify(verifiedRoute.stops)===JSON.stringify(stops)?verifiedRoute:await getMileCountRoadRoute(stops);
+      if(renderGeneration!==mileCountMapRenderGeneration)return null;
 
 
       mileCountLastRoute =
@@ -402,7 +404,7 @@ async function showMileCountRoute(
 
 
       const leafletCoordinates=mileCountGeometryToLeaflet(roadRoute.geometry);
-      (roadRoute.resolvedLocations||[]).forEach((p,index)=>createMileCountMarker(stops[index],index,stops.length,[p.lat,p.lon]));
+      (roadRoute.resolvedLocations||[]).forEach((p,index)=>createMileCountMarker(stops[index],index,stops.length,[p.lat,p.lon],roadRoute.events?.[index-1]));
 
 
       if (
@@ -481,6 +483,7 @@ async function showMileCountRoute(
   even if OSRM is unavailable.
   */
 
+  if(renderGeneration!==mileCountMapRenderGeneration)return null;
   const sourceElement = document.getElementById("routeSource");
   if (sourceElement) {
     sourceElement.textContent = "Fallback route • live road routing unavailable";
@@ -650,7 +653,7 @@ function updateMileCountRouteInfo(
   if (sourceElement) {
 
     sourceElement.textContent =
-      route.source;
+      route.routingStatus||route.source;
 
   }
 
