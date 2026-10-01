@@ -1038,6 +1038,15 @@ bind("applyTripHome",async function(){
  setBusy(true,"Recalculating route to your end location…");
  try{
   const p=S.stackPlan;
+  if(p?.problem){
+   const retained=[...p.loads];S.homeChosen=true;
+   S.allUnifiedLoads=window.MileCountPickupDelivery.unique([...(S.allUnifiedLoads||[]),...retained]);
+   selectedStackKeys.clear();retained.forEach(l=>selectedStackKeys.add(loadKey(l)));
+   invalidateStackProjection('Final destination changed — optimizing the whole trip.');
+   await smartAutoStack();if(S.stackPlan?.valid)await finishAutoStack();
+   if(el('tripSaveStatus'))el('tripSaveStatus').textContent=S.stackPlan?.valid?'Entire route recalculated to '+home:'Final destination requires a new feasible plan.';
+   return;
+  }
   const freightStops=(Array.isArray(S.finalRouteStops)&&S.finalRouteStops.length?S.finalRouteStops:(Array.isArray(p?.routeStops)?p.routeStops:[])).filter(isRoutableLocation);
   const currentEnd=freightStops.at(-1)||S.destination||S.origin;
   let route=null;
@@ -1964,6 +1973,10 @@ async function finishAutoStack(){
    alert("Build the Smart AutoStack first.");
    return;
  }
+ if(p.problem){
+  const actual=syncTruckBrain('final-audit'),built=p.problem.truck;
+  if(['currentLocation','payload','cargoCapacity','reservedWeight','reservedSpace','finalDestination'].some(k=>actual[k]!==built[k])){p.valid=false;alert('Truck location, capacity or final destination changed. Rebuild Smart AutoStack.');return;}
+ }
  const loads=Array.isArray(p.loads)?p.loads:[];
  const first=loads[0]||S.basePlanLoad||{};
  const last=loads[loads.length-1]||S.basePlanLoad||{};
@@ -2028,6 +2041,7 @@ function renderFinalTripStops(){
  }
 
  if(S.homeAdded&&S.returnPay>0){
+   events=events.filter(e=>e.type!=="home");
    const r=S.returnSelected||{};
    const pickup=r.pickup||S.destination;
    const delivery=r.delivery||S.home;
@@ -2169,7 +2183,8 @@ setInterval(()=>{
  }catch(e){console.warn("MileCount background audit",e)}
 },60000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){silentAudit();refreshLiveLoadCount()}});
-["weight","space"].forEach(id=>el(id)?.addEventListener("input",()=>{captureCapacityInputs();syncCapacityState(S.capacityState.availableWeight,S.capacityState.availableSpace,false)}));
+["weight","space"].forEach(id=>el(id)?.addEventListener("input",()=>{captureCapacityInputs();syncCapacityState(S.capacityState.availableWeight,S.capacityState.availableSpace,false);if(S.stackPlan||mcActiveStackBuildId)invalidateStackProjection('Truck capacity changed — rebuild the route.')}));
+["from","vehicleType","pickupDate","dayStartTime","dispatchTimeZone","dispatchHos","hosDriveUsed","hosDutyUsed","hosSinceBreak","hosCycleRemaining","pickupServiceMin","dropServiceMin"].forEach(id=>el(id)?.addEventListener("change",()=>{if(S.stackPlan||mcActiveStackBuildId)invalidateStackProjection('Truck or schedule constraints changed — rebuild the route.')}));
 captureCapacityInputs();
 console.log("MileCount App Engine V2 Ready");
 })();

@@ -88,12 +88,13 @@ Illustrative test pay: $1,300; base $200; MileCount Added $1,100. Revenue is cou
 - Onboard loads are delivery-only. Uncollected loads require one pickup and one delivery. Base, onboard and provider-confirmed loads are protected from automatic repair recommendations.
 - Feasibility repair recalculates a subset, names each removed load and explains the conflict. The selected load is removed only through the visible repair action. Unknown weight/space, unrecognized broker appointment formats, or appointment clocks without dates/timezones stop readiness instead of guessing.
 - Real dates and supplied appointments are constraints; all sandbox/local SIM windows are ignored as broker constraints. Service and road duration are included. Optional single-shift property-carrying limits include remaining driving time, elapsed shift and remaining weekly-cycle budget. No daily restart, sleeper split or exception is invented.
+- Changing the selected home reoptimizes the entire trip. Changed truck/schedule inputs invalidate the route, and finalization refuses a stale physical location or capacity snapshot. Old build failures cannot overwrite a newer selection.
 - Final audit rejects missing/duplicate/orphan/stale events, illegal capacity, appointment failures, incorrect final endpoints and dramatically shorter legal alternatives. Selection edits invalidate derived route/map/economics immediately; stale asynchronous map responses cannot redraw deleted freight.
 
 ## Validation completed
 
 - `node tests/pickup-delivery.cjs`: precedence, 3 pickups, interleaving, capacity release, region backtracking, revenue uniqueness, real/SIM windows, HOS including home, conflict repair, marginal economics; independent exhaustive comparison on directed matrices.
-- `node tests/autostack-workflow.cjs`: real application functions for selection → optimize → audit → Done/finalize → map → remove/rebuild across all four examples; physical Truck Brain stays at its actual location and Homebound starts from the final freight delivery.
+- `node tests/autostack-workflow.cjs`: real application functions for selection → optimize → audit → Done/finalize → map → remove/rebuild across all four examples; physical Truck Brain stays at its actual location and Homebound starts from the final freight delivery; changed-home, stale-start and stale-failure checks also pass.
 - `node tests/verified-road-workflow.cjs`: complete captured OSRM route legs pass through the application audit/finalization/map workflow for all four examples.
 - `node tests/map-synchronization.cjs`: exact marker/event order, co-located stops, geometry reuse and stale-response suppression.
 - `node tests/performance-regressions.cjs`, JavaScript syntax checks and `git diff --check` passed.
