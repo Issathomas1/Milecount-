@@ -69,7 +69,6 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    await page.locator('#bookingFold > summary').click();await page.locator('#bookAllLoads').click();await page.locator('.bookingConfirm').first().click();await page.waitForFunction(()=>Object.values(window.MileCountTruckBrain.get().bookings).some(b=>b.status==='CLAIMED'));const booking=await page.evaluate(()=>Object.values(window.MileCountTruckBrain.get().bookings)[0]);assert.equal(booking.providerConfirmed,false);await page.waitForFunction(()=>window.MileCountTruckBrain.get().currentPlan&&mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
   }
   if(f===fixtures.cases[2]){
-   await page.locator('#clearStack').click();
    await page.locator('#truckBrainPanel > summary').click();
    const pickup=result.brain.currentPlan.events.find(e=>e.type==='pickup');
    await page.locator('#actualTruckForm input[name=location]').fill(pickup.location);
