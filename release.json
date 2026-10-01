@@ -1,5 +1,5 @@
 {
-  "release": "2026.10.01-preview2",
+  "release": "2026.10.01-opportunities1",
   "databaseMigration": "20261001025822_commercial_dispatch_foundation",
   "commercialNavigationActive": false,
   "bookingMode": "provider-handoff-and-carrier-reported-claim",

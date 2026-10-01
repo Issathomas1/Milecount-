@@ -714,6 +714,8 @@ Load results.
 
 <p class="details">Tap a load to inspect the trip economics or add it to your plan.</p>
 <div class="stackHelp"><b>Build a stack</b><span>Tap + STACK on 2 or more loads, then let Milecount optimize the order.</span></div>
+<div class="row"><button id="browseOutboundCandidates" type="button">FIND OUTBOUND ADDITIONS</button><button id="browseReturnCandidates" type="button">FIND LOADS TOWARD HOME</button></div>
+<p id="tripOpportunityStatus" class="details" role="status"></p><button id="buildOpportunityTrip" type="button" class="hidden">BUILD SELECTED TRIP</button>
 <section id="selectedStackLoads" class="selectedStackLoads" hidden></section>
 <div id="stackPlanResult" class="stackPlanResult"></div>
 <div id="selectedLoadSummary" class="selectedLoadSummary"><b>No load selected yet</b><span>Choose a freight opportunity to inspect the trip.</span></div>
@@ -933,9 +935,10 @@ class="green"
 ⚠️ Don't drive home empty.
 </h2>
 
-<p id="returnLead">MileCount searches connected freight up to 3 days forward and ranks loads that move you toward home.</p>
+<p id="returnLead">Browse live loads near your delivery and along the route home. Select several paid hops, then rebuild your whole trip.</p>
 
 
+<button id="findOutboundLoads" type="button">FIND OUTBOUND LOADS</button>
 <button id="protect">
 FIND MY WAY HOME
 </button>
@@ -1191,22 +1194,23 @@ map
 fuel
 app
 ===================== -->
-<script src="cloud.js?v=20261001-preview2"></script>
-<script src="brain-storage.js?v=20261001-preview2"></script>
-<script src="truck-brain.js?v=20261001-preview2"></script>
-<script src="dispatch-brain.js?v=20261001-preview2"></script>
-<script src="commercial-routing.js?v=20261001-preview2"></script>
-<script src="routing.js?v=20261001-preview2"></script>
-<script src="map.js?v=20261001-preview2"></script>
+<script src="cloud.js?v=20261001-opportunities1"></script>
+<script src="brain-storage.js?v=20261001-opportunities1"></script>
+<script src="truck-brain.js?v=20261001-opportunities1"></script>
+<script src="dispatch-brain.js?v=20261001-opportunities1"></script>
+<script src="commercial-routing.js?v=20261001-opportunities1"></script>
+<script src="routing.js?v=20261001-opportunities1"></script>
+<script src="map.js?v=20261001-opportunities1"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260930-speed1"></script>
-<script src="pickup-delivery.js?v=20261001-preview2"></script>
-<script src="dispatch-planner.js?v=20261001-preview2"></script>
-<script src="provider-inventory.js?v=20261001-preview2"></script>
-<script src="optimizer-client.js?v=20261001-preview2"></script>
-<script src="app.js?v=20261001-preview2"></script>
-<script src="truck-profile-ui.js?v=20261001-preview2"></script>
-<script src="booking.js?v=20261001-preview2"></script>
+<script src="pickup-delivery.js?v=20261001-opportunities1"></script>
+<script src="dispatch-planner.js?v=20261001-opportunities1"></script>
+<script src="provider-inventory.js?v=20261001-opportunities1"></script>
+<script src="optimizer-client.js?v=20261001-opportunities1"></script>
+<script src="trip-opportunities.js?v=20261001-opportunities1"></script>
+<script src="app.js?v=20261001-opportunities1"></script>
+<script src="truck-profile-ui.js?v=20261001-opportunities1"></script>
+<script src="booking.js?v=20261001-opportunities1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
