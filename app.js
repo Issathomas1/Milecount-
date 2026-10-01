@@ -203,6 +203,7 @@ function applyVehicle(key,updateInputs=true){
 
 function showScreen(n){
  document.querySelectorAll(".screen").forEach((s,i)=>s.classList.toggle("active",i===n-1));
+ window.dispatchEvent(new CustomEvent('milecount:screen',{detail:{screen:n}}));
  window.scrollTo(0,0);
  if(n===3)setTimeout(()=>{if(typeof initMileCountMap==="function")initMileCountMap();if(typeof mileCountMap!=="undefined"&&mileCountMap)mileCountMap.invalidateSize()},200);
 }
@@ -482,6 +483,7 @@ S.selectedCandidate=l;S.homeAdded=false;S.returnPay=0;
  if(el("remainingSpace"))el("remainingSpace").textContent=Math.max(0,val("space",0)-l.space)+" ft remaining";if(el("remainingWeight"))el("remainingWeight").textContent=Math.max(0,val("weight",0)-l.weight).toLocaleString()+" lb remaining";
  if(el("detourMiles"))el("detourMiles").textContent=S.extraMiles.toFixed(1)+" mi";if(el("detourTime"))el("detourTime").textContent=l.provider?"Provider deadhead":l.extraDriveTime;if(el("spaceUsed"))el("spaceUsed").textContent=l.space+" ft";if(el("weightUsed"))el("weightUsed").textContent=l.weight.toLocaleString()+" lb";if(el("extraFuel"))el("extraFuel").textContent=money(fuel?.fuelCost||0);if(el("addedAfterFuel"))el("addedAfterFuel").textContent=money(afterFuel);
  document.querySelectorAll(".candidateLoad").forEach((b,n)=>b.classList.toggle("selected",n===i));
+ window.dispatchEvent(new CustomEvent('milecount:inspect'));
  if(typeof window.focusMileCountLoadMarker==="function")window.focusMileCountLoadMarker(i);
 }
 window.MileCountSelectCandidate=selectCandidate;
@@ -745,15 +747,21 @@ function renderBookingChecklist(){
  const brain=syncTruckBrain("booking-render"),loads=bookingLoadsForTrip(),box=el("bookingChecklist");if(!box)return;
  S.bookingConfirmed=S.bookingConfirmed||{};
  if(el("bookingCount"))el("bookingCount").textContent=loads.length+" live load"+(loads.length===1?"":"s")+" • booking checklist";
+ const openKeys=new Set([...box.querySelectorAll('details[open]')].map(n=>n.dataset.key));
  box.innerHTML=loads.length?loads.map((l,i)=>{
   const k=loadKey(l),done=brain.bookings[k]?.status==='CLAIMED',provider=l.provider||'Provider',url=l.sourceUrl||'';
-  return '<div class="homeAlt"><b>'+(i+1)+'. '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span>'+escHtml(provider)+' • '+money(l.pay)+'</span><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:7px">'+(url?'<a class="miniBtn" href="'+escHtml(url)+'" target="_blank" rel="noopener">CONTINUE WITH '+escHtml(provider).toUpperCase()+'</a>':'<span class="sourceTag">CONTACT '+escHtml(provider).toUpperCase()+'</span>')+'<button type="button" class="bookingConfirm" data-key="'+escHtml(k)+'">'+(done?'✓ CLAIMED — CARRIER REPORTED':'I BOOKED / CLAIMED THIS ON THE PROVIDER')+'</button></div></div>';
+  const canRequest=window.MileCountBooking?.canRequest?.(l),status=window.MileCountBooking?.statusForLoad?.(l)||'AVAILABLE';
+  return '<details class="bookingLoadRow" data-key="'+escHtml(k)+'" '+(openKeys.has(k)?'open':'')+'><summary><b>'+(i+1)+'. '+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><span>'+escHtml(provider)+' · '+(Number(l.pay)>0?money(l.pay):'Rate not supplied')+' · '+(done?'Carrier reported':status==='PENDING'?'Request pending':canRequest?'Request available':'Provider step needed')+'</span></summary><div class="bookingLoadActions">'+
+   (canRequest?'<button type="button" class="requestTripLoad" data-key="'+escHtml(k)+'">Request this load</button>':(url&&/^https?:\/\//i.test(url)?'<a class="miniBtn" href="'+escHtml(url)+'" target="_blank" rel="noopener">Open '+escHtml(provider)+' ↗</a>':'<span class="sourceTag">Contact '+escHtml(provider)+'</span>'))+
+   '<button type="button" class="bookingConfirm" data-key="'+escHtml(k)+'">'+(done?'✓ Carrier reported · Undo':'I booked this with the provider')+'</button><p class="details">Your report is saved separately from provider confirmation.</p></div></details>';
  }).join(""):'<div class="details">No live provider loads are attached to this trip.</div>';
+ box.querySelectorAll('.requestTripLoad').forEach(b=>b.onclick=async()=>{const l=loads.find(x=>loadKey(x)===b.dataset.key);await window.MileCountBooking?.requestSelected?.([l]);renderBookingChecklist();});
+ const request=el('requestSelectedLoads');if(request){request.hidden=!loads.some(l=>window.MileCountBooking?.canRequest?.(l));request.onclick=async()=>{request.disabled=true;try{await window.MileCountBooking.requestSelected(loads);renderBookingChecklist();}finally{request.disabled=false;}};}
  box.querySelectorAll('.bookingConfirm').forEach(b=>b.onclick=async()=>{const l=loads.find(x=>loadKey(x)===b.dataset.key);if(!l)return;await window.MileCountTruckBrain.claim(l,brain.bookings[b.dataset.key]?.status!=='CLAIMED');renderBookingChecklist();window.MileCountBooking?.refreshCommittedSummary?.();});
  const allDone=loads.length>0&&loads.every(l=>brain.bookings[loadKey(l)]?.status==='CLAIMED'||window.MileCountBooking?.isConfirmed?.(l));
  el("startBookedTrip")?.classList.toggle("hidden",!allDone);
 }
-function openBookingHandoffs(){renderBookingChecklist();el("bookingHandoff")?.scrollIntoView({behavior:"smooth",block:"start"})}
+function openBookingHandoffs(){window.MileCountSimpleUI?.openBooking?.();renderBookingChecklist();el("bookingHandoff")?.scrollIntoView({behavior:"smooth",block:"start"})}
 async function saveCurrentTrip(showStatus=false){
  S.home=(S.home||el("from")?.value||S.origin||"").trim();
  if(S.demoTrip||S.demoReturn){if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent="TEST / SANDBOX trips are not saved as live trip history.";return false}
@@ -1492,6 +1500,8 @@ function updateStackTray(){
   window.MileCountBooking?.refreshCommittedSummary?.();
  // Manual choice is valid with one or more selected loads; AutoStack remains optional.
  const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
+ document.querySelectorAll('.stackPick').forEach(b=>{const l=(S.candidateLoads||[])[Number(b.dataset.stackIndex)],added=l&&selectedStackKeys.has(loadKey(l));b.textContent=added?'✓ Added':'+ Stack';b.setAttribute('aria-pressed',String(!!added));});
+ window.dispatchEvent(new CustomEvent('milecount:stack',{detail:{count:editableStackLoads().length}}));
 }
 function toggleStackLoad(index){
  stackSelectionRevision++;
@@ -1507,6 +1517,7 @@ function toggleStackLoad(index){
    const x=loads[i];b.classList.toggle("stackChosen",!!x&&selectedStackKeys.has(loadKey(x)));
  });
  updateStackTray();
+ window.dispatchEvent(new CustomEvent('milecount:stack-choice',{detail:{added:selectedStackKeys.has(key),count:stackSelectedLoads().length,test:isPlanningTestLoad(l)}}));
 }
 function isPlanningTestLoad(load){
  return !!(load?.isSandbox||load?.isLocalSim||['TEST','SIM','SANDBOX'].includes(String(load?.mode||'').toUpperCase()));
@@ -1648,12 +1659,13 @@ function invalidateStackProjection(message='Selection changed — rebuild the ro
  ['roadMiles','driveTime','tripPay','tripAdded'].forEach(id=>{if(el(id))el(id).textContent='Rebuild route';});
  if(typeof clearMileCountMap==='function')clearMileCountMap();
  el('doneStack')?.classList.add('hidden');
- if(el('stackPlanResult'))el('stackPlanResult').innerHTML='<p class="stackWarn">'+escHtml(message)+'</p>';
+ if(el('stackPlanResult')){el('stackPlanResult').dataset.phase='changed';el('stackPlanResult').innerHTML='<p class="stackWarn">'+escHtml(message)+'</p>';}
  if(el('tripStops'))el('tripStops').innerHTML='';
 }
 
 let mcTripBuildSeq=0,mcActiveStackBuildId=0;
 async function smartAutoStack(){
+ if(el('stackPlanResult'))el('stackPlanResult').dataset.phase='review';
  const previousPlan=S.stackPlan;
  const buildId=++mcTripBuildSeq;
  mcActiveStackBuildId=buildId;
@@ -2029,21 +2041,25 @@ function openDirectFreightDetails(l){
 }
 function renderUnifiedLoadList(loads){
  updateProviderFilterOptions(loads||[]);
- const profile=updateCostUI();
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
-   const loaded=Math.max(0,Number(l.loadedMiles||0));
-   const dh=Math.max(0,Number(l.deadheadMiles??l.extraMiles??0));
-   const all=loaded+dh;
-   const rpm=Number(l.rpm||0)||(all>0?Number(l.pay||0)/all:0);
-   const verdict=l.isSandbox?"TEST DATA":(rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS");
-   return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
-    '<div class="loadTop"><div><div class="loadLane">'+escHtml(l.pickup||"Not provided by provider")+' → '+escHtml(l.delivery||"Not provided by provider")+'</div><div class="loadMeta">'+unifiedSourceLabel(l)+' • '+escHtml(l.equipment||"Not provided by provider")+(l.commodity?" • "+escHtml(l.commodity):"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
-    '<div class="loadMetrics"><div class="loadMetric"><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>DEADHEAD</small><b>'+(S.liveOnlyBrowse&&!l.isSandbox?"—":dh.toFixed(0)+" mi")+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+(Number(l.weight||0)>0?Number(l.weight).toLocaleString()+" lb":"Not provided by provider")+'</b></div><div class="loadMetric"><small>SOURCE</small><b>'+(isLoadBootRecord(l)?"via LoadBoot":(l.isLocalSim?"MileCount SIM":(l.provider||"LIVE")))+'</b></div></div>'+
-    (isLoadBootRecord(l)?'<div class="loadBootRef"><b>LoadBoot ref: '+escHtml(l.providerLoadId)+'</b> • <a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on LoadBoot</a></div>':(String(l.provider||"").toLowerCase()==="direct freight"?'<div class="loadBootRef"><b>Direct Freight'+(l.providerLoadId?' ref: '+escHtml(l.providerLoadId):'')+'</b>'+(l.sourceUrl?' • <a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on Direct Freight</a>':' • LIVE PROVIDER')+' • <span class="dfDetailsOpen" data-df-index="'+i+'" style="text-decoration:underline;font-weight:900;cursor:pointer">DETAILS</span></div>':''))+
+   const loaded=Math.max(0,Number(l.loadedMiles||0)),weight=Number(l.weight||0);
+   const test=isPlanningTestLoad(l),rate=Number(l.pay)>0?money(l.pay):'Rate not supplied';
+   const ref=l.providerLoadId||l.bookingReference||'';
+   return '<article class="candidateLoad loadResult" data-load-index="'+i+'">'+
+    '<div class="loadTop"><div class="loadLane">'+escHtml(l.pickup||"Pickup not supplied")+'<span class="laneArrow"> → </span>'+escHtml(l.delivery||"Delivery not supplied")+'</div><div class="loadPay">'+rate+'</div></div>'+
+    '<div class="loadMeta">'+escHtml(test?'TEST / SIM • Not bookable':'LIVE • '+(l.provider||'Provider'))+'</div>'+
+    '<div class="loadQuickFacts"><span>'+escHtml(l.equipment||'Equipment not supplied')+'</span><span>'+(loaded?Math.round(loaded)+' loaded mi':'Miles not supplied')+'</span><span>'+(weight?weight.toLocaleString()+' lb':'Weight not supplied')+'</span></div>'+
     (l.tripProgressMiles!=null?'<p class="details">'+(l.tripProgressMiles>0?Math.round(l.tripProgressMiles)+' road miles closer to your target':'Review detour before adding')+'</p>':'')+
-    '<div class="loadFoot"><span class="sourceTag">'+(isLoadBootRecord(l)?"LOADBOOT SANDBOX":(l.isLocalSim?"MILECOUNT SIM":"LIVE • "+(l.provider||"PROVIDER")))+'</span><span class="stackPick" data-stack-index="'+i+'">＋ STACK</span><span class="verdictTag">'+verdict+'</span></div></button>';
+    '<div class="loadActions"><button type="button" class="inspectLoad" data-inspect="'+i+'" aria-expanded="false" aria-controls="loadDetails-'+i+'">Details</button><button type="button" class="stackPick" data-stack-index="'+i+'" aria-pressed="false">+ Stack</button></div>'+
+    '<div id="loadDetails-'+i+'" class="loadExtra" hidden><p>Pickup: '+escHtml(l.pickupDate||'Not supplied')+'<br>Delivery: '+escHtml(l.deliveryDate||'Not supplied')+'<br>Space: '+(Number(l.space)>0?escHtml(l.space)+' ft':'Not supplied')+'</p>'+
+    (l.commodity?'<p>Commodity: '+escHtml(l.commodity)+'</p>':'')+
+    (ref?'<p class="loadReference">Provider reference: '+escHtml(ref)+'</p>':'')+
+    (l.sourceUrl&&/^https?:\/\//i.test(l.sourceUrl)?'<a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener">View on '+escHtml(l.provider||'provider')+' ↗</a>':'')+
+    (String(l.provider||'').toLowerCase()==='direct freight'?'<button type="button" class="dfDetailsOpen" data-df-index="'+i+'">Full provider details</button>':'')+
+    '<p class="details">Add to your stack to compare the full route, fuel and after-gas estimate.</p></div></article>';
  }).join(""):'<div class="details">No freight is currently available from connected sources.</div>';
- document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
+ document.querySelectorAll('[data-inspect]').forEach(b=>b.onclick=()=>{const panel=el('loadDetails-'+b.dataset.inspect);panel.hidden=!panel.hidden;b.setAttribute('aria-expanded',String(!panel.hidden));b.textContent=panel.hidden?'Details':'Less';});
+ document.querySelectorAll('.dfDetailsOpen').forEach(b=>b.onclick=()=>openDirectFreightDetails(loads[Number(b.dataset.dfIndex)]));
  document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
  document.querySelectorAll(".candidateLoad").forEach((b,i)=>{const l=(S.candidateLoads||[])[i];b.classList.toggle("stackChosen",!!l&&selectedStackKeys.has(loadKey(l)))});
  updateStackTray();
@@ -2109,9 +2125,14 @@ window.MileCountBookingBridge={
   return load;
  }
 };
+window.MileCountNavigation={
+ go(n){if(n===3&&!S.finalRouteStops?.length){if(stackSelectedLoads().length)return finishMyPicks();showScreen(2);return;}showScreen(n);},
+ reviewStack(){showScreen(2);window.MileCountSimpleUI?.openStack?.();},
+ getTripLoads:bookingLoadsForTrip
+};
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
-bind('editSelectedLoads',()=>{renderSelectedStackLoads();showScreen(2);el('selectedStackLoads')?.scrollIntoView({behavior:'smooth',block:'start'});});
+bind('editSelectedLoads',()=>{renderSelectedStackLoads();showScreen(2);window.MileCountSimpleUI?.openStack?.();el('selectedStackLoads')?.scrollIntoView({behavior:'smooth',block:'start'});});
 bind('findOutboundLoads',()=>browseTripOpportunities('outbound'));
 bind('browseOutboundCandidates',()=>browseTripOpportunities('outbound'));
 bind('browseReturnCandidates',protectReturn);
