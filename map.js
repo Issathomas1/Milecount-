@@ -653,7 +653,7 @@ function updateMileCountRouteInfo(
   if (sourceElement) {
 
     sourceElement.textContent =
-      route.routingStatus||route.source;
+      (route.planningPreview?"PLANNING PREVIEW • CAPACITY NOT VERIFIED • ":"")+(route.routingStatus||route.source);
 
   }
 

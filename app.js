@@ -435,12 +435,12 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  if(el("newTotal"))el("newTotal").textContent=money(S.totalPay);
  if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);
  if(el("tripAdded"))el("tripAdded").textContent="+"+money(best.pay);
- if(el("remainingSpace"))el("remainingSpace").textContent=Math.max(0,space-best.space)+" ft remaining";
- if(el("remainingWeight"))el("remainingWeight").textContent=Math.max(0,weight-best.weight).toLocaleString()+" lb remaining";
+ if(el("remainingSpace"))el("remainingSpace").textContent=Number(best.space)>0?Math.max(0,space-best.space)+" ft remaining":"Space not provided";
+ if(el("remainingWeight"))el("remainingWeight").textContent=Number(best.weight)>0?Math.max(0,weight-best.weight).toLocaleString()+" lb remaining":"Weight not provided";
  if(el("detourMiles"))el("detourMiles").textContent=best.extraMiles.toFixed(1)+" mi";
  if(el("detourTime"))el("detourTime").textContent=best.extraDriveTime;
- if(el("spaceUsed"))el("spaceUsed").textContent=best.space+" ft";
- if(el("weightUsed"))el("weightUsed").textContent=best.weight.toLocaleString()+" lb";
+ if(el("spaceUsed"))el("spaceUsed").textContent=Number(best.space)>0?best.space+" ft":"Not provided";
+ if(el("weightUsed"))el("weightUsed").textContent=Number(best.weight)>0?Number(best.weight).toLocaleString()+" lb":"Not provided";
  if(el("extraFuel"))el("extraFuel").textContent=money(best.fuel.fuelCost);
  if(el("extraFuelDetails"))el("extraFuelDetails").textContent=best.fuel.gallons.toFixed(1)+" gal • $"+best.fuel.dieselPrice.toFixed(2)+"/gal • "+best.fuel.source;
  if(el("addedAfterFuel"))el("addedAfterFuel").textContent="+"+money(best.afterFuel);
@@ -1605,7 +1605,7 @@ async function verifyDispatchRoute(problem,optimized){
  const alternatives=api.alternatives(problem);
  if(alternatives.some(x=>x.miles<check.result.miles*.8))throw Error('A legal alternate is dramatically shorter. Rebuild the route before continuing.');
  const result={...optimized,...check.result,audit:check};
- route={...route,miles:result.miles,hours:result.drive/60,driveTime:Math.floor(result.drive/60)+' hr '+Math.round(result.drive%60)+' min',stops:[...result.routeStops],events:[...result.events]};
+ route={...route,planningPreview:result.planningPreview,miles:result.miles,hours:result.drive/60,driveTime:Math.floor(result.drive/60)+' hr '+Math.round(result.drive%60)+' min',stops:[...result.routeStops],events:[...result.events]};
  return {result,route};
 }
 function invalidateStackProjection(message='Selection changed — rebuild the route.'){
@@ -1639,6 +1639,7 @@ async function smartAutoStack(){
    const brain=syncTruckBrain("autostack-start"),startLoc=brain.currentLocation;
    const allLoads=window.MileCountPickupDelivery.unique([...(base?[base]:[]),...chosen,...brain.onboardLoads]);
    const dispatchProblem=buildPickupDeliveryProblem(brain,allLoads,base);
+   dispatchProblem.planningPreview=allLoads.some(l=>!Number.isFinite(Number(l.weight))||Number(l.weight)<=0||!Number.isFinite(Number(l.space))||Number(l.space)<=0);
    const roadData=await getMileCountRoadMatrix(dispatchProblem.locations);
    if(buildId!==mcTripBuildSeq)return;
    dispatchProblem.matrix=roadData.matrix;
@@ -1652,7 +1653,7 @@ async function smartAutoStack(){
     }
     S.stackPlan=null;el("doneStack")?.classList.add("hidden");return;
    }
-   const weak=await runDispatchSolver('economicReview',dispatchProblem,optimized);if(buildId!==mcTripBuildSeq)return;
+   const weak=dispatchProblem.planningPreview?null:await runDispatchSolver('economicReview',dispatchProblem,optimized);if(buildId!==mcTripBuildSeq)return;
    if(weak){
     const box=el('stackPlanResult');if(box){box.innerHTML='<div class="stackPlanStatus bad">LOW-VALUE LOAD NEEDS REVIEW</div><p class="stackWarn">'+escHtml(weak.reason)+'</p><p>Recalculated alternative: '+Math.round(weak.plan.miles)+' road miles • '+money(weak.plan.afterGas)+' estimated after gas.</p><button id="removeWeakRouteLoad" type="button">REMOVE WEAK LOAD + REBUILD</button>';el('removeWeakRouteLoad')?.addEventListener('click',()=>{selectedStackKeys.delete(loadKey(weak.removed));updateStackTray();smartAutoStack()});box.scrollIntoView({behavior:'smooth',block:'center'});}return;
    }
@@ -1676,18 +1677,19 @@ async function smartAutoStack(){
    // Planning does not mutate actual Truck Brain location or onboard inventory.
    S.stackPlan={...optimized,problem:dispatchProblem,route,routeStops,miles:optimized.miles,
     livePay:optimized.livePay,testPay:optimized.testPay,fuel,rpm,economics:economicReview?.metrics||null,valid:true,
-    events:optimized.events,schedule,snapshot,routeVerified,commercialVerified:route.commercialVerified===true,routingStatus:route.routingStatus||"GENERAL ROAD ESTIMATE ONLY",driveHours:optimized.drive/60,durationHours:optimized.drive/60};
+    events:optimized.events,schedule,snapshot,routeVerified,commercialVerified:!optimized.planningPreview&&route.commercialVerified===true,routingStatus:route.routingStatus||"GENERAL ROAD ESTIMATE ONLY",driveHours:optimized.drive/60,durationHours:optimized.drive/60};
    if(physicalBrain&&brain.actualLocationVerified&&!optimized.loads.some(l=>l.isSandbox||l.isLocalSim||['TEST','SIM'].includes(l.mode)))physicalBrain.publish(S.stackPlan,brain.version);
    S.planCommitments=brain.committedLoads;S.finalRouteEvents=[];S.finalRouteStops=[];document.dispatchEvent(new Event("milecount:plan-changed"));
    el("doneStack")?.classList.remove("hidden");
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
+    (optimized.planningPreview?'<div class="tripStateNow"><b>PLANNING PREVIEW</b><span>Capacity not verified — some provider weights or cargo sizes are missing. Route and costs are estimates.</span></div>':'')+
     '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?escHtml(route.routingStatus||'GENERAL ROAD ESTIMATE — COMMERCIAL ROUTE UNAVAILABLE')+' • REVIEW SUPPLIED CONSTRAINTS':"TRIP NEEDS CHANGES")+'</div>'+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
     (state.schedule?'<div class="tripStateNow"><b>DRIVER DAY • '+(state.schedule.ok?'SUPPLIED WINDOWS FEASIBLE':'INFEASIBLE')+'</b><span>'+state.schedule.start+' → '+state.schedule.finish+' • '+(state.schedule.driveMinutes/60).toFixed(1)+' driving hr • '+(state.schedule.onDutyMinutes/60).toFixed(1)+' on-duty hr</span></div>':'')+
     '<div class="tripStateNow"><b>'+escHtml(optimized.method)+' • '+(optimized.optimal?'globally optimal for supplied matrix':'bounded search')+'</b><span>'+[...dispatchProblem.warnings,...(!dispatchProblem.hos?.enabled?['Driver-hours eligibility not verified; configure limits before dispatch.']:[])].map(escHtml).join(' • ')+'</span></div>'+
     '<div class="tripStateNow"><b>OPTIMIZED STOP ORDER</b><span>Multiple pickups can happen before drops. MileCount will not intentionally return to a market it already left when a legal on-route pickup was available.</span></div>'+
-    '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":e.type==="home"?"HOME":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
+    '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":e.type==="home"?"HOME":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+' • '+(e.capacityVerified===false?'Capacity not verified':Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used')+'</span></div>').join("")+'</div>'+
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
     (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY.</p>':'');
    if(el("stackPlanResult")){
@@ -1895,7 +1897,7 @@ async function finishAutoStack(){
  if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);
  if(el("tripAdded"))el("tripAdded").textContent="+"+money(S.addedPay).replace("-$","-$");
  if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
- if(el("routeSource"))el("routeSource").textContent=p.routingStatus||"GENERAL ROAD ESTIMATE ONLY";
+ if(el("routeSource"))el("routeSource").textContent=(p.planningPreview?"PLANNING PREVIEW • CAPACITY NOT VERIFIED • ":"")+(p.routingStatus||"GENERAL ROAD ESTIMATE ONLY");
  const events=Array.isArray(p.events)?p.events:[];
  S.finalRouteEvents=events.map(e=>({...e}));
 

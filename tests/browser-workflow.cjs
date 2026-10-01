@@ -11,6 +11,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   const profile={type:'box-truck',commercial:true,gvwrLb:26000,payloadLb:f.payload,emptyWeightLb:16000,cargoLengthFt:f.space,heightFt:12,widthFt:8.5,vehicleLengthFt:35,axleCount:2,axleWeightLb:13000,trailerCount:0,hazmat:false,tollPreference:'allow',avoidFerries:true};
   let state={version:1,revision:1,profile,currentLocation:f.start,onboardLoads:[],commitments:[],homeLocation:f.home},cloudVersion=1;
   const loads=f.loads.map(([name,pickup,delivery,weight,space,pay])=>({name,provider:'Direct Freight',providerLoadId:name,pickup,delivery,weight,space,pay,isSandbox:false,mode:'LIVE',sourceUrl:'https://provider.example/loads/'+name}));
+  if(f===fixtures.cases[1]){loads[0].weight=null;loads[0].space=0;}
   const nearest=point=>{let best,dist=Infinity;for(const [name,coord] of Object.entries(fixtures.coordinates)){const d=(coord[0]-point[0])**2+(coord[1]-point[1])**2;if(d<dist){best=name;dist=d;}}return roads.locations.indexOf(best);};
   await ctx.addInitScript(()=>localStorage.setItem('milecount_supabase_session',JSON.stringify({access_token:'local-qa-session'})));
   await page.route('**/*',async route=>{
@@ -45,6 +46,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   await page.locator('#tripStops summary').click();
   const result=await page.evaluate(()=>{const brain=window.MileCountTruckBrain.get();return {brain,list:document.querySelector('#tripStops').textContent,miles:document.querySelector('#roadMiles').textContent,pay:document.querySelector('#tripPay').textContent,overview:document.querySelector('#overviewMiles').textContent,routeSource:document.querySelector('#routeSource').textContent};});
   assert.equal(result.brain.currentLocation,f.start);assert.equal(result.brain.currentPlan.loads.length,f.loads.length);assert.equal(result.brain.currentPlan.routeStops.at(-1),f.home);assert.equal(result.brain.currentPlan.totalPay,f.loads.reduce((s,l)=>s+l[5],0));assert(result.routeSource.includes('COMMERCIAL ROUTE UNAVAILABLE'));
+  if(f===fixtures.cases[1]){assert.equal(result.brain.currentPlan.planningPreview,true);assert.equal(result.brain.currentPlan.capacityVerified,false);assert(result.routeSource.includes('CAPACITY NOT VERIFIED'));assert.equal(result.brain.currentPlan.loads.find(l=>l.name===loads[0].name).weight,null);}
   for(const e of result.brain.currentPlan.events)assert(result.list.includes(e.location));assert(Math.abs(parseFloat(result.miles.replaceAll(',',''))-result.brain.currentPlan.miles)<1);
   if(f===fixtures.cases[0]){
    await page.locator('#bookAllLoads').click();await page.locator('.bookingConfirm').first().click();await page.waitForFunction(()=>Object.values(window.MileCountTruckBrain.get().bookings).some(b=>b.status==='CLAIMED'));const booking=await page.evaluate(()=>Object.values(window.MileCountTruckBrain.get().bookings)[0]);assert.equal(booking.providerConfirmed,false);await page.waitForFunction(()=>window.MileCountTruckBrain.get().currentPlan&&mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);

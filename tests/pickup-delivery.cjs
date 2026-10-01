@@ -18,3 +18,9 @@ run('global optimum agrees with exhaustive enumeration on directed matrices',()=
 run('out-of-way optional load that loses marginal fuel is flagged',()=>{const a={...load('base','p','d'),pay:1000},b={...load('weak','p2','d2'),pay:1};const p=make([a,b],{start:0,p:0,d:10,p2:100,d2:110},10,'d',{baseLoadId:api.key(a)});const r=api.optimize(p);assert(r.ok);const weak=api.economicReview(p,r);assert.equal(weak.removed.id,api.key(b));assert(weak.plan.afterGas>r.afterGas);});
 
 run('home deadline is a complete-route constraint; LIVE and SIM do not mix',()=>{const a=load('A','p','d');const p=make([a],{start:0,p:1,d:10},10,'start',{serviceMinutes:{pickup:0,drop:0},homeDeadlineMinutes:19});assert(!api.optimize(p).ok);p.homeDeadlineMinutes=20;assert(api.optimize(p).ok);assert(!api.optimize(make([a,{...load('live','p','d'),isSandbox:false}],{start:0,p:1,d:10})).ok);});
+
+run('missing capacity supports an explicit preview without fabricating load data',()=>{
+ const a={...load('unknown','p','d'),weight:null,space:0},p=make([a],{start:0,p:1,d:10});
+ assert(!api.solve(p).ok);p.planningPreview=true;const r=api.optimize(p);assert(r.ok);assert(r.planningPreview);assert.equal(r.capacityVerified,false);assert.equal(r.loads[0].weight,null);assert.equal(r.loads[0].space,0);assert.equal(r.events[0].capacityVerified,false);assert.equal(r.events[1].capacityVerified,true);assert(api.audit(p,r.events).ok);assert(!api.audit({...p,planningPreview:false},r.events).ok);
+ const oversized=make([a,load('known-heavy','p','d',50,1)],{start:0,p:1,d:10},10,null,{planningPreview:true});assert(!api.solve(oversized).ok);
+});
