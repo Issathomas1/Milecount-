@@ -9,19 +9,19 @@ function profile(raw={}){
  for(const k of numberFields)p[k]=raw[k]==null||raw[k]===''?null:Number(raw[k]);
  return p;
 }
-function validateProfile(raw){
+function validateProfile(raw,{allowIncomplete=false}={}){
  const p=profile(raw),issues=[];
- if(!['cargo-van','box-truck','straight-truck','tractor-trailer'].includes(p.type))issues.push('Verify commercial truck type');
- if(!p.commercial)issues.push('Commercial vehicle status is required');
- for(const k of numberFields.filter(x=>!['axleWeightLb','trailerCount'].includes(x)))if(!Number.isFinite(p[k])||p[k]<=0)issues.push('Verify '+k);
- if(!Number.isInteger(p.axleCount)||p.axleCount<2)issues.push('Verify axle count');
- if(!Number.isInteger(p.trailerCount)||p.trailerCount<0)issues.push('Verify trailer count');
+ if((!allowIncomplete||p.type)&&!['cargo-van','box-truck','straight-truck','tractor-trailer'].includes(p.type))issues.push('Verify commercial truck type');
+ if(!allowIncomplete&&!p.commercial)issues.push('Commercial vehicle status is required');
+ for(const k of numberFields.filter(x=>!['axleWeightLb','trailerCount'].includes(x)))if((!allowIncomplete||p[k]!=null)&&(!Number.isFinite(p[k])||p[k]<=0))issues.push('Verify '+k);
+ if((!allowIncomplete||p.axleCount!=null)&&(!Number.isInteger(p.axleCount)||p.axleCount<2))issues.push('Verify axle count');
+ if((!allowIncomplete||p.trailerCount!=null)&&(!Number.isInteger(p.trailerCount)||p.trailerCount<0))issues.push('Verify trailer count');
  if(p.axleWeightLb!=null&&(!Number.isFinite(p.axleWeightLb)||p.axleWeightLb<=0))issues.push('Verify axle weight');
- if(p.hazmat==null)issues.push('Verify hazmat status');
+ if(!allowIncomplete&&p.hazmat==null)issues.push('Verify hazmat status');
  if(!['allow','avoid'].includes(p.tollPreference))issues.push('Verify toll preference');
- if(p.emptyWeightLb>=p.gvwrLb)issues.push('Empty operating weight must be below GVWR');
- if(p.emptyWeightLb+p.payloadLb>p.gvwrLb)issues.push('Payload plus empty operating weight exceeds GVWR');
- if(p.cargoLengthFt>p.vehicleLengthFt)issues.push('Cargo length exceeds total vehicle length');
+ if(p.emptyWeightLb!=null&&p.gvwrLb!=null&&p.emptyWeightLb>=p.gvwrLb)issues.push('Empty operating weight must be below GVWR');
+ if(p.emptyWeightLb!=null&&p.payloadLb!=null&&p.gvwrLb!=null&&p.emptyWeightLb+p.payloadLb>p.gvwrLb)issues.push('Payload plus empty operating weight exceeds GVWR');
+ if(p.cargoLengthFt!=null&&p.vehicleLengthFt!=null&&p.cargoLengthFt>p.vehicleLengthFt)issues.push('Cargo length exceeds total vehicle length');
  return {ok:!issues.length,issues,profile:p};
 }
 function totals(loads){return loads.reduce((a,l)=>({weight:a.weight+Number(l.weight),space:a.space+Number(l.space)}),{weight:0,space:0});}
@@ -31,7 +31,7 @@ class Brain{
  get(){const s=clone(this.state),t=totals(s.onboardLoads);return {...s,onboardWeight:t.weight,onboardSpace:t.space,currentGrossWeightLb:s.profile.emptyWeightLb==null?null:s.profile.emptyWeightLb+t.weight,remainingWeight:s.profile.payloadLb==null?null:s.profile.payloadLb-t.weight,remainingSpace:s.profile.cargoLengthFt==null?null:s.profile.cargoLengthFt-t.space};}
  write(next){next.revision=(this.state.revision||0)+1;next.updatedAt=new Date().toISOString();this.persist(clone(next));this.state=next;return this.get();}
  commit(next){checkLoads(next.onboardLoads);const t=totals(next.onboardLoads),p=next.profile;if(p.payloadLb!=null&&t.weight>p.payloadLb||p.cargoLengthFt!=null&&t.space>p.cargoLengthFt||p.gvwrLb!=null&&p.emptyWeightLb!=null&&p.emptyWeightLb+t.weight>p.gvwrLb)throw Error('Truck capacity or GVWR exceeded');next.version=this.state.version+1;next.projection=null;return this.write(next);}
- setProfile(raw){const v=validateProfile(raw);if(!v.ok)throw Error(v.issues.join(' • '));return this.commit({...clone(this.state),profile:v.profile});}
+ setProfile(raw){const v=validateProfile({...this.state.profile,...raw},{allowIncomplete:true});if(!v.ok)throw Error(v.issues.join(' • '));return this.commit({...clone(this.state),profile:v.profile});}
  setActual(currentLocation,onboardLoads){if(!currentLocation)throw Error('Actual truck location is required');return this.commit({...clone(this.state),currentLocation:clone(currentLocation),onboardLoads:clone(onboardLoads)});}
  configure(values){const allowed=['homeLocation','homeDeadline','duty','guardrails','commitments','baseLoadId'];const n=clone(this.state);for(const k of allowed)if(k in values)n[k]=clone(values[k]);if(JSON.stringify(n)===JSON.stringify(this.state))return this.get();return this.commit(n);}
  publish(plan,version){if(version!==this.state.version)throw Error('Truck changed while route was being calculated');if(!plan.valid||!plan.problem||plan.problem.truck.currentLocation!==this.state.currentLocation)throw Error('Final route must start at the actual truck position');const api=root.MileCountPickupDelivery||(typeof require==='function'?require('./pickup-delivery.js'):null),audit=api.audit(plan.problem,plan.events);if(!audit.ok)throw Error(audit.issues.join(' • '));if(plan.loads.some(l=>l.isSandbox||l.isLocalSim||['TEST','SIM'].includes(l.mode)))throw Error('Simulation cannot replace the real truck plan');const wanted=new Set([...this.state.commitments,...this.state.onboardLoads].map(id));if(plan.loads.length!==wanted.size||plan.loads.some(l=>!wanted.has(id(l))))throw Error('Final route does not match current truck commitments');if(JSON.stringify(plan.routeStops)!==JSON.stringify(audit.result.routeStops)||Math.abs(plan.miles-audit.result.miles)>.01)throw Error('Final route totals do not match the stop audit');return this.write({...clone(this.state),projection:{inputVersion:version,plan:clone(plan)}});}
