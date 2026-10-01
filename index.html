@@ -417,6 +417,7 @@ button{cursor:pointer}button:disabled{cursor:default}
 @media(max-width:520px){.photoHero{height:210px}.photoHero>div:last-child{left:18px!important;bottom:20px!important}.photoHero>div:last-child>div:nth-child(2){font-size:34px!important}.metric{min-width:0;padding:10px}.metric b{font-size:17px}.row{flex-wrap:wrap}.row>.metric{flex:1 1 130px}.compactVehicle{flex-wrap:wrap}.compactVehicle label{min-width:0!important;width:100%}.stackTray{bottom:calc(10px + env(safe-area-inset-bottom))!important}.screen{padding-bottom:245px}.loadFoot{flex-wrap:wrap}.mcBookingItemTop{gap:8px}.mcBookingOverlay{padding-bottom:calc(14px + env(safe-area-inset-bottom))!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 
+.selectedStackLoads{margin:12px 0;padding:16px;border:1px solid #28503d;border-radius:12px;background:#08140e}.selectedStackLoads p{font-size:13px;color:#b2c8bc}.selectedStackRow{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #28503d}.selectedStackRow div{min-width:0;overflow-wrap:anywhere}.selectedStackRow small{display:block;color:#b2c8bc}.selectedStackRow button{width:auto;min-height:44px;flex-shrink:0;margin:0;padding:10px 14px}
 </style>
 
 <!-- deploy-retry-20260927-1657-stable -->
@@ -713,6 +714,7 @@ Load results.
 
 <p class="details">Tap a load to inspect the trip economics or add it to your plan.</p>
 <div class="stackHelp"><b>Build a stack</b><span>Tap + STACK on 2 or more loads, then let Milecount optimize the order.</span></div>
+<section id="selectedStackLoads" class="selectedStackLoads" hidden></section>
 <div id="stackPlanResult" class="stackPlanResult"></div>
 <div id="selectedLoadSummary" class="selectedLoadSummary"><b>No load selected yet</b><span>Choose a freight opportunity to inspect the trip.</span></div>
 
@@ -885,6 +887,7 @@ Your trip
 </div>
 
 
+<button id="editSelectedLoads" type="button">EDIT / REMOVE LOADS</button>
 <div id="tripStops"><p class="details">Your pickup and delivery stops appear after route review.</p>
 </div>
 
@@ -1188,22 +1191,22 @@ map
 fuel
 app
 ===================== -->
-<script src="cloud.js?v=20261001-dispatch2"></script>
-<script src="brain-storage.js?v=20261001-dispatch2"></script>
-<script src="truck-brain.js?v=20261001-dispatch2"></script>
-<script src="dispatch-brain.js?v=20261001-dispatch2"></script>
-<script src="commercial-routing.js?v=20261001-dispatch2"></script>
-<script src="routing.js?v=20261001-dispatch2"></script>
-<script src="map.js?v=20261001-dispatch2"></script>
+<script src="cloud.js?v=20261001-localday1"></script>
+<script src="brain-storage.js?v=20261001-localday1"></script>
+<script src="truck-brain.js?v=20261001-localday1"></script>
+<script src="dispatch-brain.js?v=20261001-localday1"></script>
+<script src="commercial-routing.js?v=20261001-localday1"></script>
+<script src="routing.js?v=20261001-localday1"></script>
+<script src="map.js?v=20261001-localday1"></script>
 <script src="fuel.js"></script>
 <script src="map-loads.js?v=20260930-speed1"></script>
-<script src="pickup-delivery.js?v=20261001-dispatch2"></script>
-<script src="dispatch-planner.js?v=20261001-dispatch2"></script>
-<script src="provider-inventory.js?v=20261001-dispatch2"></script>
-<script src="optimizer-client.js?v=20261001-dispatch2"></script>
-<script src="app.js?v=20261001-dispatch2"></script>
-<script src="truck-profile-ui.js?v=20261001-dispatch2"></script>
-<script src="booking.js?v=20261001-dispatch2"></script>
+<script src="pickup-delivery.js?v=20261001-localday1"></script>
+<script src="dispatch-planner.js?v=20261001-localday1"></script>
+<script src="provider-inventory.js?v=20261001-localday1"></script>
+<script src="optimizer-client.js?v=20261001-localday1"></script>
+<script src="app.js?v=20261001-localday1"></script>
+<script src="truck-profile-ui.js?v=20261001-localday1"></script>
+<script src="booking.js?v=20261001-localday1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");

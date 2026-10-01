@@ -64,6 +64,24 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   assert((await page.locator('#bookingCount').innerText()).includes('live load'));
   assert.deepEqual(errors,[]);console.log('PASS browser select → stack → route/list/economics → exact home: '+f.name+' • '+result.brain.currentPlan.miles.toFixed(1)+' mi');
   if(process.env.QA_SCREENSHOT_DIR){fs.mkdirSync(process.env.QA_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,'route-'+fixtures.cases.indexOf(f)+'.png'),fullPage:true});}
+  if(f===fixtures.cases[0]){
+   await page.setViewportSize({width:390,height:844});
+   await page.evaluate(()=>document.getElementById('restart').click());await page.locator('#find').click();await page.waitForFunction(n=>document.querySelectorAll('.stackPick').length===n&&!document.getElementById('find').disabled,f.loads.length);
+   await page.evaluate(()=>{const load=window.MileCountBookingBridge.getLoad(0);load.isLocalSim=true;load.isSandbox=true;});
+   for(let i=0;i<f.loads.length;i++)await page.locator('.stackPick').nth(i).click();
+   await page.locator('#smartAutoStack').click();await page.waitForFunction(()=>document.querySelector('#stackPlanResult')?.textContent.includes('LIVE and TEST/SIM'));
+   assert.equal(await page.locator('#selectedStackLoads [data-remove-selection]').count(),f.loads.length);
+   if(process.env.QA_SCREENSHOT_DIR){await page.locator('#selectedStackLoads').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,'mixed-selection-mobile.png')});}
+   await page.locator('#removeTestSelections').click();await page.waitForFunction(n=>window.MileCountTruckBrain.get().currentPlan?.loads.length===n,f.loads.length-1);
+   await page.waitForFunction(()=>mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
+   assert(!(await page.evaluate(()=>window.MileCountTruckBrain.get().currentPlan.loads.some(l=>l.isLocalSim))));
+   await page.locator('#editSelectedLoads').click();await page.locator('#selectedStackLoads [data-remove-selection]').last().click();
+   await page.waitForFunction(n=>window.MileCountTruckBrain.get().currentPlan?.loads.length===n,f.loads.length-2);
+   await page.evaluate(()=>document.getElementById('restart').click());await page.locator('#localMoneyMode').click();
+   await page.waitForFunction(()=>!document.getElementById('localMoneyMode').disabled);
+   assert((await page.evaluate(()=>window.MileCountBookingBridge.getLoads())).every(l=>!l.isLocalSim&&!l.isSandbox&&!['TEST','SIM'].includes(l.mode)));
+   assert.deepEqual(errors,[]);console.log('PASS browser mixed-mode error → remove TEST/SIM → finalized route → individual removal → LIVE-only Local Day');
+  }
   await ctx.close();
  }
  }finally{await browser.close();await new Promise(r=>server.close(r));}

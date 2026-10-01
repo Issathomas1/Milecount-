@@ -735,7 +735,7 @@ async function saveCurrentTrip(showStatus=false){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
-function startNewTrip(){S.planCommitments=physicalBrain?.get().onboardLoads||[];physicalBrain?.configure({commitments:S.planCommitments,baseLoadId:null,homeLocation:null,homeDeadline:null});invalidateStackProjection('New trip — onboard freight remains committed.');S.truckBrain=null;S.homeboundHops=[];S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.home="";S.origin=(el("from")?.value||"").trim();S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){localDayBuildSeq++;stackSelectionRevision++;S.planCommitments=physicalBrain?.get().onboardLoads||[];physicalBrain?.configure({commitments:S.planCommitments,baseLoadId:null,homeLocation:null,homeDeadline:null});invalidateStackProjection('New trip — onboard freight remains committed.');S.truckBrain=null;S.homeboundHops=[];S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.home="";S.origin=(el("from")?.value||"").trim();S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -1032,7 +1032,9 @@ function dedupeNormalizedLoads(loads){
   if(seen.has(k))return false;seen.add(k);return true;
  });
 }
+let localDayBuildSeq=0,stackSelectionRevision=0;
 async function buildLocalMoneyDay(){
+ const localBuild=++localDayBuildSeq;
  const btn=el("localMoneyMode"),status=el("localMoneyStatus");
  if(btn){btn.disabled=true;btn.textContent="BUILDING LOCAL DAY…"}
  try{
@@ -1053,23 +1055,22 @@ async function buildLocalMoneyDay(){
 
    // Fetch every source concurrently. Do NOT let a slow provider block the first screen.
    // Local Day must NEVER reuse the nationwide/current candidate board.
-   // Only fresh provider searches + local SIM seeded from the truck market belong here.
+   // Automatic dispatch only consumes fresh LIVE provider freight. Demo browsing stays separate.
    const localSeed=(typedHome||S.home||"Atlanta, GA").trim();
    const sourceJobs=[
      fetchTrukTekLocal(home).catch(()=>[]),
-     fetchDirectFreightLocal(home).catch(()=>[]),
-     fetchLoadBootSandbox(false).catch(()=>[]),
-     Promise.resolve(localSimPool(localSeed))
+     fetchDirectFreightLocal(home).catch(()=>[])
    ];
    const localState=(String(localSeed).match(/,\s*([A-Z]{2})\s*$/i)||[])[1]?.toUpperCase()||"";
    const isLocalCandidate=l=>{
      const p=String(l?.pickup||"").trim().toUpperCase();
      // When a city/state is known, Local Day starts with pickups in that state.
-     // GPS coordinates cannot yield a state here, so local SIM/direct searches remain eligible.
-     return !localState||p.endsWith(", "+localState)||l?.isLocalSim;
+     // With coordinates, the provider query determines the local search area.
+     return !isPlanningTestLoad(l)&&(!localState||p.endsWith(", "+localState));
    };
    const quick=await Promise.all(sourceJobs.map(p=>Promise.race([p,new Promise(r=>setTimeout(()=>r([]),1200))])));
-   let raw=dedupeNormalizedLoads(enforceWeightCap(quick.flat())).filter(isLocalCandidate);
+   if(localBuild!==localDayBuildSeq)return;
+   let raw=dedupeNormalizedLoads(enforceWeightCap(quick.flat().filter(isLocalCandidate)));
    // Always render a first screen immediately from source data; routing enrichment must never hide loads.
    raw.sort((a,b)=>Number(b.pay||0)-Number(a.pay||0));
    const first=raw.slice(0,5);
@@ -1079,11 +1080,13 @@ async function buildLocalMoneyDay(){
 
    // Show the first local loads immediately. Do NOT auto-select/stack until the
    // local pool is established; this prevents nationwide sandbox lanes from being mixed in.
-   selectedStackKeys.clear();updateStackTray();
+   selectedStackKeys.clear();invalidateStackProjection('Building a LIVE local day…');updateStackTray();
+   const selectionRevision=stackSelectionRevision;
 
    // Full provider results + route enrichment continue in background.
-   Promise.all(sourceJobs).then(async all=>{
-     let full=dedupeNormalizedLoads(enforceWeightCap(all.flat())).filter(isLocalCandidate).slice(0,40);
+   await Promise.all(sourceJobs).then(async all=>{
+     if(localBuild!==localDayBuildSeq)return;
+     let full=dedupeNormalizedLoads(enforceWeightCap(all.flat().filter(isLocalCandidate))).slice(0,40);
      const enriched=await Promise.all(full.map(async l=>{
        const loaded=Number(l.loadedMiles||0);
        try{
@@ -1095,13 +1098,15 @@ async function buildLocalMoneyDay(){
        }catch(e){}
        return l; // route timeout never deletes the load
      }));
+     if(localBuild!==localDayBuildSeq)return;
      enriched.sort((a,b)=>Number(b.localAfterGas??b.pay??0)-Number(a.localAfterGas??a.pay??0));
      // Refresh the board, but preserve any selections that still exist in the new local pool.
      S.candidateLoads=enriched;S.allUnifiedLoads=[...enriched];renderUnifiedLoadList(enriched);updateStackTray();
      // Once the complete LOCAL pool is visible, select the strongest plan candidates.
      const picks=enriched.slice(0,Math.min(currentPlan().maxStack===Infinity?5:currentPlan().maxStack,5));
+     if(stackSelectionRevision!==selectionRevision){if(status)status.textContent="LIVE results updated. Your load choices were preserved.";return;}
      selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
-     if(picks.length>=2)setTimeout(async()=>{
+     if(picks.length>=1){
        await smartAutoStack();
        if(S.stackPlan&&!S.stackPlan.valid&&!S.stackPlan.feasible){
          const proposal=await proposeAutoCorrect();
@@ -1112,11 +1117,12 @@ async function buildLocalMoneyDay(){
            S.autoCorrectProposal=null;updateStackTray();await smartAutoStack();
          }
        }
-     },80);
+     }
      const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
      S.localSourceCounts=sc;
-     if(status)status.textContent="LOCAL MONEY ✓ "+enriched.length+" loads • "+sc.real+" real • "+sc.sandbox+" sandbox • "+sc.sim+" SIM";
-   }).catch(e=>console.warn("Local Day background refresh",e));
+     if(status)status.textContent=enriched.length?"LOCAL DAY • "+enriched.length+" LIVE loads found. Review the proposed route.":"No LIVE local freight returned by connected providers. No TEST or SIM loads were added.";
+     if(!picks.length&&el('stackPlanResult'))el('stackPlanResult').innerHTML='<p>No LIVE local freight returned by connected providers. Try another location or refresh later. TEST and SIM loads were not added.</p>';
+   });
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
  finally{if(btn){btn.disabled=false;btn.textContent="💰 BUILD MY LOCAL DAY"}}
 }
@@ -1447,11 +1453,13 @@ function updateStackTray(){
  if(pay)pay.textContent=money(chosen.reduce((s,l)=>s+Number(l.pay||0),0));
  if(tray)tray.classList.toggle("active",chosen.length>0);
  syncTruckBrain("stack-selection");
+ renderSelectedStackLoads();
   window.MileCountBooking?.refreshCommittedSummary?.();
  // Manual choice is valid with one or more selected loads; AutoStack remains optional.
  const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
 }
 function toggleStackLoad(index){
+ stackSelectionRevision++;
  const loads=S.candidateLoads||[],l=loads[index];if(!l)return;
  const key=loadKey(l),p=currentPlan();
  // Regression fix: this function receives "index"; the previous entitlement
@@ -1464,6 +1472,31 @@ function toggleStackLoad(index){
    const x=loads[i];b.classList.toggle("stackChosen",!!x&&selectedStackKeys.has(loadKey(x)));
  });
  updateStackTray();
+}
+function isPlanningTestLoad(load){
+ return !!(load?.isSandbox||load?.isLocalSim||['TEST','SIM','SANDBOX'].includes(String(load?.mode||'').toUpperCase()));
+}
+function editableStackLoads(){
+ return [...new Map([...(S.basePlanLoad?[S.basePlanLoad]:[]),...stackSelectedLoads(),...(S.planCommitments||[]),...(physicalBrain?.get().onboardLoads||[])].map(l=>[loadKey(l),l])).values()];
+}
+function renderSelectedStackLoads(){
+ const box=el('selectedStackLoads');if(!box)return;
+ const loads=editableStackLoads(),onboard=new Set((physicalBrain?.get().onboardLoads||[]).map(loadKey));
+ box.hidden=!loads.length;
+ box.innerHTML=loads.length?'<h3>Selected loads</h3><p>Remove a load without clearing your whole stack. Removing a planned load does not cancel a provider booking.</p>'+loads.map((l,i)=>'<div class="selectedStackRow"><div><b>'+escHtml(l.pickup)+' → '+escHtml(l.delivery)+'</b><small>'+escHtml(isPlanningTestLoad(l)?'TEST / SIM':'LIVE')+' • '+escHtml(l.provider||'Manual load')+' • '+money(l.pay||0)+'</small></div><button type="button" data-remove-selection="'+i+'" '+(onboard.has(loadKey(l))?'disabled':'')+'>'+(onboard.has(loadKey(l))?'Onboard':'Remove')+'</button></div>').join('')+(loads.some(isPlanningTestLoad)?'<button id="removeTestSelections" type="button">REMOVE ALL TEST / SIM + REBUILD</button>':''):'';
+ box.querySelectorAll('[data-remove-selection]').forEach(button=>button.addEventListener('click',()=>removeStackLoads([loadKey(loads[Number(button.dataset.removeSelection)])])));
+ el('removeTestSelections')?.addEventListener('click',()=>removeStackLoads(loads.filter(isPlanningTestLoad).map(loadKey)));
+}
+async function removeStackLoads(keys){
+ stackSelectionRevision++;
+ const onboard=new Set((physicalBrain?.get().onboardLoads||[]).map(loadKey)),remove=new Set(keys.filter(k=>!onboard.has(k)));
+ remove.forEach(k=>selectedStackKeys.delete(k));
+ if(S.basePlanLoad&&remove.has(loadKey(S.basePlanLoad)))S.basePlanLoad=null;
+ S.planCommitments=(S.planCommitments||[]).filter(l=>!remove.has(loadKey(l)));
+ invalidateStackProjection('Load removed — recalculating the remaining stack.');updateStackTray();
+ document.querySelectorAll('.candidateLoad').forEach((b,i)=>b.classList.toggle('stackChosen',selectedStackKeys.has(loadKey((S.candidateLoads||[])[i]||{}))));
+ if(editableStackLoads().length){await smartAutoStack();if(S.stackPlan?.valid)await finishAutoStack();}
+ else if(el('stackPlanResult'))el('stackPlanResult').innerHTML='<p>No loads selected. Choose LIVE freight or build a new local day.</p>';
 }
 function normalizeTripLocation(v,fallbackState=""){
  const s=String(v||"").trim();if(!s)return "";
@@ -2033,9 +2066,10 @@ window.MileCountBookingBridge={
 };
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
+bind('editSelectedLoads',()=>{renderSelectedStackLoads();showScreen(2);el('selectedStackLoads')?.scrollIntoView({behavior:'smooth',block:'start'});});
 bind("smartAutoStack",smartAutoStack);
 bind("doneStack",finishMyPicks);
-bind("clearStack",()=>{selectedStackKeys.clear();S.basePlanLoad=null;S.planCommitments=physicalBrain?.get().onboardLoads||[];physicalBrain?.configure({commitments:S.planCommitments,baseLoadId:null});invalidateStackProjection();S.stackPlan=null;el("doneStack")?.classList.add("hidden");updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
+bind("clearStack",()=>{stackSelectionRevision++;selectedStackKeys.clear();S.basePlanLoad=null;S.planCommitments=physicalBrain?.get().onboardLoads||[];physicalBrain?.configure({commitments:S.planCommitments,baseLoadId:null});invalidateStackProjection();S.stackPlan=null;el("doneStack")?.classList.add("hidden");updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
 silentAudit();
 setInterval(()=>{
  try{
