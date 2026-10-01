@@ -1088,13 +1088,13 @@ async function buildLocalMoneyDay(){
      if(localBuild!==localDayBuildSeq)return;
      let full=dedupeNormalizedLoads(enforceWeightCap(all.flat().filter(isLocalCandidate))).slice(0,40);
      const enriched=await Promise.all(full.map(async l=>{
-       const loaded=Number(l.loadedMiles||0);
        try{
-         const [toPickup,back]=await Promise.all([
-           withTimeout(roadMilesBetween(home,l.pickup),1600,null),
-           withTimeout(roadMilesBetween(l.delivery||l.pickup,home),1600,null)
-         ]);
-         if(Number.isFinite(toPickup)){l.deadheadMiles=Number(toPickup);l.localSoloMiles=Number(toPickup)+loaded+(Number.isFinite(back)?Number(back):0);l.localAfterGas=Number(l.pay||0)-Number(fuelFor(Math.max(1,Number(toPickup)+loaded)).fuelCost||0)}
+         const route=await withTimeout(getMileCountRoadRoute([home,l.pickup,l.delivery||l.pickup,home]),5000,null);
+         if(route&&Number.isFinite(route.miles)&&Number.isFinite(route.hours)){
+          l.localSoloMiles=route.miles;l.localSoloDriveMinutes=route.hours*60;
+          l.deadheadMiles=Number(route.legs?.[0]?.distance||0)/1609.344;
+          l.localAfterGas=Number(l.pay||0)-Number(fuelFor(route.miles).fuelCost||0);
+         }
        }catch(e){}
        return l; // route timeout never deletes the load
      }));
@@ -1103,7 +1103,8 @@ async function buildLocalMoneyDay(){
      // Refresh the board, but preserve any selections that still exist in the new local pool.
      S.candidateLoads=enriched;S.allUnifiedLoads=[...enriched];renderUnifiedLoadList(enriched);updateStackTray();
      // Once the complete LOCAL pool is visible, select the strongest plan candidates.
-     const picks=enriched.slice(0,Math.min(currentPlan().maxStack===Infinity?5:currentPlan().maxStack,5));
+     const localCandidates=enriched.filter(l=>Number(l.pay)>0&&Number.isFinite(l.localSoloDriveMinutes)&&l.localSoloDriveMinutes<=600&&l.localAfterGas>0);
+     const picks=localCandidates.slice(0,Math.min(currentPlan().maxStack===Infinity?5:currentPlan().maxStack,5));
      if(stackSelectionRevision!==selectionRevision){if(status)status.textContent="LIVE results updated. Your load choices were preserved.";return;}
      selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
      if(picks.length>=1){
@@ -1120,8 +1121,8 @@ async function buildLocalMoneyDay(){
      }
      const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
      S.localSourceCounts=sc;
-     if(status)status.textContent=enriched.length?"LOCAL DAY • "+enriched.length+" LIVE loads found. Review the proposed route.":"No LIVE local freight returned by connected providers. No TEST or SIM loads were added.";
-     if(!picks.length&&el('stackPlanResult'))el('stackPlanResult').innerHTML='<p>No LIVE local freight returned by connected providers. Try another location or refresh later. TEST and SIM loads were not added.</p>';
+     if(status)status.textContent=enriched.length?(picks.length?"LOCAL DAY • "+picks.length+" same-day candidates selected.":"No verified paid same-day match. Select available loads for a multi-day preview."):"No LIVE local freight returned by connected providers. No TEST or SIM loads were added.";
+     if(!picks.length&&el('stackPlanResult'))el('stackPlanResult').innerHTML=enriched.length?'<p>No paid same-day round trip could be verified. Available loads are below — select any to build a multi-day route preview.</p>':'<p>No LIVE local freight returned by connected providers. Try another location or refresh later.</p>';
    });
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
  finally{if(btn){btn.disabled=false;btn.textContent="💰 BUILD MY LOCAL DAY"}}
@@ -1605,7 +1606,7 @@ async function verifyDispatchRoute(problem,optimized){
  const alternatives=api.alternatives(problem);
  if(alternatives.some(x=>x.miles<check.result.miles*.8))throw Error('A legal alternate is dramatically shorter. Rebuild the route before continuing.');
  const result={...optimized,...check.result,audit:check};
- route={...route,planningPreview:result.planningPreview,miles:result.miles,hours:result.drive/60,driveTime:Math.floor(result.drive/60)+' hr '+Math.round(result.drive%60)+' min',stops:[...result.routeStops],events:[...result.events]};
+ route={...route,planningPreview:result.planningPreview,capacityVerified:result.capacityVerified,timingVerified:result.timingVerified,miles:result.miles,hours:result.drive/60,driveTime:Math.floor(result.drive/60)+' hr '+Math.round(result.drive%60)+' min',stops:[...result.routeStops],events:[...result.events]};
  return {result,route};
 }
 function invalidateStackProjection(message='Selection changed — rebuild the route.'){
@@ -1644,6 +1645,13 @@ async function smartAutoStack(){
    if(buildId!==mcTripBuildSeq)return;
    dispatchProblem.matrix=roadData.matrix;
    let optimized=await runDispatchSolver(allLoads.length?'optimize':'solve',dispatchProblem);
+   if(!optimized.ok&&optimized.issues?.some(issue=>issue.includes('No sequence meets')||issue.includes('appointment bounds'))){
+    // Keep the geographic route useful without claiming an impossible one-day schedule.
+    const previewProblem={...dispatchProblem,planningPreview:true,previewTiming:true,maxDriveMinutes:null,hos:null,homeDeadlineMinutes:null};
+    const preview=await runDispatchSolver(allLoads.length?'optimize':'solve',previewProblem);
+    if(buildId!==mcTripBuildSeq)return;
+    if(preview.ok){Object.assign(dispatchProblem,previewProblem);optimized=preview;}
+   }
    if(!optimized.ok){
     const repair=await runDispatchSolver('recommend',dispatchProblem);if(buildId!==mcTripBuildSeq)return;
     const box=el("stackPlanResult");
@@ -1683,10 +1691,10 @@ async function smartAutoStack(){
    el("doneStack")?.classList.remove("hidden");
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
-    (optimized.planningPreview?'<div class="tripStateNow"><b>PLANNING PREVIEW</b><span>Capacity not verified — some provider weights or cargo sizes are missing. Route and costs are estimates.</span></div>':'')+
+    (optimized.planningPreview?'<div class="tripStateNow"><b>PLANNING PREVIEW</b><span>'+(optimized.capacityVerified===false?'Capacity not verified — provider weight or space is missing. ':'')+(optimized.timingVerified===false?'Multi-day route preview — appointments and driving limits are not verified. ':'')+'Route and costs are estimates.</span></div>':'')+
     '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?escHtml(route.routingStatus||'GENERAL ROAD ESTIMATE — COMMERCIAL ROUTE UNAVAILABLE')+' • REVIEW SUPPLIED CONSTRAINTS':"TRIP NEEDS CHANGES")+'</div>'+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
-    (state.schedule?'<div class="tripStateNow"><b>DRIVER DAY • '+(state.schedule.ok?'SUPPLIED WINDOWS FEASIBLE':'INFEASIBLE')+'</b><span>'+state.schedule.start+' → '+state.schedule.finish+' • '+(state.schedule.driveMinutes/60).toFixed(1)+' driving hr • '+(state.schedule.onDutyMinutes/60).toFixed(1)+' on-duty hr</span></div>':'')+
+    (state.schedule?'<div class="tripStateNow"><b>DRIVER DAY • '+(optimized.timingVerified===false?'MULTI-DAY PREVIEW • TIMING NOT VERIFIED':state.schedule.ok?'SUPPLIED WINDOWS FEASIBLE':'INFEASIBLE')+'</b><span>'+(optimized.timingVerified===false?'Driving estimate excludes rest breaks • ':state.schedule.start+' → '+state.schedule.finish+' • ')+(state.schedule.driveMinutes/60).toFixed(1)+' driving hr • '+(state.schedule.onDutyMinutes/60).toFixed(1)+' on-duty hr</span></div>':'')+
     '<div class="tripStateNow"><b>'+escHtml(optimized.method)+' • '+(optimized.optimal?'globally optimal for supplied matrix':'bounded search')+'</b><span>'+[...dispatchProblem.warnings,...(!dispatchProblem.hos?.enabled?['Driver-hours eligibility not verified; configure limits before dispatch.']:[])].map(escHtml).join(' • ')+'</span></div>'+
     '<div class="tripStateNow"><b>OPTIMIZED STOP ORDER</b><span>Multiple pickups can happen before drops. MileCount will not intentionally return to a market it already left when a legal on-route pickup was available.</span></div>'+
     '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":e.type==="home"?"HOME":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+' • '+(e.capacityVerified===false?'Capacity not verified':Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used')+'</span></div>').join("")+'</div>'+
@@ -1897,7 +1905,7 @@ async function finishAutoStack(){
  if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);
  if(el("tripAdded"))el("tripAdded").textContent="+"+money(S.addedPay).replace("-$","-$");
  if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
- if(el("routeSource"))el("routeSource").textContent=(p.planningPreview?"PLANNING PREVIEW • CAPACITY NOT VERIFIED • ":"")+(p.routingStatus||"GENERAL ROAD ESTIMATE ONLY");
+ if(el("routeSource"))el("routeSource").textContent=(p.planningPreview?"PLANNING PREVIEW • "+(p.capacityVerified===false?"CAPACITY NOT VERIFIED • ":"")+(p.timingVerified===false?"MULTI-DAY / TIMING NOT VERIFIED • ":""):"")+(p.routingStatus||"GENERAL ROAD ESTIMATE ONLY");
  const events=Array.isArray(p.events)?p.events:[];
  S.finalRouteEvents=events.map(e=>({...e}));
 
