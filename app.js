@@ -694,7 +694,7 @@ async function viewUpdatedTrip(){
  if(el("tripHomeStart"))el("tripHomeStart").textContent=S.home||"—";
  if(el("tripFinalDestination"))el("tripFinalDestination").textContent=S.homeAdded?(S.home||"—"):(S.destination||"—");
  if(el("tripDetailPay"))el("tripDetailPay").textContent=money(total);
- if(el("tripDetailReturn"))el("tripDetailReturn").textContent=S.homeAdded&&S.returnPay>0?money(S.returnPay):"$0";
+ if(el('tripDetailReturn'))el('tripDetailReturn').textContent='Projected • verify booking';
  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="";
  renderFinalTripStops();
  void saveCurrentTrip();
@@ -782,6 +782,7 @@ bind("analyzeManual",analyzeManualLoad);bind("saveProfile",saveProfile);
 async function refreshAccount(){
  try{
   const s=await MileCountCloud.session(),logged=!!s;
+  await window.MileCountTruckBrain.ready;
   if((s?.user?.id||'guest')!==brainAccount){physicalBrain=null;S.executionState=null;S.basePlanLoad=null;selectedStackKeys.clear();invalidateStackProjection('Account changed — rebuild the route.');window.MileCountTruckBrain.ready=window.MileCountTruckBrain.initialize();await window.MileCountTruckBrain.ready;}
   await syncOwnerAccess();
   el("authLoggedOut")?.classList.toggle("hidden",logged);el("authLoggedIn")?.classList.toggle("hidden",!logged);
@@ -1886,6 +1887,9 @@ async function finishAutoStack(){
  selectedStackKeys.clear();updateStackTray();
  if(window.MileCountDispatchPlanner)refreshDispatchRecommendations('dispatch').catch(e=>renderNextMove({message:e.message,choices:[]}));
  renderFinalTripStops();
+ if(typeof renderBookingChecklist==='function')renderBookingChecklist();
+ if(el('tripDetailPay'))el('tripDetailPay').textContent=money(S.totalPay);
+ if(el('tripDetailReturn'))el('tripDetailReturn').textContent='Projected • verify booking';
  refreshFinalTripOverview();
  showScreen(3);
  const mapBuildId=mcTripBuildSeq;

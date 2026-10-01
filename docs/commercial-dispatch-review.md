@@ -1,6 +1,6 @@
 # Commercial dispatch architecture and launch review
 
-Status: dispatch release candidate; NOT production-ready commercial navigation.
+Status: dispatch release; NOT production-ready commercial navigation.
 See `production-roadmap.md` for the updated delivery scope and activation gates.
 No paid billing change or percentage fee is included.
 Owner `Issa.bj99@yahoo.com` already has the authenticated server admin role. Email matching
@@ -77,7 +77,7 @@ server entitlements, gates those entries, disables browser activation and states
 real optimization maximum. Existing backend values `free/pro/fleet` do not uniquely map
 to four new paid tiers. Do not guess that mapping or change existing charges.
 
-The draft migration provides entitlements, owner bypass, atomic truck-count enforcement,
+The deployed migration provides entitlements, owner bypass, atomic truck-count enforcement,
 cloud state CAS and server-only quota reservation. Its RLS/SQL/concurrency behavior has been executed in PostgreSQL tests with tenant, CAS, admin, truck-limit and quota assertions before deployment. Existing cost-saving profile saves now update
 the default vehicle rather than inserting another truck on every save.
 
@@ -172,3 +172,5 @@ The release is a proven dispatcher increment with an explicit general-road fallb
 it is not a claim that the entire product roadmap or commercial navigation is complete.
 
 Do not merge the PR just because the code runs. Show me the proposed stop order, total miles, and why the new order beats the old order before merging.
+
+Deployment record: migration `20261001025822_commercial_dispatch_foundation` and `commercial-route` Edge Function v1 deployed October 1, 2026. Production checks confirm owner admin membership, RLS, authenticated read-only table access, denied anonymous saves and denied client quota calls. The routing backend is unconfigured; no commercial qualification is enabled. GitHub dispatch checks passed before merge.

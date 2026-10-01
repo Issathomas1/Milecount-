@@ -10,7 +10,7 @@ const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=requ
  create table public.vehicles(id uuid default gen_random_uuid(),user_id uuid); grant insert,select on public.vehicles to authenticated;
  insert into auth.users values ('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002'),('00000000-0000-0000-0000-000000000003');
  insert into app_admins values ('00000000-0000-0000-0000-000000000001');`);
- await db.exec(fs.readFileSync('supabase/migrations/202610010001_commercial_foundation.sql','utf8'));
+ await db.exec(fs.readFileSync('supabase/migrations/20261001025822_commercial_dispatch_foundation.sql','utf8'));
  const as=async(n,role='authenticated')=>db.exec(`reset role;select set_config('request.jwt.claim.sub','${n?'00000000-0000-0000-0000-00000000000'+n:''}',false);set role ${role};`);
  const q=async(sql)=>(await db.query(sql)).rows;
  await as(2);assert.equal((await q('select milecount_entitlements() e'))[0].e.commercialRouting,false);

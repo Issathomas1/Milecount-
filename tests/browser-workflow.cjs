@@ -35,7 +35,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    }
    return route.fulfill({status:503,body:'External service deliberately unavailable in QA'});
   });
-  await page.goto(base,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.MileCountTruckBrain?.get?.().actualLocationVerified);await page.waitForFunction(()=>document.documentElement.dataset.ownerAccess==='true');
+  await page.goto(base,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.MileCountTruckBrain?.get?.().actualLocationVerified);await page.waitForFunction(()=>document.documentElement.dataset.ownerAccess==='true');await page.waitForFunction(()=>document.querySelector('#commercialTruckForm [name=heightFt]')?.value==='12');
   await page.locator('#from').fill(f.start);await page.locator('#to').fill(f.home);await page.locator('#pickupDate').fill('2026-10-01');await page.evaluate(({payload,space})=>{for(const [id,value] of Object.entries({minRPM:0,maxDeadhead:2000,weight:payload,space})){const input=document.getElementById(id);input.value=value;input.dispatchEvent(new Event('input'));}},f);await page.locator('#find').click();await page.waitForFunction(n=>document.querySelectorAll('.stackPick').length===n&&!document.getElementById('find').disabled,f.loads.length);
   for(let i=0;i<f.loads.length;i++)await page.locator('.stackPick').nth(i).click();
   await page.locator('#smartAutoStack').click();await page.waitForFunction(()=>document.getElementById('finishAutoStack')||document.querySelector('#stackPlanResult .bad'));
@@ -47,7 +47,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   assert.equal(result.brain.currentLocation,f.start);assert.equal(result.brain.currentPlan.loads.length,f.loads.length);assert.equal(result.brain.currentPlan.routeStops.at(-1),f.home);assert.equal(result.brain.currentPlan.totalPay,f.loads.reduce((s,l)=>s+l[5],0));assert(result.routeSource.includes('COMMERCIAL ROUTE UNAVAILABLE'));
   for(const e of result.brain.currentPlan.events)assert(result.list.includes(e.location));assert(Math.abs(parseFloat(result.miles.replaceAll(',',''))-result.brain.currentPlan.miles)<1);
   if(f===fixtures.cases[0]){
-   await page.locator('#bookAllLoads').click();await page.locator('.bookingConfirm').first().click();await page.waitForFunction(()=>Object.values(window.MileCountTruckBrain.get().bookings).some(b=>b.status==='CLAIMED'));const booking=await page.evaluate(()=>Object.values(window.MileCountTruckBrain.get().bookings)[0]);assert.equal(booking.providerConfirmed,false);
+   await page.locator('#bookAllLoads').click();await page.locator('.bookingConfirm').first().click();await page.waitForFunction(()=>Object.values(window.MileCountTruckBrain.get().bookings).some(b=>b.status==='CLAIMED'));const booking=await page.evaluate(()=>Object.values(window.MileCountTruckBrain.get().bookings)[0]);assert.equal(booking.providerConfirmed,false);await page.waitForFunction(()=>window.MileCountTruckBrain.get().currentPlan&&mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
   }
   if(f===fixtures.cases[2]){
    const pickup=result.brain.currentPlan.events.find(e=>e.type==='pickup');
@@ -58,8 +58,10 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    await page.getByRole('button',{name:'Record delivery: '+pickup.load.delivery,exact:true}).click();
    await page.waitForFunction(id=>{const b=window.MileCountTruckBrain.get();return b.currentPlan&&!b.onboardLoads.length&&!b.currentPlan.events.some(e=>e.loadId===id);},pickup.loadId);
    await page.waitForFunction(()=>mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1&&document.querySelectorAll('#tripStops .stop').length===window.MileCountTruckBrain.get().currentPlan.events.length);
+   assert.equal(await page.locator('.bookingConfirm').count(),f.loads.length-1);
    console.log('PASS browser physical pickup → revised route → delivery → released capacity');
   }
+  assert((await page.locator('#bookingCount').innerText()).includes('live load'));
   assert.deepEqual(errors,[]);console.log('PASS browser select → stack → route/list/economics → exact home: '+f.name+' • '+result.brain.currentPlan.miles.toFixed(1)+' mi');
   if(process.env.QA_SCREENSHOT_DIR){fs.mkdirSync(process.env.QA_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,'route-'+fixtures.cases.indexOf(f)+'.png'),fullPage:true});}
   await ctx.close();
