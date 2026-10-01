@@ -2052,6 +2052,7 @@ function renderUnifiedLoadList(loads){
     (l.tripProgressMiles!=null?'<p class="details">'+(l.tripProgressMiles>0?Math.round(l.tripProgressMiles)+' road miles closer to your target':'Review detour before adding')+'</p>':'')+
     '<div class="loadActions"><button type="button" class="inspectLoad" data-inspect="'+i+'" aria-expanded="false" aria-controls="loadDetails-'+i+'">Details</button><button type="button" class="stackPick" data-stack-index="'+i+'" aria-pressed="false">+ Stack</button></div>'+
     '<div id="loadDetails-'+i+'" class="loadExtra" hidden><p>Pickup: '+escHtml(l.pickupDate||'Not supplied')+'<br>Delivery: '+escHtml(l.deliveryDate||'Not supplied')+'<br>Space: '+(Number(l.space)>0?escHtml(l.space)+' ft':'Not supplied')+'</p>'+
+    (l.commodity?'<p>Commodity: '+escHtml(l.commodity)+'</p>':'')+
     (ref?'<p class="loadReference">Provider reference: '+escHtml(ref)+'</p>':'')+
     (l.sourceUrl&&/^https?:\/\//i.test(l.sourceUrl)?'<a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener">View on '+escHtml(l.provider||'provider')+' ↗</a>':'')+
     (String(l.provider||'').toLowerCase()==='direct freight'?'<button type="button" class="dfDetailsOpen" data-df-index="'+i+'">Full provider details</button>':'')+

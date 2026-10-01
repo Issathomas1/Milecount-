@@ -39,6 +39,7 @@ function init(){
   const primary=document.createElement('div');primary.className='tripPrimary';
   ['overviewRevenue','overviewMiles','overviewMargin'].forEach(id=>{const metric=$(id)?.closest('.metric');if(metric)primary.append(metric);});
   overview.prepend(primary);const keep=[...overview.children].filter(n=>n!==primary);overview.append(details);keep.forEach(n=>details.append(n));
+  const added=$('tripAdded')?.closest('.card');if(added)details.append(added);
  }
  // End-location editing is available without repeating all of the trip totals.
  const final=$('finalTripDetails');if(final){const endBox=document.createElement('details');endBox.id='endLocationFold';endBox.className='simpleFold';endBox.innerHTML='<summary>Change where this trip ends</summary>';final.prepend(endBox);const start=$('tripHomeStart')?.closest('.row'),last=$('applyTripHome');if(start&&last){let n=start;while(n){let next=n.nextSibling;endBox.append(n);if(n===last)break;n=next;}}}

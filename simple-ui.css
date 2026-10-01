@@ -69,7 +69,6 @@
 .simpleDispatch .homeAlt{padding:10px 0}.simpleDispatch .homeAlt b{font-size:16px;line-height:1.4}.simpleDispatch .homeAlt span{font-size:14px}
 .simpleDispatch .bookingConfirm{font-size:14px;padding:12px;min-height:48px;background:#173e29;border:1px solid #397653}
 .simpleDispatch #tripStops,.simpleDispatch #bookingHandoff,.simpleDispatch #stackFold{scroll-margin-top:70px}
-.simpleDispatch #screen3>.card:nth-child(2){display:none} /* Duplicate trip-pay strip; primary summary stays visible. */
 .simpleDispatch .mcBookingTopBtn{min-height:44px;font-size:12px!important;margin:0!important}
 .simpleDispatch .mcBookingItem p{font-size:14px}.simpleDispatch .mcBookingPanel>p{font-size:14px!important}
 body.mcAuthLocked #dispatchSteps,body.mcAuthLocked #backToTop,body.mcAuthLocked #stackFeedback{visibility:hidden!important}
