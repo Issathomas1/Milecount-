@@ -1,0 +1,26 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const app=fs.readFileSync('app.js','utf8'),map=fs.readFileSync('map-loads.js','utf8'),routing=fs.readFileSync('routing.js','utf8');
+function chunk(s,a,b){return s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a)))}
+async function filters(source){
+ const nodes={providerFilter:{value:'direct-freight'},providerFilterShowing:{textContent:''}};
+ const c={S:{allUnifiedLoads:[{provider:'Direct Freight'}],directFreightLastUpdated:Date.now(),origin:'A',destination:'B'},el:id=>nodes[id],setBoardStatus(){},filteredUnifiedLoads:x=>x,updateCostUI:()=>({}),renderUnifiedLoadList(){},window:{renderMileCountLoadMap:async()=>{}},Date};
+ vm.createContext(c);vm.runInContext(chunk(source,'async function applyProviderFilter(){','function currentCapacity('),c);await c.applyProviderFilter();assert(nodes.providerFilterShowing.textContent.includes('Direct Freight: 1'));
+}
+async function mapTests(source,newVersion){
+ let hydrateResolve,updates=0;const count={textContent:''},c={sourceLoads:[],sourceProfile:{},mapRenderGeneration:0,window:{},ensureMap:()=>({invalidateSize(){}}),document:{getElementById:()=>count},preparedLoads:()=>[],redraw:()=>updates++,fitItems(){},hydrateMissingLoadPoints:()=>new Promise(r=>hydrateResolve=r),console,setTimeout(){}};
+ vm.createContext(c);vm.runInContext(chunk(source,'window.renderMileCountLoadMap=async function(','window.focusMileCountLoadMarker='),c);
+ let finished=false;const p=c.window.renderMileCountLoadMap([{pickup:'Unknown'}],{}).then(()=>finished=true);await Promise.resolve();await Promise.resolve();assert.equal(finished,newVersion);hydrateResolve();await p;
+}
+async function routeTests(){
+ let calls=0,fail=false;const c={Map,Date,URLSearchParams,AbortController,setTimeout,clearTimeout,console,fetch:async(url,opt)=>{calls++;assert(opt.signal);await new Promise(r=>setTimeout(r,20));if(fail)throw Error('offline');return{ok:true,json:async()=>({code:'Ok',routes:[{distance:160934.4,duration:7200,geometry:{coordinates:[[1,2],[3,4]]}}]})}}};vm.createContext(c);vm.runInContext(routing,c);
+ const [a,b]=await Promise.all([c.getMileCountRoadRoute(['Atlanta, GA','Charlotte, NC']),c.getMileCountRoadRoute(['Atlanta, GA','Charlotte, NC'])]);assert.equal(calls,1);assert.equal(a.miles,100);assert.strictEqual(a,b);await c.getMileCountRoadRoute(['Atlanta, GA','Charlotte, NC']);assert.equal(calls,1);
+ fail=true;await assert.rejects(()=>c.getMileCountRoadRoute(['Atlanta, GA','Dallas, TX']));fail=false;await c.getMileCountRoadRoute(['Atlanta, GA','Dallas, TX']);assert.equal(calls,3);
+}
+async function mapPointTests(){const c={fallbackLocations:{},cityState:()=>"",Number,Array,String};vm.createContext(c);vm.runInContext(chunk(map,'function loadPoint(load){','async function hydrateMissingLoadPoints('),c);assert.equal(c.loadPoint({map_lat:null,map_lon:null}),null);assert.equal(c.loadPoint({map_lat:'',map_lon:''}),null);assert.equal(c.loadPoint({map_lat:200,map_lon:200}),null);assert.equal(c.loadPoint({map_lat:0,map_lon:0})[0],0)}
+async function workerTests(){let active=0,max=0,done=[];const c={Promise,Array};vm.createContext(c);vm.runInContext(chunk(app,'async function forEachConcurrent(','let loadSearchGeneration='),c);await c.forEachConcurrent([0,1,2,3,4,5],4,async i=>{active++;max=Math.max(max,active);await new Promise(r=>setTimeout(r,10));done.push(i);active--});assert.equal(max,4);assert.equal(done.length,6)}
+async function tripSaveTests(){
+ let release,saved;const c={S:{origin:'Atlanta, GA',destination:'Charlotte, NC',home:'Atlanta, GA',roundTripMiles:100,totalPay:500,primaryPay:500,addedPay:0,homeAdded:false},el:()=>null,fuelFor:()=>({fuelCost:50}),costProfile:()=>({breakEven:1}),console,MileCountCloud:{session:()=>new Promise(r=>release=r),saveTrip:async x=>{saved=x}}};
+ vm.createContext(c);vm.runInContext(chunk(app,'async function saveCurrentTrip(', 'async function analyzeManualLoad('),c);const pending=c.saveCurrentTrip();c.S.origin='Miami, FL';c.S.totalPay=999;release({user:{}});assert(await pending);assert.equal(saved.origin,'Atlanta, GA');assert.equal(saved.estimated_margin,450);
+}
+async function sandboxTests(){let calls=0,clock=1e6;const c={loadBootSandboxRequest:null,loadBootSandboxLoads:[],loadBootSandboxLastFetch:0,Date:{now:()=>clock},Promise,console,el:()=>null,withTimeout:p=>p,fetch:async()=>{calls++;await new Promise(r=>setTimeout(r,10));return{ok:true,json:async()=>({data:[]})}},extractLoadBootArray:x=>x,enforceWeightCap:x=>x,normalizeLoadBootSandbox:x=>x};vm.createContext(c);vm.runInContext(chunk(app,'function fetchLoadBootSandbox(force=false){','function providerFilterKey('),c);await Promise.all([c.fetchLoadBootSandbox(false),c.fetchLoadBootSandbox(true)]);assert.equal(calls,1);await c.fetchLoadBootSandbox(true);assert.equal(calls,1);clock+=300001;await c.fetchLoadBootSandbox(false);assert.equal(calls,2)}
+(async()=>{await filters(app);await mapTests(map,true);await routeTests();await mapPointTests();await workerTests();await sandboxTests();await tripSaveTests();console.log('PASS: provider filter and nonblocking map; route single-flight/cache/retry; bounded 4-way calculations; sandbox single-flight/empty-cache/5-minute limit; null/invalid map coordinates; immutable cloud-save snapshot')})().catch(e=>{console.error(e);process.exit(1)});

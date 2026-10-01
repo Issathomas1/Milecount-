@@ -100,12 +100,24 @@ const MileCountLocations = {
 
 const mileCountGeoCache=new Map();
 const mileCountRouteCache=new Map();
-async function resolveMileCountLocation(value){
+const mileCountGeoPending=new Map();
+const mileCountRoutePending=new Map();
+async function mileCountFetchTimed(url,options={},ms=8000){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),ms);
+ try{const response=await fetch(url,{...options,signal:controller.signal});const data=await response.json();return {response,data}}finally{clearTimeout(timer)}
+}
+function resolveMileCountLocation(value){
+ const key=String(value||"").trim();
+ if(mileCountGeoPending.has(key))return mileCountGeoPending.get(key);
+ const request=resolveMileCountLocationNow(value).finally(()=>mileCountGeoPending.delete(key));
+ mileCountGeoPending.set(key,request);return request;
+}
+async function resolveMileCountLocationNow(value){
  const q=String(value||"").trim();if(!q)throw new Error("Location required");
  if(mileCountGeoCache.has(q))return mileCountGeoCache.get(q);
  if(MileCountLocations[q]){const x={lon:MileCountLocations[q][0],lat:MileCountLocations[q][1],label:q,source:"MileCount verified city table"};mileCountGeoCache.set(q,x);return x}
  let query=q;
- if(/^\d{5}$/.test(q)){const z=await fetch("https://api.zippopotam.us/us/"+q);if(z.ok){const j=await z.json(),p=j.places?.[0];if(p)query=(p["place name"]||"")+", "+(p["state abbreviation"]||"")+" "+q}}
+ if(/^\d{5}$/.test(q)){const {response:z,data:j}=await mileCountFetchTimed("https://api.zippopotam.us/us/"+q,{},2200);if(z.ok){const p=j.places?.[0];if(p)query=(p["place name"]||"")+", "+(p["state abbreviation"]||"")+" "+q}}
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2200);
  try{
   const r=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q="+encodeURIComponent(query),{headers:{"Accept":"application/json"},signal:controller.signal});
@@ -238,7 +250,13 @@ GET ROAD ROUTE
 ------------------------------
 */
 
-async function getMileCountRoadRoute(
+function getMileCountRoadRoute(stops){
+ const key=Array.isArray(stops)?stops.map(x=>String(x||"").trim().toLowerCase()).join(" -> "):"";
+ if(mileCountRoutePending.has(key))return mileCountRoutePending.get(key);
+ const request=fetchMileCountRoadRoute(stops).finally(()=>mileCountRoutePending.delete(key));
+ mileCountRoutePending.set(key,request);return request;
+}
+async function fetchMileCountRoadRoute(
   stops
 ) {
 
@@ -277,8 +295,7 @@ async function getMileCountRoadRoute(
     "&steps=true";
 
 
-  const response =
-    await fetch(url);
+  const {response,data}=await mileCountFetchTimed(url);
 
 
   if (!response.ok) {
@@ -291,8 +308,7 @@ async function getMileCountRoadRoute(
   }
 
 
-  const data =
-    await response.json();
+
 
 
   if (

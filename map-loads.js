@@ -12,6 +12,7 @@ let loadMap=null;
 let renderedLayers=[];
 let sourceLoads=[];
 let sourceProfile={};
+let mapRenderGeneration=0;
 let selectedIndex=-1;
 let mapMode="pins";
 let areaSearchActive=false;
@@ -77,7 +78,7 @@ function cityState(v){
  return [v.city,v.state].filter(Boolean).join(", ");
 }
 function loadPoint(load){
- if(Number.isFinite(Number(load.map_lat))&&Number.isFinite(Number(load.map_lon)))return [Number(load.map_lat),Number(load.map_lon)];
+ if(load.map_lat!=null&&load.map_lon!=null&&String(load.map_lat).trim()&&String(load.map_lon).trim()&&Number.isFinite(Number(load.map_lat))&&Number.isFinite(Number(load.map_lon))&&Math.abs(Number(load.map_lat))<=90&&Math.abs(Number(load.map_lon))<=180)return [Number(load.map_lat),Number(load.map_lon)];
  if(Array.isArray(load._milecountMapPoint)&&load._milecountMapPoint.length===2)return load._milecountMapPoint;
  const c=Array.isArray(load.routeCoordinates)?load.routeCoordinates:[];
  if(c.length){
@@ -91,7 +92,7 @@ function loadPoint(load){
  return fallbackLocations[pickup]||null;
 }
 
-async function hydrateMissingLoadPoints(loads){
+async function hydrateMissingLoadPoints(loads,generation){
  if(typeof resolveMileCountLocation!=="function")return;
  const unresolved=(Array.isArray(loads)?loads:[]).filter(l=>!loadPoint(l));
  const byPickup=new Map();
@@ -103,6 +104,7 @@ async function hydrateMissingLoadPoints(loads){
  const entries=[...byPickup.entries()];
  const batchSize=5;
  for(let i=0;i<entries.length;i+=batchSize){
+   if(generation!=null&&generation!==mapRenderGeneration)return;
    await Promise.all(entries.slice(i,i+batchSize).map(async([pickup,list])=>{
      try{
        const p=await resolveMileCountLocation(pickup);
@@ -371,25 +373,28 @@ window.searchMileCountVisibleArea=function(){
 };
 
 window.renderMileCountLoadMap=async function(loads,profile){
+ const generation=++mapRenderGeneration;
  sourceLoads=Array.isArray(loads)?loads:[];
  sourceProfile=profile||{};
+ const currentLoads=sourceLoads;
  const map=ensureMap(); if(!map)return;
  const total=document.getElementById("loadMapTotal");
- if(total)total.textContent=sourceLoads.length+" RESULTS";
- let items=preparedLoads();
- const count=document.getElementById("loadMapCount");
+ if(total)total.textContent=currentLoads.length+" RESULTS";
+ const items=preparedLoads(),count=document.getElementById("loadMapCount");
  if(count)count.textContent=items.length+" MAPPED";
- redraw();
- fitItems(items);
- if(items.length<sourceLoads.length){
-   await hydrateMissingLoadPoints(sourceLoads);
-   items=preparedLoads();
-   if(count)count.textContent=items.length+" MAPPED";
-   redraw();
-   fitItems(items);
+ redraw();fitItems(items);
+ // A slow city lookup must not hold the load list or its controls hostage.
+ if(items.length<currentLoads.length){
+  hydrateMissingLoadPoints(currentLoads,generation).then(()=>{
+   if(generation!==mapRenderGeneration)return;
+   const mapped=preparedLoads();
+   if(count)count.textContent=mapped.length+" MAPPED";
+   redraw();fitItems(mapped);
+  }).catch(e=>console.warn("Load map coordinates unavailable",e));
  }
- setTimeout(()=>map.invalidateSize(),100);
+ setTimeout(()=>{if(generation===mapRenderGeneration)map.invalidateSize()},100);
 };
+
 window.focusMileCountLoadMarker=function(index){
  selectedIndex=Number(index);
  const x=preparedLoads().find(m=>m.index===selectedIndex);

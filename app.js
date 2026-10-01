@@ -63,8 +63,17 @@ const el=id=>document.getElementById(id);
 const val=(id,f=0)=>{const n=Number(el(id)?.value);return Number.isFinite(n)?n:f};
 const money=v=>{const n=Math.round(Number(v)||0);return (n<0?"-$":"$")+Math.abs(n).toLocaleString()};
 function withTimeout(p,ms,fallback=null){
- return Promise.race([p,new Promise(resolve=>setTimeout(()=>resolve(fallback),ms))]);
+ let timer;
+ return Promise.race([p,new Promise(resolve=>{timer=setTimeout(()=>resolve(fallback),ms)})]).finally(()=>clearTimeout(timer));
 }
+async function forEachConcurrent(items,limit,fn){
+ let next=0;
+ await Promise.all(Array.from({length:Math.min(limit,items.length)},async()=>{
+  while(next<items.length){const i=next++;await fn(items[i],i)}
+ }));
+}
+let loadSearchGeneration=0;
+
 let busyCount=0;
 function setBusy(on,message="One moment — working…"){
  busyCount=Math.max(0,busyCount+(on?1:-1));
@@ -267,6 +276,7 @@ function pickupDateMatches(load,date){
 }
 
 async function findMoney(){
+ const generation=++loadSearchGeneration;
  captureCapacityInputs();
  setBoardStatus("working","Checking connected freight…");
  syncOwnerAccess().then(()=>updateStackTray()).catch(()=>{});
@@ -274,17 +284,21 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  const profile=updateCostUI();
  const pay=Math.max(0,val("pay",1400)),space=Math.max(0,val("space",14)),weight=Math.max(0,val("weight",6200));
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
+ const searchOrigin=S.origin,searchDestination=S.destination,isLiveBrowse=S.liveOnlyBrowse;
+ const directRequest=fetchDirectFreightLocal(searchOrigin).catch(()=>[]);
+ const sandboxRequest=isLiveBrowse?Promise.resolve([]):fetchLoadBootSandbox(false).catch(()=>[]);
  let loads=[];let liveProvider=false; let providerErrors=[];
  let providerResponded=false,providerLiveFound=0,resolvedLane=null;
- try{const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:S.origin,destination:S.destination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:S.liveOnlyBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})}),10000,null);if(!r)throw new Error("TrukTek request timed out");if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||S.destination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));loads=enforceWeightCap(loads);if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e);setBoardStatus("warn","TrukTek is temporarily slow/unavailable. Other connected freight can still display.")}
+ try{const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:searchOrigin,destination:searchDestination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:el("pickupDate")?.value||null,equipment:el("vehicleType")?.value||"box26",search_mode:isLiveBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})}),10000,null);if(!r)throw new Error("TrukTek request timed out");if(r.ok){const j=await r.json();providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||searchDestination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));loads=enforceWeightCap(loads);if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e);setBoardStatus("warn","TrukTek is temporarily slow/unavailable. Other connected freight can still display.")}
  // Direct Freight production board: query in real time for this lane's origin.
  try{
-   const direct=await fetchDirectFreightLocal(S.origin||el("from")?.value||"");
+   const direct=await directRequest;
+   if(generation!==loadSearchGeneration)return;
    const requestedDate=el("pickupDate")?.value||"";
    // Direct Freight discovery is origin-first. Destination is a preference/ranking
    // signal, not a hard visibility filter, so carriers can see all current DF
    // freight around the truck instead of mistaking non-matching lanes for no inventory.
-   const matching=enforceWeightCap(direct).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),destinationPreferred:laneMatches(l,S.origin,S.destination)}))
+   const matching=enforceWeightCap(direct).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),destinationPreferred:laneMatches(l,searchOrigin,searchDestination)}))
      .sort((a,b)=>Number(b.destinationPreferred)-Number(a.destinationPreferred));
    S.directFreightLiveCount=matching.length;S.directFreightLastUpdated=Date.now();
    if(matching.length){loads=[...loads,...matching];providerResponded=true;liveProvider=true}
@@ -292,11 +306,12 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  updateProviderFilterOptions(loads);
  // Every lane search aggregates every connected source. LoadBoot is sandbox/test
  // only, so it is clearly labeled and never contributes to live trip revenue.
- if(!S.liveOnlyBrowse){
+ if(!isLiveBrowse){
    try{
-     const sb=await fetchLoadBootSandbox(false);
+     const sb=await sandboxRequest;
+     if(generation!==loadSearchGeneration)return;
      const requestedDate=el("pickupDate")?.value||"";
-     const matching=enforceWeightCap(sb.filter(l=>laneMatches(l,S.origin,S.destination))).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),demoWorkflow:true}));
+     const matching=enforceWeightCap(sb.filter(l=>laneMatches(l,searchOrigin,searchDestination))).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),demoWorkflow:true}));
      if(matching.length){
        loads=[...loads,...matching];
        providerResponded=true;
@@ -305,16 +320,16 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  }
 
  if(el("dataModeBadge")){
-  el("dataModeBadge").textContent=S.liveOnlyBrowse
+  el("dataModeBadge").textContent=isLiveBrowse
     ?(providerResponded?(liveProvider?"LIVE LOAD BOARD":"LIVE • NO MATCHES"):"LIVE API UNAVAILABLE")
     :(providerResponded?(liveProvider?"LIVE • TRUKTEK":"SIMULATION • NO LIVE MATCH"):"LIVE API UNAVAILABLE");
   el("dataModeBadge").style.background=liveProvider?"#dff8e9":"#fff0bf";
 }
- if(el("footerMode"))el("footerMode").textContent=S.liveOnlyBrowse
+ if(el("footerMode"))el("footerMode").textContent=isLiveBrowse
  ?(liveProvider?"LIVE LOAD BOARD • CONNECTED PROVIDERS":"LIVE LOAD BOARD • NO MATCHES")
  :(liveProvider?"LIVE TRUKTEK LOADS • SOURCE ATTRIBUTED":"SIMULATION • NO LIVE MATCH");
  if(el("mapModeLabel"))el("mapModeLabel").textContent=liveProvider?"Live-provider trip preview • green line = MileCount road route":"Route preview • green line = MileCount road route";
- if(!loads.length&&!S.liveOnlyBrowse){
+ if(!loads.length&&!isLiveBrowse){
  if(el("dataModeBadge")){el("dataModeBadge").textContent="DEMO FALLBACK • NO CONNECTED LANE MATCH";el("dataModeBadge").style.background="#fff0bf"}
  setBoardStatus("warn","No connected TrukTek or LoadBoot sandbox freight matched this lane/date. Showing demo freight separately.");
  loads=[
@@ -324,26 +339,27 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  ].filter(l=>l.space<=space&&l.weight<=weight);
  }
  if(providerResponded&&!loads.length&&el("loadCandidates")){
-  el("loadCandidates").innerHTML=S.liveOnlyBrowse
+  el("loadCandidates").innerHTML=isLiveBrowse
    ?'<div class="details" style="padding:14px;border:1px solid #5f4d18;border-radius:12px">LIVE LOAD BOARD SEARCH COMPLETE • No authorized live loads matched the current truck, date, and filter settings. No simulation was substituted.</div>'
    :'<div class="details" style="padding:14px;border:1px solid #5f4d18;border-radius:12px">LIVE SEARCH COMPLETE • '+providerLiveFound+' provider loads found, but none fit the remaining '+space+' ft / '+weight.toLocaleString()+' lb capacity and current filters. No simulation was substituted.</div>';
 }
 
- for(const l of loads){
+ if(generation!==loadSearchGeneration)return;
+ await forEachConcurrent(loads,4,async l=>{
   if(l.provider){
    const pickup=l.pickup||([l.origin?.city,l.origin?.state].filter(Boolean).join(", "));
    const delivery=l.delivery||([l.destination?.city,l.destination?.state].filter(Boolean).join(", "));
    let dh=null,loaded=Number(l.loadedMiles||0);
 
    // Provider o2oDist is not assumed to be driver deadhead. Driver deadhead is FROM -> pickup.
-   if(S.liveOnlyBrowse){
+   if(isLiveBrowse){
      dh=0; // nationwide board has no driver-origin economics until a user searches/selects a FROM location
    }else{
-     dh=await roadMilesBetween(S.origin,pickup);
+     dh=await roadMilesBetween(searchOrigin,pickup);
      if(!Number.isFinite(dh))dh=Math.max(0,Number(l.deadhead||0));
    }
 
-   if(!(loaded>0)){
+   if(!isLiveBrowse&&!(loaded>0)){
      const routedLoaded=await roadMilesBetween(pickup,delivery);
      if(Number.isFinite(routedLoaded))loaded=routedLoaded;
    }
@@ -364,24 +380,25 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
    l.fuel=fuelFor(l.extraMiles);
    l.afterFuel=l.pay-(l.fuel.fuelCost||0);
   }
- }
+ });
+ if(generation!==loadSearchGeneration)return;
  const maxDH=Math.max(0,val("maxDeadhead",100)),minRPM=Math.max(0,val("minRPM",0));
- if(!S.liveOnlyBrowse){
+ if(!isLiveBrowse){
    loads=loads.filter(l=>loadEconomics(l).deadhead<=maxDH && loadEconomics(l).rpm>=minRPM);
  }
  loads.sort((a,b)=>qualityScore(b,profile)-qualityScore(a,profile));
- const best=loads[0]||{pay:0,space:0,weight:0,stop:S.destination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
+ const best=loads[0]||{pay:0,space:0,weight:0,stop:searchDestination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
  S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
 
- if(S.liveOnlyBrowse)S.liveBoardLoads=[...loads];
+ if(isLiveBrowse)S.liveBoardLoads=[...loads];
  if(providerErrors.length===0)setBoardStatus("ok",loads.length?("Freight updated • "+loads.length+" provider load"+(loads.length===1?"":"s")+" processed"):"Connected • no matching live freight right now");
  S.candidateLoads=loads;S.selectedCandidate=best;
- if(typeof window.renderMileCountLoadMap==="function")window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
+ if(typeof window.renderMileCountLoadMap==="function")window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:searchOrigin,destination:searchDestination});
  if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.length?loads.map((l,i)=>{
  const miles=Math.max(0,Number(l.loadedMiles||l.loaded_miles||0)),dh=Math.max(0,Number(l.deadheadMiles??l.deadhead_miles??l.extraMiles??0));
  const allMiles=miles+dh,rpm=loadEconomics(l).rpm;
  const margin=Number(l.afterFuel||0),verdict=rpm>=profile.target?"STRONG":rpm>=profile.breakEven?"WORKS":"PASS";
- const origin=l.origin?.city?l.origin.city+", "+(l.origin.state||""):S.origin,destination=l.destination?.city?l.destination.city+", "+(l.destination.state||""):l.stop;
+ const origin=l.origin?.city?l.origin.city+", "+(l.origin.state||""):searchOrigin,destination=l.destination?.city?l.destination.city+", "+(l.destination.state||""):l.stop;
  const source=l.provider||((l.name||"").includes("SIMULATION")?"SIMULATION":"MILECOUNT");
  return `<button type="button" class="candidateLoad loadResult ${i===0?"selected":""}" data-load-index="${i}">
  <div class="loadTop"><div><div class="loadLane">${origin} → ${destination}</div><div class="loadMeta">${l.name||"Available load"} • ${activeVehicle.name}</div></div><div class="loadPay">${money(l.pay)}</div></div>
@@ -793,7 +810,7 @@ async function viewUpdatedTrip(){
  if(el("tripDetailReturn"))el("tripDetailReturn").textContent=S.homeAdded&&S.returnPay>0?money(S.returnPay):"$0";
  if(el("tripSaveStatus"))el("tripSaveStatus").textContent="";
  renderFinalTripStops();
- await saveCurrentTrip();
+ void saveCurrentTrip();
  refreshFinalTripOverview();
  showScreen(3);setTimeout(async()=>{try{const stops=(Array.isArray(S.finalRouteStops)?S.finalRouteStops:[]).filter(isRoutableLocation);if(stops.length>1&&typeof showMileCountRoute==="function")await showMileCountRoute(stops);else await updateOutboundMap()}catch(e){console.warn("Final route map",e)}},200);
 }
@@ -822,10 +839,11 @@ async function saveCurrentTrip(showStatus=false){
  S.home=(S.home||el("from")?.value||S.origin||"").trim();
  if(S.demoTrip||S.demoReturn){if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent="TEST / SANDBOX trips are not saved as live trip history.";return false}
  try{
-  const s=await MileCountCloud.session();if(!s)return false;
   const miles=S.roundTripMiles||0,total=S.totalPay+(S.homeAdded?S.returnPay:0),fuel=fuelFor(miles),p=costProfile();
   const estimatedCost=Number(fuel.fuelCost||0);
-  await MileCountCloud.saveTrip({origin:S.origin,destination:S.destination,home_city:S.home,primary_pay:S.primaryPay,added_pay:S.addedPay,return_pay:S.homeAdded?S.returnPay:0,road_miles:miles,fuel_cost:fuel.fuelCost,all_miles_rpm:miles?total/miles:0,break_even_rpm:p.breakEven,estimated_trip_cost:estimatedCost,estimated_margin:total-estimatedCost,status:"saved"});
+  const tripSnapshot={origin:S.origin,destination:S.destination,home_city:S.home,primary_pay:S.primaryPay,added_pay:S.addedPay,return_pay:S.homeAdded?S.returnPay:0,road_miles:miles,fuel_cost:fuel.fuelCost,all_miles_rpm:miles?total/miles:0,break_even_rpm:p.breakEven,estimated_trip_cost:estimatedCost,estimated_margin:total-estimatedCost,status:"saved"};
+  const s=await MileCountCloud.session();if(!s)return false;
+  await MileCountCloud.saveTrip(tripSnapshot);
   if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").innerHTML='SAVED ✓ <a href="trips.html" style="color:#8adbb5">VIEW MY TRIPS</a>';
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
@@ -1282,11 +1300,18 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
 ["from","to","vehicleType","maxDeadhead","minRPM","pickupDate"].forEach(id=>el(id)?.addEventListener("change",saveDriverSearch));
 setTimeout(()=>browseLiveLoadBoard(true),250);
 
-async function refreshLiveLoadCount(){
+let liveCountRequest=null;
+function refreshLiveLoadCount(){
+ if(liveCountRequest)return liveCountRequest;
+ liveCountRequest=fetchLiveLoadCount().finally(()=>{liveCountRequest=null});
+ return liveCountRequest;
+}
+async function fetchLiveLoadCount(){
  const countEl=el("liveLoadCount"),sourceEl=el("liveLoadCountSource");
  if(countEl)countEl.textContent="Checking…";
  try{
-   const r=await fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/milecount-live-count",{cache:"no-store"});
+   const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/milecount-live-count",{cache:"no-store"}),8000,null);
+   if(!r)throw new Error("Live count timed out");
    const j=await r.json();
    if(!r.ok||j.ok===false)throw new Error(j.error||("Count service "+r.status));
    const n=Number(j.count??j.total??0);
@@ -1299,7 +1324,7 @@ async function refreshLiveLoadCount(){
 }
 
 refreshLiveLoadCount();
-setInterval(refreshLiveLoadCount,60000);
+// Live count is refreshed by the single background audit below.
 
 let loadBootSandboxLoads=[];
 let loadBootSandboxLastFetch=0;
@@ -1353,9 +1378,17 @@ function extractLoadBootArray(data){
  if(Array.isArray(data?.results))return data.results;
  return [];
 }
-async function fetchLoadBootSandbox(force=false){
+let loadBootSandboxRequest=null;
+function fetchLoadBootSandbox(force=false){
+ if(loadBootSandboxRequest)return loadBootSandboxRequest;
+ // The provider permits polling at most once per five minutes, including manual refresh.
+ if(loadBootSandboxLastFetch&&Date.now()-loadBootSandboxLastFetch<300000)return Promise.resolve(loadBootSandboxLoads);
+ loadBootSandboxRequest=fetchLoadBootSandboxNow().finally(()=>{loadBootSandboxRequest=null});
+ return loadBootSandboxRequest;
+}
+async function fetchLoadBootSandboxNow(){
  const now=Date.now();
- if(!force&&loadBootSandboxLoads.length&&now-loadBootSandboxLastFetch<300000)return loadBootSandboxLoads;
+ loadBootSandboxLastFetch=now;
  const badge=el("loadBootSandboxStatus");
  try{
    if(badge)badge.textContent="Checking sandbox…";
@@ -1419,7 +1452,7 @@ async function applyProviderFilter(){
  renderUnifiedLoadList(filtered);
  const showing=el("providerFilterShowing");
  if(showing){
-  const df=mode==="direct-freight",age=S.directFreightLastUpdated?Math.max(0,Math.round((Date.now()-S.directFreightLastUpdated)/60000)):null;
+  const df=selectedProvider==="direct-freight",age=S.directFreightLastUpdated?Math.max(0,Math.round((Date.now()-S.directFreightLastUpdated)/60000)):null;
   showing.textContent=df?"Direct Freight: "+filtered.length+" live load"+(filtered.length===1?"":"s")+" returned • updated "+(age===0?"just now":age+" min ago"):"Showing "+filtered.length+" of "+all.length+" freight opportunities";
  }
 }
@@ -2259,6 +2292,7 @@ bind("clearStack",()=>{selectedStackKeys.clear();S.stackPlan=null;el("doneStack"
 silentAudit();
 setInterval(()=>{
  try{
+   if(document.hidden)return;
    silentAudit();
    refreshLiveLoadCount();
    // LoadBoot fetch remains cached for at least 5 minutes; this does not poll it every minute.
