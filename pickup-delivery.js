@@ -89,6 +89,8 @@ function solve(p,opts={}){
  if(invalid.length&&!p.planningPreview)return {ok:false,issues:invalid.map(l=>'Verify weight and cargo space for '+loadLabel(l)),conflicts:invalid.map(l=>l.id)};
  if(p.loads.some(l=>Number(l.weight)<0||Number(l.space)<0))return {ok:false,issues:['Weight and cargo space cannot be negative'],conflicts:[]};
  if(p.loads.length>15)return {ok:false,issues:['Split stacks above 15 loads into smaller dispatch plans'],conflicts:[]};
+ const oversized=p.loads.filter(l=>!l.initialOnboard&&(Number(l.weight)>p.truck.payload-Number(p.truck.reservedWeight||0)||Number(l.space)>p.truck.cargoCapacity-Number(p.truck.reservedSpace||0)));
+ if(oversized.length)return {ok:false,issues:oversized.map(l=>loadLabel(l)+' needs '+(Number(l.weight)>0?l.weight+' lb':'unknown weight')+' / '+(Number(l.space)>0?l.space+' ft':'unknown space')+', exceeding the truck’s available capacity.'),conflicts:oversized.map(l=>l.id)};
  const init=initial(p);if(init.weight>p.truck.payload||init.space>p.truck.cargoCapacity)return {ok:false,issues:['Actual onboard freight exceeds truck capacity'],conflicts:[]};
  const all=2**p.loads.length-1,exact=p.loads.length<=6,beamWidth=opts.beamWidth||1800;
  let frontier=[init],best=null,expanded=0,truncated=false;
