@@ -13,16 +13,20 @@ function mcCanonicalLocation(value,fallback=""){
  if(fb&&fb.includes(",")&&fb.split(",")[0].trim().toLowerCase()===raw.toLowerCase())return fb;
  return raw;
 }
+let physicalBrain=null,brainAccount='loading',brainLoadGeneration=0;
 function syncTruckBrain(reason="sync"){
- const cap=currentCapacity(),actual=S.executionState||{};
+ let canonical=physicalBrain?.get();
+ const pending=[...new Map([...(S.basePlanLoad?[S.basePlanLoad]:[]),...stackSelectedLoads(),...(S.planCommitments||[]),...(canonical?.onboardLoads||[])].map(l=>[loadKey(l),l])).values()].filter(l=>!canonical?.completedLoadIds?.includes(window.MileCountTruckState?.id(l)));
+ if(physicalBrain&&JSON.stringify(canonical.commitments)!==JSON.stringify(pending)){physicalBrain.configure({commitments:pending});canonical=physicalBrain.get();}
+ const cap=currentCapacity(),actual=canonical?.currentLocation?canonical:S.executionState||{};
  // A proposed route is a projection, never evidence that the truck moved.
  const onboardLoads=Array.isArray(actual.onboardLoads)?actual.onboardLoads:[];
  const onboardWeight=onboardLoads.reduce((n,l)=>n+Number(l.weight||0),0);
  const onboardSpace=onboardLoads.reduce((n,l)=>n+Number(l.space||0),0);
  const current=mcCanonicalLocation(actual.currentLocation||(S.smartDispatchLocationEnabled?S.smartDispatchOrigin:"")||el("from")?.value||S.origin,S.origin);
- const committedLoads=[...(S.basePlanLoad?[S.basePlanLoad]:[]),...stackSelectedLoads()];
- S.truckBrain={currentLocation:current,homeLocation:mcCanonicalLocation(S.home, S.origin),
-  finalDestination:S.homeChosen||S.localMoneyMode?mcCanonicalLocation(el("tripHomeChoice")?.value||S.home,S.origin):null,
+ const committedLoads=canonical?.commitments||pending;
+ S.truckBrain={version:canonical?.version||0,commercialProfile:canonical?.profile||null,currentGrossWeightLb:canonical?.currentGrossWeightLb??null,actualLocationVerified:!!actual.currentLocation,guardrails:canonical?.guardrails||{},homeDeadline:canonical?.homeDeadline||null,duty:canonical?.duty||null,currentLocation:current,homeLocation:mcCanonicalLocation(canonical?.homeLocation||S.home, S.origin),
+  finalDestination:canonical?.homeLocation?mcCanonicalLocation(canonical.homeLocation):S.homeChosen||S.localMoneyMode?mcCanonicalLocation(el("tripHomeChoice")?.value||S.home,S.origin):null,
   onboardLoads:[...onboardLoads],onboardWeight,onboardSpace,
   payload:cap.maxWeight,cargoCapacity:cap.maxSpace,
   // User-entered available capacity can reserve room for unmodeled cargo.
@@ -38,17 +42,44 @@ function truckBrain(){return syncTruckBrain("read")}
 window.MileCountTruckBrain={get:()=>truckBrain(),setActualState:state=>{
  if(!state?.currentLocation||!Array.isArray(state.onboardLoads))throw Error('Actual location and onboard loads are required');
  if(state.onboardLoads.some(l=>!Number.isFinite(Number(l.weight))||Number(l.weight)<=0||!Number.isFinite(Number(l.space))||Number(l.space)<=0))throw Error('Verify onboard weight and space first');
+ if(physicalBrain)physicalBrain.setActual(state.currentLocation,state.onboardLoads);
  S.executionState={currentLocation:state.currentLocation,onboardLoads:state.onboardLoads.map(l=>({...l}))};
  invalidateStackProjection('Actual truck state changed — rebuild the route.');return syncTruckBrain('actual-state');
 }};
+window.MileCountTruckBrain.setProfile=raw=>{if(!physicalBrain)throw Error('Truck Brain is loading');physicalBrain.setProfile(raw);S.capacityState=null;if(el('weight'))el('weight').value=physicalBrain.get().remainingWeight;if(el('space'))el('space').value=physicalBrain.get().remainingSpace;invalidateStackProjection('Truck profile changed — rebuild the route.');return truckBrain();};
+window.MileCountTruckBrain.configure=values=>{if(!physicalBrain)throw Error('Truck Brain is loading');physicalBrain.configure(values);if('homeLocation' in values){S.home=values.homeLocation;S.homeChosen=!!values.homeLocation;if(el('tripHomeChoice'))el('tripHomeChoice').value=values.homeLocation||'';}invalidateStackProjection('Dispatch rules changed — rebuild the route.');return truckBrain();};
+window.MileCountTruckBrain.recordEvent=async event=>{
+ if(!physicalBrain)throw Error('Truck Brain is loading');const before=physicalBrain.get().version,state=physicalBrain.event(event);if(state.version===before)return truckBrain();
+ S.executionState=state;S.capacityState=null;if(el('weight'))el('weight').value=state.remainingWeight;if(el('space'))el('space').value=state.remainingSpace;
+ S.planCommitments=(S.planCommitments||[]).filter(l=>event.type!=='drop'||loadKey(l)!==loadKey(event.load));
+ if(event.type==='drop'){selectedStackKeys.delete(loadKey(event.load));if(S.basePlanLoad&&loadKey(S.basePlanLoad)===loadKey(event.load))S.basePlanLoad=null;}
+ const remainingCommitments=[...(S.planCommitments||[])];invalidateStackProjection('Truck event recorded — recalculating.');S.planCommitments=remainingCommitments;
+ if(stackSelectedLoads().length||S.basePlanLoad||state.onboardLoads.length||state.homeLocation)await smartAutoStack();
+ // Refresh existing live connections only; simulation never enters physical dispatch.
+ const snapshot=physicalBrain.get().version,search=await Promise.allSettled([fetchDirectFreightLocal(state.currentLocation),fetchTrukTekLocal(state.currentLocation)]);
+ if(physicalBrain.get().version!==snapshot)return truckBrain();
+ S.allUnifiedLoads=window.MileCountPickupDelivery.unique(search.flatMap(result=>result.status==='fulfilled'?result.value:[]).filter(l=>!l.isSandbox&&!l.isLocalSim));S.candidateLoads=S.allUnifiedLoads;
+ if(typeof renderUnifiedLoadList==='function')renderUnifiedLoadList(S.allUnifiedLoads);
+ document.dispatchEvent(new Event('milecount:plan-changed'));
+ return truckBrain();
+};
+window.MileCountTruckBrain.initialize=async()=>{
+ if(!window.MileCountTruckState)return;
+ const generation=++brainLoadGeneration,session=await window.MileCountCloud?.session?.(),account=session?.user?.id||'guest';
+ const repository=new window.MileCountBrainStorage.Repository({storage:localStorage,userId:account,vehicleKey:'vehicle1',cloud:session?{load:key=>window.MileCountCloud.loadTruckBrain(key),save:(key,version,state)=>window.MileCountCloud.saveTruckBrain(key,version,state)}:null,onStatus:message=>{window.MileCountBrainSyncStatus=message;document.dispatchEvent(new Event('milecount:brain-sync'));}});
+ const stored=await repository.load();if(generation!==brainLoadGeneration)return;
+ brainAccount=account;physicalBrain=new window.MileCountTruckState.Brain(stored,state=>repository.save(state));
+ S.executionState=physicalBrain.get();S.capacityState=null;
+};
+window.MileCountTruckBrain.ready=window.MileCountTruckBrain.initialize();
 const MILECOUNT_PLANS={
  basic:{name:"Basic",price:19,maxTrucks:1,maxStack:3,dispatcher:false,strongFit:false,autoCorrect:false},
  gold:{name:"Gold Pro",price:39,maxTrucks:1,maxStack:5,dispatcher:true,strongFit:true,autoCorrect:false},
  premium:{name:"Premium Pro",price:69,maxTrucks:1,maxStack:10,dispatcher:true,strongFit:true,autoCorrect:true},
- platinum:{name:"Platinum Pro",price:129,maxTrucks:5,maxStack:Infinity,dispatcher:true,strongFit:true,autoCorrect:true,fleet:true}
+ platinum:{name:"Platinum Pro",price:129,maxTrucks:5,maxStack:15,dispatcher:true,strongFit:true,autoCorrect:true,fleet:true}
 };
-let mcOwnerAccess=false;
-function currentPlanKey(){return mcOwnerAccess?"platinum":String(localStorage.getItem("milecount_plan")||"basic").toLowerCase()}
+let mcOwnerAccess=false,mcVerifiedPlan="basic";
+function currentPlanKey(){return mcOwnerAccess?"platinum":mcVerifiedPlan}
 function currentPlan(){return mcOwnerAccess?{...MILECOUNT_PLANS.platinum,name:"OWNER • FULL ACCESS",maxTrucks:Infinity,maxStack:Infinity}:MILECOUNT_PLANS[currentPlanKey()]||MILECOUNT_PLANS.basic}
 async function syncOwnerAccess(){
  try{
@@ -56,8 +87,9 @@ async function syncOwnerAccess(){
    // Owner access is granted from the authenticated account's admin role,
    // never from a client-side email comparison or localStorage flag.
    mcOwnerAccess=!!(s?.user&&await window.MileCountCloud?.isAdmin?.());
+   try{const entitlement=await window.MileCountCloud?.entitlements?.();mcVerifiedPlan=entitlement?.active&&MILECOUNT_PLANS[entitlement.plan]?entitlement.plan:'basic';}catch(e){mcVerifiedPlan='basic';}
    document.documentElement.dataset.ownerAccess=mcOwnerAccess?"true":"false";
- }catch(e){mcOwnerAccess=false}
+ }catch(e){mcOwnerAccess=false;mcVerifiedPlan="basic"}
  return mcOwnerAccess;
 }
 function requirePlan(feature){
@@ -207,7 +239,7 @@ const MAX_LOAD_WEIGHT_LB=9999;
 function allowedLoadWeight(l){
  const w=Number(l?.weight||0);
  // Unknown/zero weight remains visible but is not treated as verified weight.
- return !(w>MAX_LOAD_WEIGHT_LB);
+ return !(w>(physicalBrain?.get().profile.payloadLb??MAX_LOAD_WEIGHT_LB));
 }
 function enforceWeightCap(loads){
  return (Array.isArray(loads)?loads:[]).filter(allowedLoadWeight);
@@ -229,7 +261,7 @@ function setBoardStatus(kind,text){
 
 function silentValidateLoad(l){
  const issues=[],e=loadEconomics(l),w=Number(l?.weight||0),pay=Number(l?.pay||0);
- if(w>MAX_LOAD_WEIGHT_LB)issues.push("weight");
+ if(w>(physicalBrain?.get().profile.payloadLb??MAX_LOAD_WEIGHT_LB))issues.push("weight");
  if(pay<0)issues.push("pay");
  if(e.deadhead<0||e.loaded<0||e.allMiles<0)issues.push("miles");
  if(e.allMiles>0&&Math.abs(e.rpm-(pay/e.allMiles))>.02)issues.push("rpm");
@@ -237,7 +269,7 @@ function silentValidateLoad(l){
 }
 function silentValidateTrip(){
  const st=S.tripState;if(!st)return {ok:true,issues:[]};
- const issues=[],cap=Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
+ const issues=[],cap=physicalBrain?.get().profile.payloadLb??Math.min(MAX_LOAD_WEIGHT_LB,activeVehicle.payload||MAX_LOAD_WEIGHT_LB);
  if(Number(st.onboardWeight||0)>cap)issues.push("weight");
  if(Number(st.onboardSpace||0)>activeVehicle.cargoLength)issues.push("space");
  const expected=(st.completed||[]).filter(l=>!l.isSandbox).reduce((s,l)=>s+Number(l.pay||0),0);
@@ -546,9 +578,10 @@ async function addToTrip(){
 function homeboundStartLocation(brain=syncTruckBrain('homebound-start')){
  const events=S.finalRouteEvents?.length?S.finalRouteEvents:(S.stackPlan?.events||[]);
  const lastDelivery=[...events].reverse().find(e=>e.type==='drop'||e.type==='returnDrop');
- return lastDelivery?.location||brain.currentLocation;
+ return brain.actualLocationVerified?brain.currentLocation:lastDelivery?.location||brain.currentLocation;
 }
 async function protectReturn(){
+ if(!requirePlan("dispatcher"))return;
  if(el("protect")?.disabled)return;
  // The driver's explicitly selected FINAL DESTINATION is authoritative.
  // Do not overwrite it with the original FROM field or a stale load destination.
@@ -889,7 +922,9 @@ async function saveProfile(){
    const s=await MileCountCloud.session();
    if(!s){if(el("saveStatus"))el("saveStatus").textContent="Saved on this device. Sign in to sync to cloud.";return}
    const v=activeVehicle;
-   await MileCountCloud.saveVehicle({name:v.name,vehicle_type:data.vehicleType,mpg:v.mpg,cargo_length_ft:v.cargoLength,payload_lb:v.payload,monthly_payment:data.monthlyPayment,monthly_insurance:data.monthlyInsurance,maintenance_cpm:data.maintenanceCPM,monthly_other:data.monthlyOther,expected_monthly_miles:data.monthlyMiles,is_default:true});
+   const existing=await MileCountCloud.defaultVehicle();
+   const vehicleData={name:v.name,vehicle_type:data.vehicleType,mpg:v.mpg,cargo_length_ft:v.cargoLength,payload_lb:v.payload,monthly_payment:data.monthlyPayment,monthly_insurance:data.monthlyInsurance,maintenance_cpm:data.maintenanceCPM,monthly_other:data.monthlyOther,expected_monthly_miles:data.monthlyMiles,is_default:true};
+   if(existing)await MileCountCloud.updateVehicle(existing.id,vehicleData);else await MileCountCloud.saveVehicle(vehicleData);
    if(el("saveStatus"))el("saveStatus").textContent="Saved to MileCount Cloud ✓";
  }catch(e){if(el("saveStatus"))el("saveStatus").textContent="Local save worked • Cloud: "+e.message}
 }
@@ -906,6 +941,7 @@ bind("analyzeManual",analyzeManualLoad);bind("saveProfile",saveProfile);
 async function refreshAccount(){
  try{
   const s=await MileCountCloud.session(),logged=!!s;
+  if((s?.user?.id||'guest')!==brainAccount){physicalBrain=null;S.executionState=null;S.basePlanLoad=null;selectedStackKeys.clear();invalidateStackProjection('Account changed — rebuild the route.');window.MileCountTruckBrain.ready=window.MileCountTruckBrain.initialize();await window.MileCountTruckBrain.ready;}
   await syncOwnerAccess();
   el("authLoggedOut")?.classList.toggle("hidden",logged);el("authLoggedIn")?.classList.toggle("hidden",!logged);
   if(!logged)return;
@@ -1150,7 +1186,7 @@ function localSimPool(home){
 async function fetchDirectFreightLocal(home){
  home=String(home||syncTruckBrain("df-search").currentLocation||S.origin||"").trim();
  try{
-  const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:1000,max_weight:9999,limit:60})}),8000,null);
+  const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:1000,max_weight:currentCapacity().maxWeight,limit:60})}),8000,null);
   if(!r)return[];
   const j=await r.json();
   S.directFreightConfigured=!!j.configured;
@@ -1483,8 +1519,9 @@ async function applyProviderFilter(){
 
 
 function currentCapacity(){
- const maxWeight=Math.min(MAX_LOAD_WEIGHT_LB,Number(activeVehicle.payload||MAX_LOAD_WEIGHT_LB));
- const maxSpace=Number(activeVehicle.cargoLength||26);
+ const exact=physicalBrain?.get().profile;
+ const maxWeight=exact?.payloadLb??Math.min(MAX_LOAD_WEIGHT_LB,Number(activeVehicle.payload||MAX_LOAD_WEIGHT_LB));
+ const maxSpace=exact?.cargoLengthFt??Number(activeVehicle.cargoLength||26);
  const inputWeight=Math.max(0,Math.min(maxWeight,val("weight",maxWeight)));
  const inputSpace=Math.max(0,Math.min(maxSpace,val("space",maxSpace)));
  const base=S.capacityState||{};
@@ -1510,7 +1547,7 @@ function syncCapacityState(weight,space,writeInputs=true){
  return S.capacityState;
 }
 function captureCapacityInputs(){
- const maxWeight=Math.min(MAX_LOAD_WEIGHT_LB,Number(activeVehicle.payload||MAX_LOAD_WEIGHT_LB));
+ const maxWeight=physicalBrain?.get().profile.payloadLb??Math.min(MAX_LOAD_WEIGHT_LB,Number(activeVehicle.payload||MAX_LOAD_WEIGHT_LB));
  const maxSpace=Number(activeVehicle.cargoLength||26);
  syncCapacityState(Math.min(maxWeight,Math.max(0,val("weight",maxWeight))),Math.min(maxSpace,Math.max(0,val("space",maxSpace))),false);
 }
@@ -1593,7 +1630,7 @@ function updateStackTray(){
  if(count)count.textContent=chosen.length;
  if(pay)pay.textContent=money(chosen.reduce((s,l)=>s+Number(l.pay||0),0));
  if(tray)tray.classList.toggle("active",chosen.length>0);
- if(S.truckBrain){S.truckBrain.committedLoads=[...chosen];S.truckBrain.updatedAt=Date.now();S.truckBrain.reason="stack-selection"}
+ if(S.truckBrain)syncTruckBrain("stack-selection");
   window.MileCountBooking?.refreshCommittedSummary?.();
  // Manual choice is valid with one or more selected loads; AutoStack remains optional.
  const done=el("doneStack");if(done)done.classList.toggle("hidden",chosen.length<1);
@@ -1668,7 +1705,7 @@ function buildPickupDeliveryProblem(brain,loads,base){
  const api=window.MileCountPickupDelivery,date=el('pickupDate')?.value||new Date().toISOString().slice(0,10);
  const zone=el('dispatchTimeZone')?.value||'America/New_York';
  const anchor=mcZonedMinute(date,0,zone,0)*60000;
- const start=mcClock(el('dayStartTime')?.value||'06:00')??360;
+ const start=mcZonedMinute(date,mcClock(el('dayStartTime')?.value||'06:00')??360,zone,anchor);
  const warnings=[];
  const normalized=loads.map(l=>{
   const windows={};
@@ -1687,15 +1724,20 @@ function buildPickupDeliveryProblem(brain,loads,base){
  });
  const hosEnabled=el('dispatchHos')?.value==='us-property';
  if(hosEnabled&&(!el('hosCycleRemaining')?.value||Number(el('hosCycleRemaining').value)<=0))throw Error('Enter your remaining weekly-cycle minutes before enabling driving limits.');
- const hos=hosEnabled?{enabled:true,breakAfterMinutes:480,breakMinutes:30,maxDriveMinutes:Math.max(0,660-val('hosDriveUsed',0)),maxDutyMinutes:Math.min(Math.max(0,840-val('hosDutyUsed',0)),val('hosCycleRemaining',0)),sinceBreakMinutes:val('hosSinceBreak',0)}:null;
+ const hos=brain.duty?.hos|| (hosEnabled?{enabled:true,breakAfterMinutes:480,breakMinutes:30,maxDriveMinutes:Math.max(0,660-val('hosDriveUsed',0)),maxDutyMinutes:Math.min(Math.max(0,840-val('hosDutyUsed',0)),val('hosCycleRemaining',0)),sinceBreakMinutes:val('hosSinceBreak',0)}:null);
  return api.problem({truck:{...brain},loads:normalized,baseLoadId:base?loadKey(base):null,
   committedLoadIds:normalized.filter(l=>l.committed||l.bookingStatus==='confirmed'||window.MileCountBooking?.isConfirmed?.(l)).map(loadKey),
-  finalDestination:brain.finalDestination,startMinutes:start,serviceMinutes:{pickup:val('pickupServiceMin',20),drop:val('dropServiceMin',20)},
+  finalDestination:brain.finalDestination,homeDeadlineMinutes:brain.homeDeadline?(Date.parse(brain.homeDeadline)-anchor)/60000:null,startMinutes:start,serviceMinutes:{pickup:val('pickupServiceMin',20),drop:val('dropServiceMin',20)},
   maxDriveMinutes:S.localMoneyMode?600:null,hos,warnings,fuelCostPerMile:Number(fuelFor(1).fuelCost||0)});
+}
+function commercialLegProfiles(problem,optimized){
+ const p=problem.truck.commercialProfile;if(!p)return null;
+ let weight=problem.truck.onboardWeight||0;
+ return optimized.events.map(event=>{const value={currentGrossWeightLb:Number(p.emptyWeightLb)+weight,hazmat:p.hazmat};weight=event.onboardWeight;return value;});
 }
 async function verifyDispatchRoute(problem,optimized){
  const api=window.MileCountPickupDelivery;
- let route=await getMileCountRoadRoute([...optimized.routeStops]);
+ let route=await getMileCountRoadRoute([...optimized.routeStops],{legProfiles:commercialLegProfiles(problem,optimized)});
  if(!route?.legs||route.legs.length!==optimized.events.length)throw Error('Road route did not preserve every pickup/delivery event');
  // Replay exact returned legs, including home, before readiness is displayed.
  let prev=0;
@@ -1705,7 +1747,7 @@ async function verifyDispatchRoute(problem,optimized){
  if(Math.abs(check.result.miles-Number(route.miles))>1)throw Error('Road geometry and event mileage disagree');
  if(Math.abs(check.result.miles-optimized.miles)>Math.max(2,optimized.miles*.02)){
   optimized=api.optimize(problem);if(!optimized.ok)throw Error(optimized.issues.join(' • '));
-  route=await getMileCountRoadRoute([...optimized.routeStops]);
+  route=await getMileCountRoadRoute([...optimized.routeStops],{legProfiles:commercialLegProfiles(problem,optimized)});
   if(route.legs?.length!==optimized.events.length)throw Error('Reoptimized road route lost an event');
   prev=0;optimized.events.forEach((e,i)=>{const at=problem.locations.indexOf(e.location),leg=route.legs[i];problem.matrix[prev][at]={miles:leg.distance/1609.344,minutes:leg.duration/60};prev=at;});
   check=api.audit(problem,optimized.events);if(!check.ok||Math.abs(check.result.miles-route.miles)>1)throw Error('Final route audit failed');
@@ -1717,7 +1759,7 @@ async function verifyDispatchRoute(problem,optimized){
  return {result,route};
 }
 function invalidateStackProjection(message='Selection changed — rebuild the route.'){
- mcTripBuildSeq++;S.stackPlan=null;S.finalRouteEvents=[];S.finalRouteStops=[];S.roundTripMiles=0;S.totalPay=0;S.addedPay=0;window.MileCountFinalRouteEstimate=null;
+ mcTripBuildSeq++;S.stackPlan=null;S.planCommitments=[];S.finalRouteEvents=[];S.finalRouteStops=[];S.roundTripMiles=0;S.totalPay=0;S.addedPay=0;window.MileCountFinalRouteEstimate=null;
  ['roadMiles','driveTime','tripPay','tripAdded'].forEach(id=>{if(el(id))el(id).textContent='Rebuild route';});
  if(typeof clearMileCountMap==='function')clearMileCountMap();
  el('doneStack')?.classList.add('hidden');
@@ -1732,15 +1774,16 @@ async function smartAutoStack(){
  const base=S.basePlanLoad||null;
  // Freeze the exact selected load objects for this build. Background provider
  // refreshes may update the board, but they cannot mutate an in-progress trip.
- const selectedKeys=new Set(selectedStackKeys);
- const selectionPool=[...(Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[]),...(S.candidateLoads||[])];
+ const selectedKeys=new Set([...selectedStackKeys,...(S.planCommitments||[]).map(loadKey)]);
+ const selectionPool=[...(Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[]),...(S.candidateLoads||[]),...(S.planCommitments||[])];
  let chosen=selectionPool.filter(x=>selectedKeys.has(loadKey(x))).filter((x,i,a)=>a.findIndex(y=>loadKey(y)===loadKey(x))===i).filter(x=>!base||loadKey(x)!==loadKey(base));
- if(!base&&chosen.length<1){alert("Select at least 1 load for Smart AutoStack.");return}
+ if(!base&&chosen.length<1&&!(physicalBrain?.get().onboardLoads.length)&&!physicalBrain?.get().homeLocation){alert("Select at least 1 load for Smart AutoStack.");return}
  S.stackPlan=null;S.finalRouteEvents=[];S.finalRouteStops=[];if(typeof clearMileCountMap==="function")clearMileCountMap();
  setBusy(true,"One moment — optimizing every pickup and drop…");
  setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
  try{
    const missing=[...selectedKeys].filter(k=>!selectionPool.some(l=>loadKey(l)===k));if(missing.length)throw Error("A selected load is no longer in the provider results. Re-select it or remove it before building.");
+   await window.MileCountTruckBrain?.ready;
    const brain=syncTruckBrain("autostack-start"),startLoc=brain.currentLocation;
    const allLoads=window.MileCountPickupDelivery.unique([...(base?[base]:[]),...chosen,...brain.onboardLoads]);
    const dispatchProblem=buildPickupDeliveryProblem(brain,allLoads,base);
@@ -1765,6 +1808,7 @@ async function smartAutoStack(){
    if(buildId!==mcTripBuildSeq)return;
    optimized=finalized.result;
    const route=finalized.route,routeVerified=true,routeStops=[...optimized.routeStops];
+   if(window.MileCountDispatchBrain){const review=window.MileCountDispatchBrain.evaluate({...optimized,deadhead:optimized.deadhead,loads:optimized.loads},{mpg:activeVehicle.mpg,fuelPrice:Number(fuelFor(1).fuelCost)*Number(activeVehicle.mpg),guardrails:brain.guardrails});if(!review.ok)throw Error('Carrier profit guardrails: '+review.issues.join(' • '));}
    const state={location:optimized.events.at(-1)?.location||startLoc,onboard:[],completed:optimized.loads,
     events:optimized.events,miles:optimized.miles,liveRevenue:optimized.livePay,testRevenue:optimized.testPay,
     onboardWeight:optimized.weight,onboardSpace:optimized.space,capacityWeightLimit:brain.payload,capacitySpaceLimit:brain.cargoCapacity,
@@ -1778,12 +1822,12 @@ async function smartAutoStack(){
    // Planning does not mutate actual Truck Brain location or onboard inventory.
    S.stackPlan={...optimized,problem:dispatchProblem,route,routeStops,miles:optimized.miles,
     livePay:optimized.livePay,testPay:optimized.testPay,fuel,rpm,valid:true,
-    events:optimized.events,schedule,snapshot,routeVerified,driveHours:optimized.drive/60,durationHours:optimized.drive/60};
-   S.finalRouteEvents=[];S.finalRouteStops=[];
+    events:optimized.events,schedule,snapshot,routeVerified,commercialVerified:route.commercialVerified===true,routingStatus:route.routingStatus||"GENERAL ROAD ESTIMATE ONLY",driveHours:optimized.drive/60,durationHours:optimized.drive/60};
+   S.planCommitments=brain.committedLoads;S.finalRouteEvents=[];S.finalRouteStops=[];document.dispatchEvent(new Event("milecount:plan-changed"));
    el("doneStack")?.classList.remove("hidden");
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
-    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY • REVIEW SUPPLIED CONSTRAINTS":"TRIP NEEDS CHANGES")+'</div>'+
+    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"'+escHtml(route.routingStatus||'GENERAL ROAD ESTIMATE ONLY')+' • REVIEW SUPPLIED CONSTRAINTS":"TRIP NEEDS CHANGES")+'</div>'+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
     (state.schedule?'<div class="tripStateNow"><b>DRIVER DAY • '+(state.schedule.ok?'ON TIME ✓':'IMPOSSIBLE ✕')+'</b><span>'+state.schedule.start+' → '+state.schedule.finish+' • '+(state.schedule.driveMinutes/60).toFixed(1)+' driving hr • '+(state.schedule.onDutyMinutes/60).toFixed(1)+' on-duty hr</span></div>':'')+
     '<div class="tripStateNow"><b>'+escHtml(optimized.method)+' • '+(optimized.optimal?'globally optimal for supplied matrix':'bounded search')+'</b><span>'+[...dispatchProblem.warnings,...(!dispatchProblem.hos?.enabled?['Driver-hours eligibility not verified; configure limits before dispatch.']:[])].map(escHtml).join(' • ')+'</span></div>'+
@@ -1838,6 +1882,7 @@ async function smartAutoStack(){
  }finally{if(mcActiveStackBuildId===buildId){mcActiveStackBuildId=0;setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");}setBusy(false)}
 }
 async function proposeAutoCorrect(){
+ if(!requirePlan("autoCorrect"))return null;
  const p=S.stackPlan;if(!p)return;
  const pool=S.allUnifiedLoads||S.candidateLoads||[];
  const current=stackSelectedLoads(),origin=(el("from")?.value||S.origin||"").trim();
@@ -1918,7 +1963,7 @@ function deleteRouteLoad(i){
  // Removing either pickup or drop removes the entire load so the route remains legal.
  p.events=p.events.filter(e=>e.type==="home"||tripLoadId(e.load||{})!==id);
  p.loads=(p.loads||[]).filter(l=>tripLoadId(l)!==id);
- selectedStackKeys.delete(id);
+ selectedStackKeys.delete(id);S.planCommitments=(S.planCommitments||[]).filter(l=>tripLoadId(l)!==id);
  if(S.basePlanLoad&&loadKey(S.basePlanLoad)===id)S.basePlanLoad=null;
  const pay=Number(removed?.pay||0);
  if(removed?.isSandbox)p.testPay=Math.max(0,Number(p.testPay||0)-pay);
@@ -1950,7 +1995,7 @@ async function applyManualRouteOrder(){
   if(!check.ok){p.valid=false;if(m)m.textContent=check.issues.join(' • ');return;}
   const finalized=await verifyDispatchRoute(p.problem,{...p,...check.result});
   if(generation!==mcTripBuildSeq)return;
-  S.stackPlan={...p,...finalized.result,route:finalized.route,valid:true,routeVerified:true,fuel:fuelFor(finalized.result.miles),durationHours:finalized.result.drive/60};
+  S.stackPlan={...p,...finalized.result,route:finalized.route,routingStatus:finalized.route.routingStatus||"GENERAL ROAD ESTIMATE ONLY",commercialVerified:finalized.route.commercialVerified===true,valid:true,routeVerified:true,fuel:fuelFor(finalized.result.miles),durationHours:finalized.result.drive/60};
   S.finalRouteEvents=[...S.stackPlan.events];S.finalRouteStops=[...S.stackPlan.routeStops];S.roundTripMiles=S.stackPlan.miles;
   const routeBox=el("stackPlanResult")?.querySelector(".stackRoute");if(routeBox)routeBox.innerHTML=S.stackPlan.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+e.type.toUpperCase()+' • '+escHtml(e.location)+'</b></div>').join('');
   if(m)m.textContent='Audited custom route • '+Math.round(S.stackPlan.miles)+' road miles';
@@ -1975,7 +2020,7 @@ async function finishAutoStack(){
  }
  if(p.problem){
   const actual=syncTruckBrain('final-audit'),built=p.problem.truck;
-  if(['currentLocation','payload','cargoCapacity','reservedWeight','reservedSpace','finalDestination'].some(k=>actual[k]!==built[k])){p.valid=false;alert('Truck location, capacity or final destination changed. Rebuild Smart AutoStack.');return;}
+  if(['version','currentLocation','payload','cargoCapacity','reservedWeight','reservedSpace','finalDestination'].some(k=>actual[k]!==built[k])){p.valid=false;alert('Truck location, capacity or final destination changed. Rebuild Smart AutoStack.');return;}
  }
  const loads=Array.isArray(p.loads)?p.loads:[];
  const first=loads[0]||S.basePlanLoad||{};
@@ -1992,7 +2037,7 @@ async function finishAutoStack(){
  if(el("tripPay"))el("tripPay").textContent=money(S.totalPay);
  if(el("tripAdded"))el("tripAdded").textContent="+"+money(S.addedPay).replace("-$","-$");
  if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
- if(el("routeSource"))el("routeSource").textContent=p.routeVerified?"Smart AutoStack • verified road route":"Smart AutoStack • estimated road route";
+ if(el("routeSource"))el("routeSource").textContent=p.routingStatus||"GENERAL ROAD ESTIMATE ONLY";
  const events=Array.isArray(p.events)?p.events:[];
  S.finalRouteEvents=events.map(e=>({...e}));
 

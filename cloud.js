@@ -85,5 +85,9 @@ window.MileCountCloud=(()=>{
  async function plannerTrips(){return rows("planner_trips","select=*&order=pickup_at.asc")}
  async function savePlannerTrip(t){return insert("planner_trips",t)}
  async function updatePlannerTrip(id,obj){const a=await patch("planner_trips","id=eq."+encodeURIComponent(id),obj);return a[0]||a}
- return {isEnabled:()=>true,health,signUp,signIn,signOut,isPasswordRecovery,requestPasswordReset,finishPasswordReset,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,isAdmin,rpc,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
+ async function loadTruckBrain(vehicleKey){const a=await rows('truck_brain_states','vehicle_key=eq.'+encodeURIComponent(vehicleKey)+'&select=state,version');return a[0]||null;}
+ async function saveTruckBrain(vehicleKey,version,state){return rpc('save_truck_brain',{p_vehicle_key:vehicleKey,p_expected_version:version,p_state:state});}
+ async function entitlements(){return rpc('milecount_entitlements')}
+ async function commercialRoute(request){const s=await session();if(!s)throw Error('Sign in for commercial routing');return jsonFetch(MC_URL+'/functions/v1/commercial-route',{method:'POST',headers:authHeaders(s.access_token),body:JSON.stringify(request)});}
+ return {loadTruckBrain,saveTruckBrain,entitlements,commercialRoute,isEnabled:()=>true,health,signUp,signIn,signOut,isPasswordRecovery,requestPasswordReset,finishPasswordReset,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,isAdmin,rpc,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
 })();

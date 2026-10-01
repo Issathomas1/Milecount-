@@ -11,17 +11,17 @@ function money(v){return "$"+Math.round(Number(v||0)).toLocaleString()}
 function norm(v){return String(v||"provider").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}
 function keyFor(l){return String((l&&(l.providerLoadId||l.bookingReference||l.name))||"")+"|"+String((l&&l.provider)||"")}
 function nonBookable(l){return !!(l&&(l.isSandbox||l.isLocalSim||/sandbox|sim/i.test(String(l.provider||""))))}
-function readStore(){try{var x=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");return x&&typeof x==="object"?x:{}}catch(e){return{}}}
-function writeStore(x){localStorage.setItem(STORAGE_KEY,JSON.stringify(x))}
+function readStore(){try{var x=JSON.parse(localStorage.getItem(STORAGE_KEY+":"+(window.mcTripStorageKey||"loading"))||"{}");if(x&&typeof x==='object'){Object.keys(x).forEach(function(k){if(x[k].status===STATES.ACCEPTED){x[k].status=STATES.ACTION_REQUIRED;x[k].message='Provider confirmation has not been verified by MileCount.';}});return x;}return{}}catch(e){return{}}}
+function writeStore(x){localStorage.setItem(STORAGE_KEY+":"+(window.mcTripStorageKey||"loading"),JSON.stringify(x))}
 function recordFor(l){return readStore()[keyFor(l)]||null}
-function statusFor(l){if(nonBookable(l))return"NOT_BOOKABLE";var r=recordFor(l);return r?r.status:STATES.AVAILABLE}
+function statusFor(l){if(nonBookable(l))return"NOT_BOOKABLE";var r=recordFor(l);return r?(r.status===STATES.ACCEPTED?STATES.ACTION_REQUIRED:r.status):STATES.AVAILABLE}
 function isConfirmed(l){return statusFor(l)===STATES.ACCEPTED}
 function bridge(){return window.MileCountBookingBridge||{}}
 function allLoads(){try{return bridge().getLoads?bridge().getLoads():[]}catch(e){return[]}}
 function currentByKey(k){var a=allLoads();for(var i=0;i<a.length;i++)if(keyFor(a[i])===k)return a[i];return null}
 
 function save(l,status,extra){
- extra=extra||{};var s=readStore(),k=keyFor(l),prev=s[k]||{},now=new Date().toISOString();
+ extra=extra||{};if(status===STATES.ACCEPTED){status=STATES.ACTION_REQUIRED;extra.message='Confirm with the provider. MileCount has no verified booking API receipt.';}var s=readStore(),k=keyFor(l),prev=s[k]||{},now=new Date().toISOString();
  s[k]={provider:String((l&&l.provider)||prev.provider||"Provider"),providerLoadId:String((l&&(l.providerLoadId||l.bookingReference))||prev.providerLoadId||""),status:status,submittedAt:prev.submittedAt||((status===STATES.REQUESTING||status===STATES.PENDING)?now:null),updatedAt:now,requestId:extra.requestId||prev.requestId||null,confirmationNumber:extra.confirmationNumber||prev.confirmationNumber||null,message:String(extra.message||prev.message||"")};
  writeStore(s);decorate();renderCenter();refreshCommittedSummary();return s[k]
 }

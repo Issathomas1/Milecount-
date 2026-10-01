@@ -2,6 +2,7 @@
 (function(root){
 'use strict';
 const EPS=1e-7;
+const isTest=l=>!!(l.isSandbox||l.isLocalSim||['TEST','SIM'].includes(l.mode));
 const key=l=>l._mcLoadKey||String(l.id||l.providerLoadId||l.bookingReference||l.name||'')+'|'+String(l.provider||'');
 function unique(loads){const m=new Map();for(const l of loads||[]){const k=key(l);if(!k||k==='|')throw Error('Each load needs a stable identity');if(!m.has(k))m.set(k,{...l,id:k,_mcLoadKey:k});}return [...m.values()];}
 function problem(input){
@@ -26,7 +27,7 @@ function transition(p,s,i,type){
  let time=s.time,drive=s.drive,duty=s.duty,sinceBreak=s.sinceBreak;
  if(p.hos?.enabled){const breaks=Math.max(0,Math.ceil((sinceBreak+road.minutes)/p.hos.breakAfterMinutes)-1);time+=breaks*p.hos.breakMinutes;duty+=breaks*p.hos.breakMinutes;if(breaks)sinceBreak=(sinceBreak+road.minutes)-breaks*p.hos.breakAfterMinutes;else sinceBreak+=road.minutes;}else sinceBreak+=road.minutes;
  time+=road.minutes;drive+=road.minutes;duty+=road.minutes;
- const w=l.isSandbox||l.isLocalSim?null:l.windows?.[type];
+ const w=isTest(l)?null:l.windows?.[type];
  let waiting=0;
  if(w){const wait=Math.max(0,w.start-time);waiting=wait;time+=wait;duty+=wait;if(time>w.end+EPS)return null;}
  const service=Number(l.services?.[type]??p.serviceMinutes?.[type]??20);
@@ -46,11 +47,12 @@ function finish(p,s){
  if(p.hos?.enabled){const breaks=Math.max(0,Math.ceil((sinceBreak+road.minutes)/p.hos.breakAfterMinutes)-1);time+=breaks*p.hos.breakMinutes;duty+=breaks*p.hos.breakMinutes;if(breaks)sinceBreak=(sinceBreak+road.minutes)-breaks*p.hos.breakAfterMinutes;else sinceBreak+=road.minutes;}else sinceBreak+=road.minutes;
  time+=road.minutes;drive+=road.minutes;duty+=road.minutes;
  if((p.maxDriveMinutes!=null&&drive>p.maxDriveMinutes+EPS)||(p.hos?.enabled&&(drive>p.hos.maxDriveMinutes+EPS||duty>p.hos.maxDutyMinutes+EPS)))return null;
+ if(p.homeDeadlineMinutes!=null&&time>p.homeDeadlineMinutes+EPS)return null;
  return {...s,last:p.home,time,drive,duty,sinceBreak,miles:s.miles+road.miles,deadhead:s.deadhead+(s.onboard.length?0:road.miles),events:[...s.events,{type:'home',location:p.locations[p.home],arrivalMinutes:time,departureMinutes:time,legMiles:road.miles,legMinutes:road.minutes,onboardWeight:s.weight,onboardSpace:s.space,ok:true}]};
 }
 const score=s=>s.miles+s.deadhead*.05; // Revenue is invariant across permutations. Geography dominates.
 function summarize(p,s,extra={}){
- const livePay=p.loads.filter(l=>!l.isSandbox&&!l.isLocalSim).reduce((n,l)=>n+Number(l.pay||0),0),testPay=p.loads.filter(l=>l.isSandbox||l.isLocalSim).reduce((n,l)=>n+Number(l.pay||0),0);
+ const livePay=p.loads.filter(l=>!isTest(l)).reduce((n,l)=>n+Number(l.pay||0),0),testPay=p.loads.filter(l=>isTest(l)).reduce((n,l)=>n+Number(l.pay||0),0);
  const totalPay=livePay+testPay,base=p.loads.find(l=>l.id===p.baseLoadId),basePay=Number(base?.pay||0),fuelCost=s.miles*Number(p.fuelCostPerMile||0);
  return {...s,...extra,loads:p.loads,routeStops:[p.truck.currentLocation,...s.events.map(e=>e.location)],livePay,testPay,totalPay,basePay,addedPay:totalPay-basePay,fuelCost,afterGas:totalPay-fuelCost,rpm:s.miles?totalPay/s.miles:0,startLocation:p.truck.currentLocation,freightEnd:[...s.events].reverse().find(e=>e.type==='drop')?.location||p.truck.currentLocation,finalDestination:p.finalDestination||null,score:score(s)};
 }
@@ -73,9 +75,11 @@ function audit(p,events){
  return {ok:issues.length===0,issues,result:summarize(p,s)};
 }
 function solve(p,opts={}){
+ if(p.homeDeadlineMinutes!=null&&(!Number.isFinite(p.homeDeadlineMinutes)||p.home==null))return {ok:false,issues:['A valid home destination and deadline are required'],conflicts:[]};
+ if(p.loads.some(isTest)&&p.loads.some(l=>!isTest(l)))return {ok:false,issues:['LIVE and TEST/SIM freight must be planned separately'],conflicts:[]};
  if(!Number.isFinite(p.truck.payload)||!Number.isFinite(p.truck.cargoCapacity)||p.truck.payload<=0||p.truck.cargoCapacity<=0)return {ok:false,issues:['Truck payload and cargo capacity must be supplied'],conflicts:[]};
  if(!Number.isFinite(p.startMinutes))return {ok:false,issues:['A valid trip start time is required'],conflicts:[]};
- const badWindows=p.loads.filter(l=>!l.isSandbox&&!l.isLocalSim&&Object.values(l.windows||{}).some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.end<w.start));
+ const badWindows=p.loads.filter(l=>!isTest(l)&&Object.values(l.windows||{}).some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.end<w.start));
  if(badWindows.length)return {ok:false,issues:badWindows.map(l=>'Verify appointment bounds for '+l.id),conflicts:badWindows.map(l=>l.id)};
  const invalid=p.loads.filter(l=>!Number.isFinite(Number(l.weight))||Number(l.weight)<=0||!Number.isFinite(Number(l.space))||Number(l.space)<=0);
  if(invalid.length)return {ok:false,issues:invalid.map(l=>'Verify weight and cargo space for '+l.id),conflicts:invalid.map(l=>l.id)};

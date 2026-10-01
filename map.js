@@ -653,7 +653,7 @@ function updateMileCountRouteInfo(
   if (sourceElement) {
 
     sourceElement.textContent =
-      route.source;
+      route.routingStatus||route.source;
 
   }
 
