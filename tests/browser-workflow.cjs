@@ -39,8 +39,23 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   await page.goto(base,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.MileCountTruckBrain?.get?.().actualLocationVerified);await page.waitForFunction(()=>document.documentElement.dataset.ownerAccess==='true');await page.waitForFunction(()=>document.querySelector('#commercialTruckForm [name=heightFt]')?.value==='12');
   await page.locator('#from').fill(f.start);await page.locator('#to').fill(f.home);await page.locator('#pickupDate').fill('2026-10-01');await page.evaluate(({payload,space})=>{for(const [id,value] of Object.entries({minRPM:0,maxDeadhead:2000,weight:payload,space})){const input=document.getElementById(id);input.value=value;input.dispatchEvent(new Event('input'));}},f);await page.locator('#find').click();await page.waitForFunction(n=>document.querySelectorAll('.stackPick').length===n&&!document.getElementById('find').disabled,f.loads.length);
   for(let i=0;i<f.loads.length;i++)await page.locator('.stackPick').nth(i).click();
-  await page.locator('#smartAutoStack').click();await page.waitForFunction(()=>document.getElementById('finishAutoStack')||document.querySelector('#stackPlanResult .bad'));
-  assert(await page.locator('#finishAutoStack').count(),await page.locator('#stackPlanResult').innerText());await page.locator('#finishAutoStack').click();
+  if(f===fixtures.cases[0]){
+   await page.setViewportSize({width:390,height:844});
+   assert.equal(await page.locator('.candidateLoad button button').count(),0);
+   assert.equal(await page.locator('.mcBookingActionRow').count(),0);
+   assert.equal(await page.locator('.stackPick[aria-pressed="true"]').count(),f.loads.length);
+   await page.locator('.inspectLoad').first().click();assert(await page.locator('#loadDetails-0').isVisible());
+   await page.locator('.inspectLoad').first().click();assert(!(await page.locator('#loadDetails-0').isVisible()));
+   await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));await page.waitForFunction(()=>!document.getElementById('backToTop').hidden);
+   const topRect=await page.locator('#backToTop').boundingBox(),trayRect=await page.locator('#stackTray').boundingBox();assert(topRect.y+topRect.height<=trayRect.y);
+   await page.locator('#backToTop').click();await page.waitForFunction(()=>window.scrollY<2);
+   assert.equal(await page.locator('.stackPick[aria-pressed="true"]').count(),f.loads.length);
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   if(process.env.QA_SCREENSHOT_DIR){fs.mkdirSync(process.env.QA_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,'simple-loads-mobile.png')});}
+   await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('#stackFeedback').evaluate(n=>getComputedStyle(n).transitionDuration),'0s');
+   console.log('PASS mobile compact cards, selected-state feedback, accessible details, back-to-top preserves stack and clears sticky tray');
+  }
+  await page.locator('#doneStack').click();
   await page.waitForFunction(()=>window.MileCountTruckBrain.get().currentPlan&&document.querySelectorAll('#tripStops .stop').length>0);
   await page.waitForFunction(()=>typeof mileCountMarkers!=='undefined'&&mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
   await page.locator('#tripStops summary').click();
@@ -49,9 +64,10 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   if(f===fixtures.cases[1]){assert.equal(result.brain.currentPlan.planningPreview,true);assert.equal(result.brain.currentPlan.capacityVerified,false);assert.equal(result.brain.currentPlan.timingVerified,false);assert(result.routeSource.includes('TIMING NOT VERIFIED'));assert(result.routeSource.includes('CAPACITY NOT VERIFIED'));assert.equal(result.brain.currentPlan.loads.find(l=>l.name===loads[0].name).weight,null);}
   for(const e of result.brain.currentPlan.events)assert(result.list.includes(e.location));assert(Math.abs(parseFloat(result.miles.replaceAll(',',''))-result.brain.currentPlan.miles)<1);
   if(f===fixtures.cases[0]){
-   await page.locator('#bookAllLoads').click();await page.locator('.bookingConfirm').first().click();await page.waitForFunction(()=>Object.values(window.MileCountTruckBrain.get().bookings).some(b=>b.status==='CLAIMED'));const booking=await page.evaluate(()=>Object.values(window.MileCountTruckBrain.get().bookings)[0]);assert.equal(booking.providerConfirmed,false);await page.waitForFunction(()=>window.MileCountTruckBrain.get().currentPlan&&mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
+   await page.locator('#bookingFold > summary').click();await page.locator('#bookAllLoads').click();await page.locator('.bookingConfirm').first().click();await page.waitForFunction(()=>Object.values(window.MileCountTruckBrain.get().bookings).some(b=>b.status==='CLAIMED'));const booking=await page.evaluate(()=>Object.values(window.MileCountTruckBrain.get().bookings)[0]);assert.equal(booking.providerConfirmed,false);await page.waitForFunction(()=>window.MileCountTruckBrain.get().currentPlan&&mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
   }
   if(f===fixtures.cases[2]){
+   await page.locator('#truckBrainPanel > summary').click();
    const pickup=result.brain.currentPlan.events.find(e=>e.type==='pickup');
    await page.locator('#actualTruckForm input[name=location]').fill(pickup.location);
    await page.getByRole('button',{name:'Record pickup: '+pickup.location,exact:true}).click();
@@ -63,7 +79,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    assert.equal(await page.locator('.bookingConfirm').count(),f.loads.length-1);
    console.log('PASS browser physical pickup → revised route → delivery → released capacity');
   }
-  assert((await page.locator('#bookingCount').innerText()).includes('live load'));
+  assert((await page.locator('#bookingCount').textContent()).includes('live load'));
   assert.deepEqual(errors,[]);console.log('PASS browser select → stack → route/list/economics → exact home: '+f.name+' • '+result.brain.currentPlan.miles.toFixed(1)+' mi');
   if(process.env.QA_SCREENSHOT_DIR){fs.mkdirSync(process.env.QA_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,'route-'+fixtures.cases.indexOf(f)+'.png'),fullPage:true});}
   if(f===fixtures.cases[0]){
@@ -84,7 +100,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    await page.evaluate(()=>document.getElementById('restart').click());await page.locator('#find').click();await page.waitForFunction(n=>document.querySelectorAll('.stackPick').length===n&&!document.getElementById('find').disabled,f.loads.length);
    await page.evaluate(()=>{const load=window.MileCountBookingBridge.getLoad(0);load.isLocalSim=true;load.isSandbox=true;});
    for(let i=0;i<f.loads.length;i++)await page.locator('.stackPick').nth(i).click();
-   await page.locator('#smartAutoStack').click();await page.waitForFunction(()=>document.querySelector('#stackPlanResult')?.textContent.includes('LIVE and TEST/SIM'));
+   await page.locator('#reviewStackQuick').click();await page.locator('#smartAutoStack').click();await page.waitForFunction(()=>document.querySelector('#stackPlanResult')?.textContent.includes('LIVE and TEST/SIM'));
    assert.equal(await page.locator('#selectedStackLoads [data-remove-selection]').count(),f.loads.length);
    if(process.env.QA_SCREENSHOT_DIR){await page.locator('#selectedStackLoads').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,'mixed-selection-mobile.png')});}
    await page.locator('#removeTestSelections').click();await page.waitForFunction(n=>window.MileCountTruckBrain.get().currentPlan?.loads.length===n,f.loads.length-1);

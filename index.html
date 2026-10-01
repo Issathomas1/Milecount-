@@ -421,6 +421,7 @@ button{cursor:pointer}button:disabled{cursor:default}
 </style>
 
 <!-- deploy-retry-20260927-1657-stable -->
+<link rel="stylesheet" href="simple-ui.css?v=20261001-simple1">
 </head>
 
 
@@ -881,6 +882,7 @@ Your trip
   <h2 id="bookingCount">Booking checklist</h2>
   <p class="details">Complete each live provider handoff before starting the trip. MileCount does not claim a load until the provider confirms it.</p>
   <div id="bookingChecklist" style="display:grid;gap:8px;margin:12px 0"></div>
+  <button id="requestSelectedLoads" type="button" hidden>Request selected loads</button>
   <button id="bookAllLoads" type="button">REVIEW BOOKING STEPS</button>
   <button id="startBookedTrip" type="button" class="hidden" style="background:#f3f8f5;color:#07110d">SAVE CONFIRMED TRIP</button>
 </div>
@@ -1208,9 +1210,10 @@ app
 <script src="provider-inventory.js?v=20261001-opportunities1"></script>
 <script src="optimizer-client.js?v=20261001-opportunities1"></script>
 <script src="trip-opportunities.js?v=20261001-opportunities1"></script>
-<script src="app.js?v=20261001-opportunities1"></script>
-<script src="truck-profile-ui.js?v=20261001-opportunities1"></script>
-<script src="booking.js?v=20261001-opportunities1"></script>
+<script src="app.js?v=20261001-simple1"></script>
+<script src="truck-profile-ui.js?v=20261001-simple1"></script>
+<script src="booking.js?v=20261001-simple1"></script>
+<script src="simple-ui.js?v=20261001-simple1"></script>
 <script>
 (async function mileCountRequireLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
@@ -1267,7 +1270,7 @@ app
 })();
 </script>
 <script>
-document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="trips"){window.location.href="trips.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
+document.getElementById("driverMenu")?.addEventListener("change",function(){if(this.value==="bookings"){window.MileCountBooking?.openCenter()}else if(this.value==="truck"){const panel=document.getElementById("truckBrainPanel");if(panel){panel.open=true;panel.scrollIntoView({behavior:"smooth",block:"start"})}}else if(this.value==="planner"){window.location.href="planner.html"}else if(this.value==="trips"){window.location.href="trips.html"}else if(this.value==="account"){document.getElementById("accountButton")?.click()}this.value=""});
 async function mileCountDirectSignUp(){
  const m=document.getElementById("authMessage");
  try{

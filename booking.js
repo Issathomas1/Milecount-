@@ -5,6 +5,7 @@ var STATES={AVAILABLE:"AVAILABLE",REQUESTING:"REQUESTING",PENDING:"PENDING",ACCE
 var adapters={};
 var transientActions={};
 var center=null;
+var bookingBatchBusy=false;
 
 function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function money(v){return "$"+Math.round(Number(v||0)).toLocaleString()}
@@ -52,10 +53,11 @@ async function beginBooking(l,index){
  save(l,STATES.REQUESTING,{message:"Rechecking live availability..."});
  var live=l;
  try{
-   if(bridge().refreshLoad){var z=await bridge().refreshLoad(l);if(!z){save(l,STATES.EXPIRED,{message:"This load is no longer returned by the provider."});return}live=Object.assign({},l,z)}
+   if(bridge().refreshLoad){var z=await bridge().refreshLoad(l);if(!z){save(l,STATES.ACTION_REQUIRED,{message:"Availability could not be rechecked. Confirm directly with the provider."});return}live=Object.assign({},l,z)}
    var result=await adapterFor(live).requestBooking(live,{index:index});
    var st=String((result&&result.status)||STATES.ACTION_REQUIRED).toUpperCase();
    if(st===STATES.ACCEPTED){save(live,STATES.ACCEPTED,{confirmationNumber:result.confirmationNumber||result.confirmation_number||null,requestId:result.requestId||result.request_id||null,message:result.message||"Provider confirmed this load."});return}
+   if(st===STATES.PENDING&&!(result.requestId||result.request_id)){save(live,STATES.ACTION_REQUIRED,{message:"No request receipt was returned. Check with the provider before retrying."});return}
    if(st===STATES.PENDING){save(live,STATES.PENDING,{requestId:result.requestId||result.request_id||null,message:result.message||"Waiting for provider confirmation."});return}
    if(st===STATES.DECLINED||st===STATES.EXPIRED){save(live,st,{message:(result&&result.message)||"Provider did not confirm this load."});return}
    var opts=(result&&result.options&&result.options.length)?result.options:optionsFor(live);
@@ -97,16 +99,9 @@ function renderCenter(){
 function openCenter(){renderCenter();ensureCenter().classList.add("active")}
 
 function decorate(){
- document.querySelectorAll(".candidateLoad[data-load-index]").forEach(function(card){
-   var index=Number(card.getAttribute("data-load-index")),l=bridge().getLoad?bridge().getLoad(index):null;if(!l)return;
-   var st=statusFor(l),row=card.nextElementSibling;
-   if(!row||!row.classList.contains("mcBookingActionRow")){row=document.createElement("div");row.className="mcBookingActionRow";card.insertAdjacentElement("afterend",row)}
-   if(nonBookable(l)){row.innerHTML='<span class="mcBookingState">NOT BOOKABLE</span><small>Test/SIM freight stays out of real booking.</small>';return}
-   var dis=[STATES.ACCEPTED,STATES.CLAIMED,STATES.REQUESTING,STATES.PENDING].indexOf(st)>=0?" disabled":"";
-   row.innerHTML='<button type="button"'+dis+'>'+esc(actionLabel(st))+'</button><span class="mcBookingState '+cls(st)+'">'+esc(label(st))+'</span><small>'+(st===STATES.CLAIMED?"Carrier reported • not verified by provider":st===STATES.ACCEPTED?"Provider confirmed • committed":st===STATES.ACTION_REQUIRED?"Provider handoff required":"Live availability is rechecked before handoff")+'</small>';
-   var btn=row.querySelector("button");if(btn)btn.onclick=function(e){e.preventDefault();e.stopPropagation();beginBooking(l,index)}
- });
- renderCenter()
+ // Booking belongs to the trip review, not a second action row under every load.
+ document.querySelectorAll('.mcBookingActionRow').forEach(function(row){row.remove()});
+ renderCenter();
 }
 
 function refreshCommittedSummary(){
@@ -115,8 +110,16 @@ function refreshCommittedSummary(){
  var planned=bridge().getPlannedLoads?bridge().getPlannedLoads():[],confirmed=planned.filter(isConfirmed),tentative=planned.filter(function(l){return!isConfirmed(l)});
  var claimed=planned.filter(function(l){return statusFor(l)===STATES.CLAIMED});
  var pay=confirmed.reduce(function(s,l){return s+Number(l.pay||0)},0),weight=confirmed.reduce(function(s,l){return s+Math.max(0,Number(l.weight||0))},0),space=confirmed.reduce(function(s,l){return s+Math.max(0,Number(l.space||0))},0);
- box.innerHTML='<b>CONFIRMED / COMMITTED: '+money(pay)+' • '+confirmed.length+' load'+(confirmed.length===1?"":"s")+'</b> • '+Math.round(weight).toLocaleString()+' lb • '+(Math.round(space*10)/10)+' ft • '+claimed.length+' carrier-reported claims'+(tentative.length?' • '+tentative.length+' tentative':'');
- var result=document.getElementById("stackPlanResult");if(result&&planned.length){var note=result.querySelector("[data-booking-plan]");if(!note){note=document.createElement("div");note.className="mcPlanCommitNotice";note.setAttribute("data-booking-plan","1");result.insertBefore(note,result.firstChild)}note.textContent=confirmed.length+" provider-confirmed / "+claimed.length+" carrier-reported / "+planned.length+" planned loads • projected pay is not earned revenue. Onboard capacity changes only at pickup/delivery."}
+ box.textContent=confirmed.length+' confirmed · '+claimed.length+' reported · pay not earned';
+ var result=document.getElementById("stackPlanResult");if(result&&planned.length){var note=result.querySelector("[data-booking-plan]");if(!note){note=document.createElement("div");note.className="mcPlanCommitNotice";note.setAttribute("data-booking-plan","1");result.insertBefore(note,result.firstChild)}note.textContent=planned.length+" planned loads · "+confirmed.length+" provider-confirmed · "+claimed.length+" carrier-reported. Pay is projected."}
+}
+// No current provider is enabled for API requests. An approved server adapter must
+// explicitly declare requestViaApi; a handoff URL alone never enables this action.
+function canRequest(l){var a=adapters[norm(l&&l.provider)];return !!(l&&!nonBookable(l)&&a&&a.requestViaApi===true&&typeof a.requestBooking==='function')}
+async function requestSelected(loads){
+ if(bookingBatchBusy)return;bookingBatchBusy=true;
+ try{var seen=new Set();for(var l of loads||[]){var k=keyFor(l);if(!k||seen.has(k)||!canRequest(l))continue;seen.add(k);await beginBooking(l);}}
+ finally{bookingBatchBusy=false;}
 }
 function registerProvider(name,adapter){if(name&&adapter)adapters[norm(name)]=adapter}
 function setProviderStatus(l,status,payload){status=String(status||"").toUpperCase();if(Object.keys(STATES).map(function(k){return STATES[k]}).indexOf(status)<0)throw new Error("Unknown booking status");return save(l,status,payload||{})}
@@ -126,6 +129,6 @@ function init(){
  var target=document.getElementById("loadCandidates")||document.body;var obs=new MutationObserver(function(){decorate();refreshCommittedSummary()});obs.observe(target,{childList:true,subtree:false});
  setInterval(refreshCommittedSummary,1500)
 }
-window.MileCountBooking={STATES:STATES,statusForLoad:statusFor,isConfirmed:isConfirmed,registerProvider:registerProvider,setProviderStatus:setProviderStatus,refreshCommittedSummary:refreshCommittedSummary,openCenter:openCenter};
+window.MileCountBooking={STATES:STATES,statusForLoad:statusFor,isConfirmed:isConfirmed,registerProvider:registerProvider,canRequest:canRequest,requestSelected:requestSelected,setProviderStatus:setProviderStatus,refreshCommittedSummary:refreshCommittedSummary,openCenter:openCenter};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();

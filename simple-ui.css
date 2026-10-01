@@ -1,0 +1,91 @@
+/* One clear action at a time; touch targets stay large even on small phones. */
+:root{--stack-height:0px}
+.simpleDispatch{--nav-height:58px}
+.simpleDispatch [hidden]{display:none!important}
+.simpleDispatch header{padding:12px;gap:8px;flex-wrap:wrap}
+.simpleDispatch .logo{font-size:25px}
+.simpleDispatch #dataModeBadge,.simpleDispatch .quickFlow,.simpleDispatch .hero,.simpleDispatch .reviewIntro{display:none}
+.simpleDispatch .photoHero{height:90px;min-height:0}
+.simpleDispatch .photoHero img,.simpleDispatch .photoOverlay{display:none}
+.simpleDispatch .photoHero>div:last-child{position:static!important;padding:10px 18px}
+.simpleDispatch .photoHero>div:last-child>div:first-child,.simpleDispatch .photoHero>div:last-child>div:last-child{display:none}
+.simpleDispatch .photoHero>div:last-child>div:nth-child(2){font-size:25px!important;line-height:1.2}
+.simpleDispatch .photoHero br{display:none}
+.simpleDispatch:not([data-mc-screen="1"]) .photoHero{display:none}
+#dispatchSteps{position:sticky;top:0;z-index:99980;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:7px;background:#07110df5;border-bottom:1px solid #365a47;backdrop-filter:blur(12px)}
+#dispatchSteps button{min-height:44px;margin:0;padding:8px 4px;background:transparent;color:#b5c9be;font-size:14px;white-space:nowrap}
+#dispatchSteps button span{display:inline-grid;place-items:center;width:22px;height:22px;margin-right:3px;border-radius:50%;background:#263d31;font-size:12px}
+#dispatchSteps button[aria-current="step"]{background:#163c29;color:#b2ffd4}
+#dispatchSteps button[aria-current="step"] span{background:#21b878;color:#05130b}
+.simpleDispatch .screen{padding:10px 10px calc(100px + var(--stack-height))!important;scroll-margin-top:70px}
+.simpleDispatch .card{padding:14px}
+.simpleDispatch .details,.simpleDispatch .loadMeta{font-size:14px;line-height:1.45}
+.simpleDispatch label{font-size:13px;color:#b5c9be}
+.simpleDispatch .simpleSearchTitle{font-size:25px;margin:8px 0}
+.simpleDispatch .simpleSearchSub{font-size:14px;line-height:1.4}
+.simpleDispatch .compactVehicle{padding:10px}
+.simpleDispatch .simpleStatus{display:none}
+.simpleFold{margin:10px 0;border:1px solid #2c4939;border-radius:12px;padding:0 12px;background:#09170f;scroll-margin-top:70px}
+.simpleFold>summary{cursor:pointer;min-height:48px;padding:14px 0;font-weight:700;font-size:15px;color:#c7e7d6}
+.simpleFold>section,.simpleFold>.card{margin:0 0 12px}
+.simpleDispatch .stackHelp{padding:10px;margin:8px 0}.simpleDispatch .stackHelp b{font-size:16px}.simpleDispatch .stackHelp span{font-size:14px}
+.simpleDispatch #screen2>.card>p:first-of-type{display:none}
+.simpleDispatch #screen2>.card>.row button{font-size:13px;padding:12px;min-height:48px}
+.simpleDispatch #stackPlanResult:has(>p.stackWarn:only-child){border:0;padding:0;margin:6px 0;font-size:13px}
+.simpleDispatch #stackPlanResult>p.stackWarn:only-child{font-size:13px;color:#abc5b6}
+.simpleDispatch .loadResult{padding:14px;margin:0;cursor:default;border-radius:14px;text-align:left}
+.simpleDispatch .loadTop{gap:12px}.simpleDispatch .loadLane{font-size:17px;line-height:1.35;overflow-wrap:anywhere}
+.simpleDispatch .loadPay{font-size:24px;white-space:normal;min-width:85px;text-align:right}
+.simpleDispatch .laneArrow{color:#6edd9d}
+.loadQuickFacts{display:flex;flex-wrap:wrap;gap:6px 12px;color:#bdd1c5;font-size:13px;margin:10px 0}
+.loadQuickFacts span{max-width:100%;overflow-wrap:anywhere}
+.loadActions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.simpleDispatch .loadActions button{min-height:48px;margin:0;font-size:16px;padding:12px;border-radius:10px}
+.simpleDispatch .inspectLoad{background:#172a20;color:#d2e9dc;border:1px solid #375443}
+.simpleDispatch .stackPick{color:white;background:#11864f;border:1px solid #2ab77a}
+.simpleDispatch .stackChosen{outline:2px solid #5cdc98;outline-offset:0;background:#0d2317}
+.simpleDispatch .stackChosen .stackPick{background:#b0f1c6;color:#092314}
+.loadExtra{font-size:14px;line-height:1.5;border-top:1px solid #34523e;margin-top:12px;padding-top:10px}
+.loadExtra a,.simpleDispatch .miniBtn{color:#a1efc7;min-height:44px;display:inline-flex;align-items:center;padding:8px 0;font-weight:700}
+.loadReference{overflow-wrap:anywhere;color:#b0c5b9;font-size:13px}
+.simpleDispatch .dfDetailsOpen{background:#173723;font-size:14px}
+.simpleDispatch .stackTray{grid-template-columns:1fr auto auto;gap:6px;padding:10px;bottom:calc(8px + env(safe-area-inset-bottom))!important;width:min(626px,calc(100% - 20px))!important;border-color:#4ab379;border-radius:16px}
+.simpleDispatch:not([data-mc-screen="2"]) #stackTray{display:none}
+.simpleDispatch #stackTray small{font-size:11px}.simpleDispatch #stackTray b{font-size:18px}
+.simpleDispatch #stackTray button{min-height:44px!important;font-size:14px!important;padding:10px 12px}
+.simpleDispatch #doneStack{grid-column:1/-1;width:100%;background:#27b874!important;color:#031c0d!important;font-size:17px!important}
+.simpleDispatch #reviewStackQuick,.simpleDispatch #clearStack{color:#bfd7c8;background:#132b1c;border:1px solid #345640}
+.simpleDispatch #clearStack{font-size:12px!important}
+.simpleDispatch #mcCommitSummary{font-size:11px;line-height:1.25;padding:5px 0 0;color:#adc8b8;border-top:0}
+.simpleDispatch .mcPlanCommitNotice{font-size:13px;padding:8px;background:#112116;border-color:#34533f;color:#c0d5c6}
+.simpleDispatch #backToTop{position:fixed;right:max(12px,calc((100vw - 650px)/2 + 12px));bottom:calc(22px + env(safe-area-inset-bottom) + var(--stack-height));z-index:99991;width:auto;min-height:48px;margin:0;padding:10px 16px;border:1px solid #72c999;border-radius:999px;background:#173a26;color:#d4fce3;font-size:15px;box-shadow:0 4px 18px #0008}
+#backToTop span{font-size:23px;margin-right:5px}
+#stackFeedback{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom) + var(--stack-height));transform:translate(-50%,12px);opacity:0;pointer-events:none;max-width:88vw;padding:12px 18px;border:1px solid #71dba4;border-radius:14px;background:#153e28;color:#d9ffe5;z-index:99992;font-size:15px;font-weight:700;transition:opacity .15s,transform .15s;text-align:center}
+#stackFeedback.visible{opacity:1;transform:translate(-50%,0)}
+.stackPop #stackSelectedPay{animation:stackGlow .45s ease-out}@keyframes stackGlow{0%{color:#fff;filter:brightness(1.9)}100%{color:inherit;filter:brightness(1)}}
+.tripPrimary{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tripPrimary>.metric:last-child{grid-column:1/-1;background:#12341f;border:1px solid #36704a}.tripPrimary .metric b{font-size:26px}.tripPrimary .metric small{font-size:12px;color:#bdd7c8}
+.simpleDispatch #realMap{height:230px;scroll-margin-top:70px}.simpleDispatch #tripOverview{margin-top:8px!important}
+.simpleDispatch #finalTripDetails>small,.simpleDispatch #finalTripDetails>.row{display:none}
+.simpleDispatch .homeAlt{padding:10px 0}.simpleDispatch .homeAlt b{font-size:16px;line-height:1.4}.simpleDispatch .homeAlt span{font-size:14px}
+.simpleDispatch .bookingConfirm{font-size:14px;padding:12px;min-height:48px;background:#173e29;border:1px solid #397653}
+.simpleDispatch #tripStops,.simpleDispatch #bookingHandoff,.simpleDispatch #stackFold{scroll-margin-top:70px}
+.simpleDispatch #screen3>.card:nth-child(2){display:none} /* Duplicate trip-pay strip; primary summary stays visible. */
+.simpleDispatch .mcBookingTopBtn{min-height:44px;font-size:12px!important;margin:0!important}
+.simpleDispatch .mcBookingItem p{font-size:14px}.simpleDispatch .mcBookingPanel>p{font-size:14px!important}
+body.mcAuthLocked #dispatchSteps,body.mcAuthLocked #backToTop,body.mcAuthLocked #stackFeedback{visibility:hidden!important}
+@media(prefers-reduced-motion:reduce){.stackPop #stackSelectedPay,#stackFeedback{animation:none!important;transition:none!important}}
+@media(max-width:360px){#dispatchSteps button{font-size:12px}.simpleDispatch .loadPay{font-size:21px;min-width:70px}.simpleDispatch .loadLane{font-size:16px}}
+.bookingLoadRow{border-bottom:1px solid #34553f;padding:8px 0}.bookingLoadRow summary{cursor:pointer;padding:10px 0;min-height:48px}.bookingLoadRow summary b{font-size:16px;line-height:1.4}.bookingLoadRow summary span{display:block;font-size:13px;color:#b0c9bb;margin-top:5px}.bookingLoadActions{padding:2px 0 10px}.bookingLoadActions button{margin-top:6px}
+.simpleDispatch #mcBookingCenterBtn{display:none!important}
+.simpleDispatch #screen2>.card>.badge{display:none}
+.simpleDispatch .stackHelp{background:transparent;border:0;padding:0;margin:6px 0 12px}
+.simpleDispatch .stackHelp b{display:none}
+.simpleDispatch #stackPlanResult[data-phase="changed"]{display:none}
+.simpleDispatch #moreFreightFold{margin:8px 0}
+.simpleDispatch #moreFreightFold button{font-size:14px}
+.simpleDispatch .routeAdditions{padding:12px;background:#0e2117;border-color:#2d5e42;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.simpleDispatch .routeAdditions h2{grid-column:1/-1;font-size:17px;margin:0}
+.simpleDispatch .routeAdditions p{display:none}
+.simpleDispatch .routeAdditions button{margin:0;font-size:13px;padding:12px 8px}
+.simpleDispatch #truckBrainPanel{scroll-margin-top:70px}
+.simpleDispatch #truckBrainPanel p{font-size:14px;line-height:1.5;color:#b7ccbf}
