@@ -26,7 +26,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    if(url.includes('/rest/v1/profiles'))return json([{id:'00000000-0000-0000-0000-000000000001',plan:'free'}]);
    if(url.includes('/rest/v1/'))return json([]);
    if(url.includes('/functions/v1/commercial-route'))return json({error:'Commercial router unavailable in QA'},503);
-   if(url.includes('/functions/v1/directfreight-adapter'))return json({configured:true,loads});
+   if(url.includes('/functions/v1/directfreight-adapter')){const origin=req.postDataJSON()?.origin;const extra=f===fixtures.cases[0]&&origin!==f.start?[{name:'return-1',provider:'Direct Freight',providerLoadId:'return-1',pickup:'Charlotte, NC',delivery:'Greenville, SC',pay:800,weight:null,space:0},{name:'return-2',provider:'Direct Freight',providerLoadId:'return-2',pickup:'Greenville, SC',delivery:'Atlanta, GA',pay:700,weight:null,space:0}]:[];return json({configured:true,loads:[...loads,...extra]});}
    if(url.includes('/functions/')||url.includes('truktek.com/api/loads'))return json({loads:[],configured:true,live_found:0});
    if(url.includes('nominatim')){const q=u.searchParams.get('q')||'',key=Object.keys(fixtures.coordinates).find(k=>q.includes(k)),c=fixtures.coordinates[key];return json(c?[{lat:String(c[1]),lon:String(c[0]),display_name:key}]:[]);}
    if(url.includes('/route/v1/')||url.includes('/table/v1/')){
@@ -66,6 +66,19 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   assert((await page.locator('#bookingCount').innerText()).includes('live load'));
   assert.deepEqual(errors,[]);console.log('PASS browser select → stack → route/list/economics → exact home: '+f.name+' • '+result.brain.currentPlan.miles.toFixed(1)+' mi');
   if(process.env.QA_SCREENSHOT_DIR){fs.mkdirSync(process.env.QA_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,'route-'+fixtures.cases.indexOf(f)+'.png'),fullPage:true});}
+  if(f===fixtures.cases[0]){
+   await page.setViewportSize({width:390,height:844});
+   await page.locator('#protect').click();await page.waitForFunction(()=>document.getElementById('tripOpportunityStatus').textContent.includes('live options.'));
+   assert.equal(await page.locator('.stackPick').count(),2);
+   assert(await page.evaluate(()=>Boolean(document.getElementById('loadCandidates').compareDocumentPosition(document.getElementById('selectedStackLoads'))&Node.DOCUMENT_POSITION_FOLLOWING)));
+   for(let i=0;i<2;i++)await page.locator('.stackPick').nth(i).click();
+   await page.locator('#buildOpportunityTrip').click();await page.waitForFunction(()=>window.MileCountTruckBrain.get().currentPlan?.loads.length===6);
+   const full=await page.evaluate(()=>window.MileCountTruckBrain.get().currentPlan);assert.equal(full.totalPay,3250);assert.equal(full.routeStops.at(-1),f.home);assert.equal(full.loads.filter(l=>l.providerLoadId==='return-1').length,1);
+   await page.waitForFunction(()=>mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
+   await page.locator('#findOutboundLoads').click();await page.waitForFunction(()=>document.getElementById('tripOpportunityStatus').textContent.startsWith('OUTBOUND •'));
+   assert.equal((await page.evaluate(()=>window.MileCountTruckBrain.get().committedLoads)).length,6);
+   console.log('PASS browser Homebound list → two paid hops → rebuild all original loads/map/pay → outbound list');
+  }
   if(f===fixtures.cases[0]){
    await page.setViewportSize({width:390,height:844});
    await page.evaluate(()=>document.getElementById('restart').click());await page.locator('#find').click();await page.waitForFunction(n=>document.querySelectorAll('.stackPick').length===n&&!document.getElementById('find').disabled,f.loads.length);
