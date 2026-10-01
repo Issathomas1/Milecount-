@@ -30,7 +30,7 @@ function transition(p,s,i,type){
  let time=s.time,drive=s.drive,duty=s.duty,sinceBreak=s.sinceBreak;
  if(p.hos?.enabled){const breaks=Math.max(0,Math.ceil((sinceBreak+road.minutes)/p.hos.breakAfterMinutes)-1);time+=breaks*p.hos.breakMinutes;duty+=breaks*p.hos.breakMinutes;if(breaks)sinceBreak=(sinceBreak+road.minutes)-breaks*p.hos.breakAfterMinutes;else sinceBreak+=road.minutes;}else sinceBreak+=road.minutes;
  time+=road.minutes;drive+=road.minutes;duty+=road.minutes;
- const w=isTest(l)?null:l.windows?.[type];
+ const w=isTest(l)||p.previewTiming?null:l.windows?.[type];
  let waiting=0;
  if(w){const wait=Math.max(0,w.start-time);waiting=wait;time+=wait;duty+=wait;if(time>w.end+EPS)return null;}
  const service=Number(l.services?.[type]??p.serviceMinutes?.[type]??20);
@@ -57,7 +57,7 @@ const score=s=>s.miles+s.deadhead*.05; // Revenue is invariant across permutatio
 function summarize(p,s,extra={}){
  const livePay=p.loads.filter(l=>!isTest(l)).reduce((n,l)=>n+Number(l.pay||0),0),testPay=p.loads.filter(l=>isTest(l)).reduce((n,l)=>n+Number(l.pay||0),0);
  const totalPay=livePay+testPay,base=p.loads.find(l=>l.id===p.baseLoadId),basePay=Number(base?.pay||0),fuelCost=s.miles*Number(p.fuelCostPerMile||0);
- return {...s,...extra,planningPreview:p.planningPreview===true,capacityVerified:p.loads.every(l=>knownCapacity(l.weight)&&knownCapacity(l.space)),loads:p.loads,routeStops:[p.truck.currentLocation,...s.events.map(e=>e.location)],livePay,testPay,totalPay,basePay,addedPay:totalPay-basePay,fuelCost,afterGas:totalPay-fuelCost,rpm:s.miles?totalPay/s.miles:0,startLocation:p.truck.currentLocation,freightEnd:[...s.events].reverse().find(e=>e.type==='drop')?.location||p.truck.currentLocation,finalDestination:p.finalDestination||null,score:score(s)};
+ return {...s,...extra,planningPreview:p.planningPreview===true,timingVerified:!p.previewTiming,capacityVerified:p.loads.every(l=>knownCapacity(l.weight)&&knownCapacity(l.space)),loads:p.loads,routeStops:[p.truck.currentLocation,...s.events.map(e=>e.location)],livePay,testPay,totalPay,basePay,addedPay:totalPay-basePay,fuelCost,afterGas:totalPay-fuelCost,rpm:s.miles?totalPay/s.miles:0,startLocation:p.truck.currentLocation,freightEnd:[...s.events].reverse().find(e=>e.type==='drop')?.location||p.truck.currentLocation,finalDestination:p.finalDestination||null,score:score(s)};
 }
 function audit(p,events){
  let s=initial(p);const issues=[],seen=new Set();
@@ -83,7 +83,7 @@ function solve(p,opts={}){
  if(p.loads.some(isTest)&&p.loads.some(l=>!isTest(l)))return {ok:false,issues:['LIVE and TEST/SIM freight must be planned separately'],conflicts:[]};
  if(!Number.isFinite(p.truck.payload)||!Number.isFinite(p.truck.cargoCapacity)||p.truck.payload<=0||p.truck.cargoCapacity<=0)return {ok:false,issues:['Truck payload and cargo capacity must be supplied'],conflicts:[]};
  if(!Number.isFinite(p.startMinutes))return {ok:false,issues:['A valid trip start time is required'],conflicts:[]};
- const badWindows=p.loads.filter(l=>!isTest(l)&&Object.values(l.windows||{}).some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.end<w.start));
+ const badWindows=p.loads.filter(l=>!p.previewTiming&&!isTest(l)&&Object.values(l.windows||{}).some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.end<w.start));
  if(badWindows.length)return {ok:false,issues:badWindows.map(l=>'Verify appointment bounds for '+loadLabel(l)),conflicts:badWindows.map(l=>l.id)};
  const invalid=p.loads.filter(l=>!Number.isFinite(Number(l.weight))||Number(l.weight)<=0||!Number.isFinite(Number(l.space))||Number(l.space)<=0);
  if(invalid.length&&!p.planningPreview)return {ok:false,issues:invalid.map(l=>'Verify weight and cargo space for '+loadLabel(l)),conflicts:invalid.map(l=>l.id)};

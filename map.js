@@ -653,7 +653,7 @@ function updateMileCountRouteInfo(
   if (sourceElement) {
 
     sourceElement.textContent =
-      (route.planningPreview?"PLANNING PREVIEW • CAPACITY NOT VERIFIED • ":"")+(route.routingStatus||route.source);
+      (route.planningPreview?"PLANNING PREVIEW • "+(route.capacityVerified===false?"CAPACITY NOT VERIFIED • ":"")+(route.timingVerified===false?"MULTI-DAY / TIMING NOT VERIFIED • ":""):"")+(route.routingStatus||route.source);
 
   }
 
