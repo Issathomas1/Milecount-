@@ -2,6 +2,8 @@
 (function(root){
 'use strict';
 const EPS=1e-7;
+const knownCapacity=v=>v!=null&&Number.isFinite(Number(v))&&Number(v)>0;
+const loadLabel=l=>[l.pickup,l.delivery||l.stop].filter(Boolean).join(" → ")||l.name||"Selected load";
 const isTest=l=>!!(l.isSandbox||l.isLocalSim||['TEST','SIM'].includes(l.mode));
 const key=l=>l._mcLoadKey||String(l.providerLoadId||l.bookingReference||l.id||l.name||'')+'|'+String(l.provider||'');
 function unique(loads){const m=new Map();for(const l of loads||[]){const k=key(l);if(!k||k==='|')throw Error('Each load needs a stable identity');if(!m.has(k))m.set(k,{...l,id:k,_mcLoadKey:k});}return [...m.values()];}
@@ -15,8 +17,9 @@ function problem(input){
 }
 function capacity(p, picked, delivered){
  let weight=Number(p.truck.reservedWeight||0),space=Number(p.truck.reservedSpace||0);
- const onboard=[];p.loads.forEach((l,i)=>{if((picked&2**i)&&!(delivered&2**i)){weight+=Number(l.weight);space+=Number(l.space);onboard.push(l.id);}});
- return {weight,space,onboard,remainingWeight:p.truck.payload-weight,remainingSpace:p.truck.cargoCapacity-space};
+ const onboard=[];p.loads.forEach((l,i)=>{if((picked&2**i)&&!(delivered&2**i)){weight+=knownCapacity(l.weight)?Number(l.weight):0;space+=knownCapacity(l.space)?Number(l.space):0;onboard.push(l.id);}});
+ const capacityVerified=p.loads.every(l=>!onboard.includes(l.id)||(knownCapacity(l.weight)&&knownCapacity(l.space)));
+ return {weight,space,onboard,capacityVerified,remainingWeight:p.truck.payload-weight,remainingSpace:p.truck.cargoCapacity-space};
 }
 function initial(p){let picked=0;p.loads.forEach((l,i)=>{if(l.initialOnboard)picked|=2**i;});const c=capacity(p,picked,0);return {picked,delivered:0,last:0,miles:0,deadhead:0,time:p.startMinutes||0,drive:0,duty:0,sinceBreak:Number(p.hos?.sinceBreakMinutes||0),events:[],...c};}
 function leg(p,a,b){const x=p.matrix?.[a]?.[b];return x&&Number.isFinite(x.miles)&&x.miles>=0&&Number.isFinite(x.minutes)&&x.minutes>=0?x:null;}
@@ -37,7 +40,7 @@ function transition(p,s,i,type){
  const picked=type==='pickup'?s.picked|bit:s.picked,delivered=type==='drop'?s.delivered|bit:s.delivered;
  const c=capacity(p,picked,delivered);if(c.weight>p.truck.payload+EPS||c.space>p.truck.cargoCapacity+EPS)return null;
  const deadhead=s.deadhead+(s.onboard.length?0:road.miles);
- const event={type,location:p.locations[at],load:l,loadId:l.id,arrivalMinutes:arrival,departureMinutes:time,legMiles:road.miles,legMinutes:road.minutes,onboardWeight:c.weight,onboardSpace:c.space,onboardLoadIds:[...c.onboard],truckBrain:{currentLocation:p.locations[at],onboardLoadIds:[...c.onboard],onboardWeight:c.weight,onboardSpace:c.space,remainingWeight:c.remainingWeight,remainingSpace:c.remainingSpace},ok:true};
+ const event={type,location:p.locations[at],load:l,loadId:l.id,arrivalMinutes:arrival,departureMinutes:time,legMiles:road.miles,legMinutes:road.minutes,onboardWeight:c.weight,onboardSpace:c.space,capacityVerified:c.capacityVerified,onboardLoadIds:[...c.onboard],truckBrain:{currentLocation:p.locations[at],onboardLoadIds:[...c.onboard],onboardWeight:c.weight,onboardSpace:c.space,remainingWeight:c.remainingWeight,remainingSpace:c.remainingSpace},ok:true};
  return {...s,picked,delivered,last:at,miles:s.miles+road.miles,deadhead,time,drive,duty,sinceBreak,...c,events:[...s.events,event]};
 }
 function finish(p,s){
@@ -54,10 +57,11 @@ const score=s=>s.miles+s.deadhead*.05; // Revenue is invariant across permutatio
 function summarize(p,s,extra={}){
  const livePay=p.loads.filter(l=>!isTest(l)).reduce((n,l)=>n+Number(l.pay||0),0),testPay=p.loads.filter(l=>isTest(l)).reduce((n,l)=>n+Number(l.pay||0),0);
  const totalPay=livePay+testPay,base=p.loads.find(l=>l.id===p.baseLoadId),basePay=Number(base?.pay||0),fuelCost=s.miles*Number(p.fuelCostPerMile||0);
- return {...s,...extra,loads:p.loads,routeStops:[p.truck.currentLocation,...s.events.map(e=>e.location)],livePay,testPay,totalPay,basePay,addedPay:totalPay-basePay,fuelCost,afterGas:totalPay-fuelCost,rpm:s.miles?totalPay/s.miles:0,startLocation:p.truck.currentLocation,freightEnd:[...s.events].reverse().find(e=>e.type==='drop')?.location||p.truck.currentLocation,finalDestination:p.finalDestination||null,score:score(s)};
+ return {...s,...extra,planningPreview:p.planningPreview===true,capacityVerified:p.loads.every(l=>knownCapacity(l.weight)&&knownCapacity(l.space)),loads:p.loads,routeStops:[p.truck.currentLocation,...s.events.map(e=>e.location)],livePay,testPay,totalPay,basePay,addedPay:totalPay-basePay,fuelCost,afterGas:totalPay-fuelCost,rpm:s.miles?totalPay/s.miles:0,startLocation:p.truck.currentLocation,freightEnd:[...s.events].reverse().find(e=>e.type==='drop')?.location||p.truck.currentLocation,finalDestination:p.finalDestination||null,score:score(s)};
 }
 function audit(p,events){
  let s=initial(p);const issues=[],seen=new Set();
+ if(!p.planningPreview&&p.loads.some(l=>!knownCapacity(l.weight)||!knownCapacity(l.space)))issues.push('Capacity details are missing');
  if(!Number.isFinite(p.truck.payload)||!Number.isFinite(p.truck.cargoCapacity)||p.truck.payload<=0||p.truck.cargoCapacity<=0)issues.push('Truck capacity must be supplied');
  if(s.weight>p.truck.payload||s.space>p.truck.cargoCapacity)issues.push('Initial onboard capacity exceeded');
  for(const e of events||[]){
@@ -80,9 +84,10 @@ function solve(p,opts={}){
  if(!Number.isFinite(p.truck.payload)||!Number.isFinite(p.truck.cargoCapacity)||p.truck.payload<=0||p.truck.cargoCapacity<=0)return {ok:false,issues:['Truck payload and cargo capacity must be supplied'],conflicts:[]};
  if(!Number.isFinite(p.startMinutes))return {ok:false,issues:['A valid trip start time is required'],conflicts:[]};
  const badWindows=p.loads.filter(l=>!isTest(l)&&Object.values(l.windows||{}).some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.end<w.start));
- if(badWindows.length)return {ok:false,issues:badWindows.map(l=>'Verify appointment bounds for '+l.id),conflicts:badWindows.map(l=>l.id)};
+ if(badWindows.length)return {ok:false,issues:badWindows.map(l=>'Verify appointment bounds for '+loadLabel(l)),conflicts:badWindows.map(l=>l.id)};
  const invalid=p.loads.filter(l=>!Number.isFinite(Number(l.weight))||Number(l.weight)<=0||!Number.isFinite(Number(l.space))||Number(l.space)<=0);
- if(invalid.length)return {ok:false,issues:invalid.map(l=>'Verify weight and cargo space for '+l.id),conflicts:invalid.map(l=>l.id)};
+ if(invalid.length&&!p.planningPreview)return {ok:false,issues:invalid.map(l=>'Verify weight and cargo space for '+loadLabel(l)),conflicts:invalid.map(l=>l.id)};
+ if(p.loads.some(l=>Number(l.weight)<0||Number(l.space)<0))return {ok:false,issues:['Weight and cargo space cannot be negative'],conflicts:[]};
  if(p.loads.length>15)return {ok:false,issues:['Split stacks above 15 loads into smaller dispatch plans'],conflicts:[]};
  const init=initial(p);if(init.weight>p.truck.payload||init.space>p.truck.cargoCapacity)return {ok:false,issues:['Actual onboard freight exceeds truck capacity'],conflicts:[]};
  const all=2**p.loads.length-1,exact=p.loads.length<=6,beamWidth=opts.beamWidth||1800;
@@ -121,7 +126,7 @@ function alternatives(p){
 function optimize(p,opts={}){
  let best=solve(p,opts);if(!best.ok)return best;
  const compared=alternatives(p);for(const alt of compared)if(score(alt)+EPS<best.score){const checked=audit(p,alt.events);if(checked.ok)best={...best,...checked.result,optimal:false,method:'audited alternate sequence'};}
- if(best.afterGas<0)return {ok:false,issues:['The entire selected trip pays less than its estimated fuel cost'],conflicts:[],uneconomic:best};
+ if(best.afterGas<0&&!p.planningPreview)return {ok:false,issues:['The entire selected trip pays less than its estimated fuel cost'],conflicts:[],uneconomic:best};
  return {...best,comparisons:compared.map(x=>({name:x.name,miles:x.miles,score:x.score,order:x.events.map(e=>e.type+' '+e.location)}))};
 }
 function economicReview(p,result){
