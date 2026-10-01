@@ -1,0 +1,54 @@
+[
+  {
+    "name": "Requested Georgia four-load example",
+    "miles": 724.2800793366739,
+    "order": [
+      "pickup Atlanta, GA",
+      "pickup Lawrenceville, GA",
+      "pickup Newnan, GA",
+      "pickup Stockbridge, GA",
+      "drop McDonough, GA",
+      "drop Fairburn, GA",
+      "drop Smyrna, GA",
+      "drop Charlotte, NC",
+      "home Riverdale, GA"
+    ]
+  },
+  {
+    "name": "Florida pickups before leaving Florida",
+    "miles": 732.1257605583394,
+    "order": [
+      "pickup Orlando, FL",
+      "pickup Jacksonville, FL",
+      "pickup Jacksonville, FL",
+      "drop Atlanta, GA",
+      "drop Greenville, SC",
+      "drop Charlotte, NC"
+    ]
+  },
+  {
+    "name": "Atlanta pickups before Charlotte corridor",
+    "miles": 386.8156217688698,
+    "order": [
+      "pickup Atlanta, GA",
+      "pickup Lawrenceville, GA",
+      "pickup Stockbridge, GA",
+      "drop Atlanta, GA",
+      "drop Greenville, SC",
+      "drop Charlotte, NC"
+    ]
+  },
+  {
+    "name": "Capacity release permits next pickup",
+    "miles": 850.1204217370555,
+    "order": [
+      "pickup Atlanta, GA",
+      "drop Greenville, SC",
+      "pickup Greenville, SC",
+      "drop Charlotte, NC",
+      "pickup Newnan, GA",
+      "drop Fairburn, GA",
+      "home Charlotte, NC"
+    ]
+  }
+]

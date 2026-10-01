@@ -14,23 +14,33 @@ function mcCanonicalLocation(value,fallback=""){
  return raw;
 }
 function syncTruckBrain(reason="sync"){
- const cap=typeof currentCapacity==="function"?currentCapacity():{availableWeight:0,availableSpace:0};
- const events=Array.isArray(S.finalRouteEvents)&&S.finalRouteEvents.length?S.finalRouteEvents:(S.stackPlan?.events||[]);
- const last=events.length?events[events.length-1]:null;
- const home=mcCanonicalLocation(S.home,el("from")?.value||S.origin||"");
- const current=mcCanonicalLocation(last?.location||S.tripState?.location||S.smartDispatchOrigin||S.origin||el("from")?.value||"",S.origin||"");
- S.truckBrain={
-  currentLocation:current,homeLocation:home,
-  onboardLoads:Array.isArray(S.tripState?.onboard)?[...S.tripState.onboard]:[],
-  onboardWeight:Number(S.tripState?.onboardWeight||0),onboardSpace:Number(S.tripState?.onboardSpace||0),
-  availableWeight:Number(cap.availableWeight||0),availableSpace:Number(cap.availableSpace||0),
-  finalRouteStops:Array.isArray(S.finalRouteStops)?[...S.finalRouteStops]:[],
-  updatedAt:Date.now(),reason
- };
+ const cap=currentCapacity(),actual=S.executionState||{};
+ // A proposed route is a projection, never evidence that the truck moved.
+ const onboardLoads=Array.isArray(actual.onboardLoads)?actual.onboardLoads:[];
+ const onboardWeight=onboardLoads.reduce((n,l)=>n+Number(l.weight||0),0);
+ const onboardSpace=onboardLoads.reduce((n,l)=>n+Number(l.space||0),0);
+ const current=mcCanonicalLocation(actual.currentLocation||(S.smartDispatchLocationEnabled?S.smartDispatchOrigin:"")||el("from")?.value||S.origin,S.origin);
+ const committedLoads=[...(S.basePlanLoad?[S.basePlanLoad]:[]),...stackSelectedLoads()];
+ S.truckBrain={currentLocation:current,homeLocation:mcCanonicalLocation(S.home, S.origin),
+  finalDestination:S.homeChosen||S.localMoneyMode?mcCanonicalLocation(el("tripHomeChoice")?.value||S.home,S.origin):null,
+  onboardLoads:[...onboardLoads],onboardWeight,onboardSpace,
+  payload:cap.maxWeight,cargoCapacity:cap.maxSpace,
+  // User-entered available capacity can reserve room for unmodeled cargo.
+  reservedWeight:Math.max(0,cap.maxWeight-cap.availableWeight-onboardWeight),
+  reservedSpace:Math.max(0,cap.maxSpace-cap.availableSpace-onboardSpace),
+  availableWeight:Math.max(0,Math.min(cap.availableWeight,cap.maxWeight-onboardWeight)),availableSpace:Math.max(0,Math.min(cap.availableSpace,cap.maxSpace-onboardSpace)),
+  committedLoads,committedPickups:committedLoads.filter(l=>!onboardLoads.some(x=>loadKey(x)===loadKey(l))),
+  committedDeliveries:committedLoads,plannedFreightEnd:S.stackPlan?.freightEnd||null,
+  finalRouteStops:[...(S.finalRouteStops||[])],updatedAt:Date.now(),reason};
  return S.truckBrain;
 }
 function truckBrain(){return syncTruckBrain("read")}
-window.MileCountTruckBrain={get:()=>truckBrain()};
+window.MileCountTruckBrain={get:()=>truckBrain(),setActualState:state=>{
+ if(!state?.currentLocation||!Array.isArray(state.onboardLoads))throw Error('Actual location and onboard loads are required');
+ if(state.onboardLoads.some(l=>!Number.isFinite(Number(l.weight))||Number(l.weight)<=0||!Number.isFinite(Number(l.space))||Number(l.space)<=0))throw Error('Verify onboard weight and space first');
+ S.executionState={currentLocation:state.currentLocation,onboardLoads:state.onboardLoads.map(l=>({...l}))};
+ invalidateStackProjection('Actual truck state changed — rebuild the route.');return syncTruckBrain('actual-state');
+}};
 const MILECOUNT_PLANS={
  basic:{name:"Basic",price:19,maxTrucks:1,maxStack:3,dispatcher:false,strongFit:false,autoCorrect:false},
  gold:{name:"Gold Pro",price:39,maxTrucks:1,maxStack:5,dispatcher:true,strongFit:true,autoCorrect:false},
@@ -533,6 +543,11 @@ async function addToTrip(){
  }finally{setBusy(false)}
 }
 
+function homeboundStartLocation(brain=syncTruckBrain('homebound-start')){
+ const events=S.finalRouteEvents?.length?S.finalRouteEvents:(S.stackPlan?.events||[]);
+ const lastDelivery=[...events].reverse().find(e=>e.type==='drop'||e.type==='returnDrop');
+ return lastDelivery?.location||brain.currentLocation;
+}
 async function protectReturn(){
  if(el("protect")?.disabled)return;
  // The driver's explicitly selected FINAL DESTINATION is authoritative.
@@ -541,9 +556,7 @@ async function protectReturn(){
  setButtonBusy("protect",true,"SEARCHING 0–3 DAYS…","FIND MY WAY HOME");
  const brain=syncTruckBrain("homebound-start");
  const selected=S.selectedCandidate;
- const plannedEvents=Array.isArray(S.stackPlan?.events)?S.stackPlan.events:[];
- const lastFreight=[...plannedEvents].reverse().find(e=>e.type==="drop"&&e.load);
- const delivery=brain.currentLocation||lastFreight?.location||selected?.delivery||S.selectedLoadDelivery||S.destination;
+ const delivery=homeboundStartLocation(brain)||selected?.delivery||S.selectedLoadDelivery||S.destination;
  const chosenEnd=(el("tripHomeChoice")?.value||"").trim();
  // Preserve the exact saved city/state. Never infer a state from the current
  // truck/load location (the bug that produced McDonough, GA → Atlanta, FL).
@@ -1584,6 +1597,7 @@ function toggleStackLoad(index){
  if(!selectedStackKeys.has(key)&&selectedStackKeys.size>=p.maxStack){alert(p.name+" supports up to "+p.maxStack+" AutoStack loads. Upgrade for more.");return}
 
  if(selectedStackKeys.has(key))selectedStackKeys.delete(key);else selectedStackKeys.add(key);
+ invalidateStackProjection();
  document.querySelectorAll(".candidateLoad").forEach((b,i)=>{
    const x=loads[i];b.classList.toggle("stackChosen",!!x&&selectedStackKeys.has(loadKey(x)));
  });
@@ -1614,34 +1628,7 @@ function mcWindow(load,type){
  let end=Number.isFinite(b)?b:a;if(end<a)end+=1440;
  return {start:a,end,raw:String(raw)};
 }
-function mcLoadDate(load,type){
- const v=type==="pickup"?(load.pickupDate||load.pickup_date):(load.deliveryDate||load.delivery_date||load.pickupDate||load.pickup_date);
- if(!v)return null;const d=new Date(String(v).slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?null:d;
-}
-function mcDayOffset(load,type){
- const trip=el("pickupDate")?.value;if(!trip)return 0;
- const base=new Date(trip+"T00:00:00"),d=mcLoadDate(load,type);if(!d||Number.isNaN(base.getTime()))return 0;
- return Math.round((d-base)/86400000)*1440;
-}
 function mcTime(m){m=((Math.round(m)%1440)+1440)%1440;const h=Math.floor(m/60),n=m%60;return (h%12||12)+":"+String(n).padStart(2,"0")+" "+(h>=12?"PM":"AM")}
-async function buildDispatchTimeline(events,start){
- let now=mcClock(el("dayStartTime")?.value||"06:00")??360,drive=0,onDuty=0,sinceBreak=0,prev=start;const timeline=[],issues=[];
- for(const e of events||[]){if(e.type==="home")continue;const loc=e.location||"";let mi=0;try{mi=await withTimeout(roadMilesBetween(prev,loc),1600,0)||0}catch(_){}
-  const dm=Math.max(0,Number(mi)/50*60);
-  if(sinceBreak+dm>480){timeline.push({type:"break",arrival:mcTime(now),location:"MANDATORY BREAK",window:"30 min"});now+=30;onDuty+=30;sinceBreak=0}
-  now+=dm;drive+=dm;onDuty+=dm;sinceBreak+=dm;
-  // SIM freight has generated demonstration windows, not broker appointments.
-  // Keep its displayed schedule flexible and never reject a plan on SIM-only times.
-  const simFlexible=!!e.load?.isLocalSim;
-  const w=simFlexible?null:mcWindow(e.load,e.type),off=simFlexible?0:mcDayOffset(e.load,e.type);
-  const ws=w?w.start+off:null,we=w?w.end+off:null;
-  if(w&&now<ws){onDuty+=ws-now;now=ws}
-  if(w&&now>we)issues.push((e.type==="pickup"?"Pickup":"Delivery")+" missed at "+loc+" • "+mcTime(now)+" > "+mcTime(we));
-  const service=Math.max(0,Number(e.type==="pickup"?(el("pickupServiceMin")?.value||20):(el("dropServiceMin")?.value||20)));
-  timeline.push({type:e.type,arrival:mcTime(now),location:loc,window:w?.raw||"Flexible",service});now+=service;onDuty+=service;prev=loc;
- }
- return {ok:issues.length===0&&drive<=600,issues,driveMinutes:drive,onDutyMinutes:onDuty,start:mcTime(mcClock(el("dayStartTime")?.value||"06:00")??360),finish:mcTime(now),timeline};
-}
 function strongFitScore(l,origin){
  const econ=loadEconomics(l),dh=Math.max(0,Number(l.deadheadMiles??l.smartDispatchDeadhead??0)),rpm=Number(econ.rpm||0),pay=Number(l.pay||0);
  const timeBonus=(l.pickupWindow||l.pickup_time||l.pickupTime)?40:0;
@@ -1660,201 +1647,139 @@ async function strongFitAlternatives(excluded,all,origin){if(!currentPlan().stro
  }
  return ranked.sort((a,b)=>b.strongFitRouteScore-a.strongFitRouteScore).slice(0,5);
 }
-let mcTripBuildSeq=0;
+function mcZonedMinute(date,clock,zone,anchor){
+ const desired=Date.parse(date+'T00:00:00Z')+clock*60000;
+ if(!Number.isFinite(desired))throw Error('Invalid appointment date');
+ const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+ let epoch=desired;
+ for(let i=0;i<3;i++){const v=Object.fromEntries(fmt.formatToParts(new Date(epoch)).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));const wall=Date.parse(v.year+'-'+v.month+'-'+v.day+'T'+v.hour+':'+v.minute+':00Z');epoch+=desired-wall;}
+ return (epoch-anchor)/60000;
+}
+function buildPickupDeliveryProblem(brain,loads,base){
+ const api=window.MileCountPickupDelivery,date=el('pickupDate')?.value||new Date().toISOString().slice(0,10);
+ const zone=el('dispatchTimeZone')?.value||'America/New_York';
+ const anchor=mcZonedMinute(date,0,zone,0)*60000;
+ const start=mcClock(el('dayStartTime')?.value||'06:00')??360;
+ const warnings=[];
+ const normalized=loads.map(l=>{
+  const windows={};
+  if(!l.isSandbox&&!l.isLocalSim)for(const type of ['pickup','drop']){
+   if(type==='pickup'&&brain.onboardLoads.some(x=>loadKey(x)===loadKey(l)))continue;
+   const raw=type==='pickup'?(l.pickupWindow||l.pickup_time||l.pickupTime):(l.deliveryWindow||l.delivery_time||l.deliveryTime);
+   const w=mcWindow(l,type),d=type==='pickup'?(l.pickupDate||l.pickup_date):(l.deliveryDate||l.delivery_date);
+   const appointmentZone=type==='pickup'?(l.pickupTimeZone||l.pickupTimezone||l.timeZone):(l.deliveryTimeZone||l.deliveryTimezone||l.timeZone);
+   if(raw&&!w)throw Error('Unrecognized broker appointment format at '+(type==='pickup'?l.pickup:l.delivery));
+   if(w&&(!d||!appointmentZone))throw Error('Verify the appointment date and timezone for '+(type==='pickup'?'pickup':'delivery')+' at '+(type==='pickup'?l.pickup:l.delivery));
+   if(w)windows[type]={start:mcZonedMinute(String(d).slice(0,10),w.start,appointmentZone,anchor),end:mcZonedMinute(String(d).slice(0,10),w.end,appointmentZone,anchor)};
+   else if(d){const dt=String(d).slice(0,10);windows[type]={start:mcZonedMinute(dt,0,appointmentZone||zone,anchor),end:mcZonedMinute(dt,1440,appointmentZone||zone,anchor)};if(!appointmentZone)warnings.push('Date-only '+type+' uses your selected dispatch timezone; confirm broker timezone.');}
+   else warnings.push('No '+type+' appointment supplied for '+l.pickup+' → '+l.delivery+'.');
+  }
+  return {...l,windows,services:{pickup:Number(l.pickupServiceMinutes??val('pickupServiceMin',20)),drop:Number(l.deliveryServiceMinutes??val('dropServiceMin',20))}};
+ });
+ const hosEnabled=el('dispatchHos')?.value==='us-property';
+ if(hosEnabled&&(!el('hosCycleRemaining')?.value||Number(el('hosCycleRemaining').value)<=0))throw Error('Enter your remaining weekly-cycle minutes before enabling driving limits.');
+ const hos=hosEnabled?{enabled:true,breakAfterMinutes:480,breakMinutes:30,maxDriveMinutes:Math.max(0,660-val('hosDriveUsed',0)),maxDutyMinutes:Math.min(Math.max(0,840-val('hosDutyUsed',0)),val('hosCycleRemaining',0)),sinceBreakMinutes:val('hosSinceBreak',0)}:null;
+ return api.problem({truck:{...brain},loads:normalized,baseLoadId:base?loadKey(base):null,
+  committedLoadIds:normalized.filter(l=>l.committed||l.bookingStatus==='confirmed'||window.MileCountBooking?.isConfirmed?.(l)).map(loadKey),
+  finalDestination:brain.finalDestination,startMinutes:start,serviceMinutes:{pickup:val('pickupServiceMin',20),drop:val('dropServiceMin',20)},
+  maxDriveMinutes:S.localMoneyMode?600:null,hos,warnings,fuelCostPerMile:Number(fuelFor(1).fuelCost||0)});
+}
+async function verifyDispatchRoute(problem,optimized){
+ const api=window.MileCountPickupDelivery;
+ let route=await getMileCountRoadRoute([...optimized.routeStops]);
+ if(!route?.legs||route.legs.length!==optimized.events.length)throw Error('Road route did not preserve every pickup/delivery event');
+ // Replay exact returned legs, including home, before readiness is displayed.
+ let prev=0;
+ optimized.events.forEach((e,i)=>{const at=problem.locations.indexOf(e.location),leg=route.legs[i];problem.matrix[prev][at]={miles:Number(leg.distance)/1609.344,minutes:Number(leg.duration)/60};prev=at;});
+ let check=api.audit(problem,optimized.events);
+ if(!check.ok)throw Error(check.issues.join(' • '));
+ if(Math.abs(check.result.miles-Number(route.miles))>1)throw Error('Road geometry and event mileage disagree');
+ if(Math.abs(check.result.miles-optimized.miles)>Math.max(2,optimized.miles*.02)){
+  optimized=api.optimize(problem);if(!optimized.ok)throw Error(optimized.issues.join(' • '));
+  route=await getMileCountRoadRoute([...optimized.routeStops]);
+  if(route.legs?.length!==optimized.events.length)throw Error('Reoptimized road route lost an event');
+  prev=0;optimized.events.forEach((e,i)=>{const at=problem.locations.indexOf(e.location),leg=route.legs[i];problem.matrix[prev][at]={miles:leg.distance/1609.344,minutes:leg.duration/60};prev=at;});
+  check=api.audit(problem,optimized.events);if(!check.ok||Math.abs(check.result.miles-route.miles)>1)throw Error('Final route audit failed');
+ }
+ const alternatives=api.alternatives(problem);
+ if(alternatives.some(x=>x.miles<check.result.miles*.8))throw Error('A legal alternate is dramatically shorter. Rebuild the route before continuing.');
+ const result={...optimized,...check.result,audit:check};
+ route={...route,miles:result.miles,hours:result.drive/60,driveTime:Math.floor(result.drive/60)+' hr '+Math.round(result.drive%60)+' min',stops:[...result.routeStops],events:[...result.events]};
+ return {result,route};
+}
+function invalidateStackProjection(message='Selection changed — rebuild the route.'){
+ mcTripBuildSeq++;S.stackPlan=null;S.finalRouteEvents=[];S.finalRouteStops=[];S.roundTripMiles=0;S.totalPay=0;S.addedPay=0;window.MileCountFinalRouteEstimate=null;
+ ['roadMiles','driveTime','tripPay','tripAdded'].forEach(id=>{if(el(id))el(id).textContent='Rebuild route';});
+ if(typeof clearMileCountMap==='function')clearMileCountMap();
+ el('doneStack')?.classList.add('hidden');
+ if(el('stackPlanResult'))el('stackPlanResult').innerHTML='<p class="stackWarn">'+escHtml(message)+'</p>';
+ if(el('tripStops'))el('tripStops').innerHTML='';
+}
+
+let mcTripBuildSeq=0,mcActiveStackBuildId=0;
 async function smartAutoStack(){
  const buildId=++mcTripBuildSeq;
+ mcActiveStackBuildId=buildId;
  const base=S.basePlanLoad||null;
  // Freeze the exact selected load objects for this build. Background provider
  // refreshes may update the board, but they cannot mutate an in-progress trip.
  const selectedKeys=new Set(selectedStackKeys);
  const selectionPool=[...(Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[]),...(S.candidateLoads||[])];
  let chosen=selectionPool.filter(x=>selectedKeys.has(loadKey(x))).filter((x,i,a)=>a.findIndex(y=>loadKey(y)===loadKey(x))===i).filter(x=>!base||loadKey(x)!==loadKey(base));
- if(!base&&chosen.length<2){alert("Select at least 2 loads for Smart AutoStack.");return}
- if(base&&chosen.length<1){alert("Your base trip is saved. Select at least 1 additional load to stack.");return}
+ if(!base&&chosen.length<1){alert("Select at least 1 load for Smart AutoStack.");return}
+ S.stackPlan=null;S.finalRouteEvents=[];S.finalRouteStops=[];if(typeof clearMileCountMap==="function")clearMileCountMap();
  setBusy(true,"One moment — optimizing every pickup and drop…");
  setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
  try{
-   const brain=syncTruckBrain("autostack-start");
-   const startLoc=(brain.currentLocation||el("from")?.value||S.origin||base?.pickup||chosen[0]?.pickup||"").trim();
-   const state=createTripState(startLoc);
-   const allLoads=[];
-   if(base)allLoads.push(base);
-   chosen.forEach(l=>{if(!allLoads.some(x=>loadKey(x)===loadKey(l)))allLoads.push(l)});
-   const unpicked=[...allLoads],onboard=[];
-   const routeStops=[startLoc].filter(isRoutableLocation);
-   let cursor=startLoc;
-
-   // Smart Stack is a pickup-and-delivery route, NOT a list of isolated lanes.
-   // At every stop we choose between every legal pickup and every legal drop.
-   // A drop is only eligible after its matching pickup. This allows FL pickup,
-   // FL pickup, GA pickup, then northbound drops without returning to Florida.
-   const mileCache=new Map();
-   async function legMiles(a,b){
-     if(!a||!b||laneCity(a)===laneCity(b))return 0;
-     const k=laneCity(a)+"->"+laneCity(b);
-     if(mileCache.has(k))return mileCache.get(k);
-     const m=await withTimeout(roadMilesBetween(a,b),1800,null);
-     const n=Number.isFinite(m)?Number(m):999999;
-     mileCache.set(k,n);return n;
-   }
-   function fits(l){
-     const maxPayload=Number(state.capacityWeightLimit??currentCapacity().availableWeight);
-     const maxSpace=Number(state.capacitySpaceLimit??currentCapacity().availableSpace);
-     return state.onboardWeight+Math.max(0,Number(l.weight||0))<=maxPayload &&
-            state.onboardSpace+Math.max(0,Number(l.space||0))<=maxSpace;
-   }
-   async function directionPenalty(from,next,load,type){
-     // Penalize moves that point away from the load's useful corridor.
-     if(type==="drop")return 0;
-     const direct=await legMiles(from,load.delivery||load.stop);
-     const via1=await legMiles(from,next),via2=await legMiles(next,load.delivery||load.stop);
-     if(direct>=999999||via1>=999999||via2>=999999)return 0;
-     return Math.max(0,(via1+via2)-direct);
-   }
-
-   let guard=0;
-   while((unpicked.length||onboard.length)&&guard++<100){
-     const options=[];
-     // Every feasible unpicked load is a candidate pickup.
-     for(let i=0;i<unpicked.length;i++){
-       const l=unpicked[i]; if(!fits(l))continue;
-       const loc=l.pickup; if(!isRoutableLocation(loc))continue;
-       const miles=await legMiles(cursor,loc);
-       const detour=await directionPenalty(cursor,loc,l,"pickup");
-       const value=Number(l.pay||0)/Math.max(1,Number(l.loadedMiles||1));
-       // Strongly favor nearby/on-corridor pickups; revenue breaks close ties.
-       options.push({type:"pickup",l,i,loc,miles,score:miles+(detour*.45)-(value*10)});
-     }
-     // Every onboard load is now legally eligible to drop.
-     for(let i=0;i<onboard.length;i++){
-       const l=onboard[i],loc=l.delivery||l.stop;
-       if(!isRoutableLocation(loc))continue;
-       const miles=await legMiles(cursor,loc);
-       options.push({type:"drop",l,i,loc,miles,score:miles});
-     }
-     if(!options.length){
-       state.feasible=false;
-       state.issues.push("No legal next stop fits the current truck state.");
-       state.blockedAt=cursor;
-       break;
-     }
-
-     // Global anti-backtrack scoring. Before leaving a region, account for
-     // every remaining pickup. A tempting drop hundreds of miles north is
-     // penalized when it would force the truck to drive back south afterward.
-     // Also reward progress toward the chosen final/home corridor.
-     const targetLoc=(S.home||el("to")?.value||S.destination||"").trim();
-     for(const o of options){
-       let bestNext=Infinity;
-       const futurePickups=unpicked.filter((x,j)=>!(o.type==="pickup"&&j===o.i));
-       for(const x of futurePickups){
-         if(!isRoutableLocation(x.pickup))continue;
-         const m=await legMiles(o.loc,x.pickup);
-         if(m<bestNext)bestNext=m;
-       }
-       // A large nearest-future-pickup distance means this stop strands
-       // uncollected freight behind us. Weight it heavily enough to prevent
-       // FL → GA → FL patterns.
-       if(bestNext<Infinity)o.score+=bestNext*.72;
-       if(isRoutableLocation(targetLoc)){
-         const nowHome=await legMiles(cursor,targetLoc),afterHome=await legMiles(o.loc,targetLoc);
-         if(nowHome<999999&&afterHome<999999){
-           const away=Math.max(0,afterHome-nowHome);
-           o.score+=away*.65;
-         }
-       }
-     }
-     options.sort((a,b)=>a.score-b.score);
-     const next=options[0];
-     const travel=await legMiles(cursor,next.loc);
-     if(Number.isFinite(travel)&&travel<999999)state.miles+=travel;
-     if(routeStops.at(-1)!==next.loc)routeStops.push(next.loc);
-     cursor=next.loc;
-
-     if(next.type==="pickup"){
-       const l=unpicked.splice(next.i,1)[0];
-       applyTripPickup(state,l);
-       onboard.push(l);
-     }else{
-       const l=onboard.splice(next.i,1)[0];
-       applyTripDrop(state,l);
-     }
-   }
-
-   // Stability guard: no stale/orphan provider result may enter this trip.
-   const allowedKeys=new Set(allLoads.map(loadKey));
-   state.events=state.events.filter(e=>e.type==="home"||allowedKeys.has(loadKey(e.load)));
-   const picked=new Set(),cleanEvents=[];
-   for(const e of state.events){
-     if(e.type==="home"){cleanEvents.push(e);continue}
-     const k=loadKey(e.load);if(!allowedKeys.has(k))continue;
-     if(e.type==="pickup"){picked.add(k);cleanEvents.push(e)}
-     else if(e.type==="drop"&&picked.has(k)){cleanEvents.push(e)}
-   }
-   state.events=cleanEvents;
-   // Rebuild route stops exclusively from the validated event list.
-   routeStops.length=0;if(isRoutableLocation(startLoc))routeStops.push(startLoc);
-   state.events.forEach(e=>{if(isRoutableLocation(e.location)&&laneCity(routeStops.at(-1))!==laneCity(e.location))routeStops.push(e.location)});
+   const missing=[...selectedKeys].filter(k=>!selectionPool.some(l=>loadKey(l)===k));if(missing.length)throw Error("A selected load is no longer in the provider results. Re-select it or remove it before building.");
+   const brain=syncTruckBrain("autostack-start"),startLoc=brain.currentLocation;
+   const allLoads=window.MileCountPickupDelivery.unique([...(base?[base]:[]),...chosen,...brain.onboardLoads]);
+   const dispatchProblem=buildPickupDeliveryProblem(brain,allLoads,base);
+   const roadData=await getMileCountRoadMatrix(dispatchProblem.locations);
    if(buildId!==mcTripBuildSeq)return;
-
-   let route=null;
-   if(routeStops.length>=2&&typeof getMileCountRoadRoute==="function"){
-     try{route=await withTimeout(getMileCountRoadRoute(routeStops),5000,null)}catch(e){console.warn("AutoStack route verification",e)}
+   dispatchProblem.matrix=roadData.matrix;
+   let optimized=window.MileCountPickupDelivery.optimize(dispatchProblem);
+   if(!optimized.ok){
+    const repair=window.MileCountPickupDelivery.recommend(dispatchProblem);
+    const box=el("stackPlanResult");
+    if(box){box.innerHTML='<div class="stackPlanStatus bad">TRIP NEEDS CHANGES</div><p class="stackWarn">'+optimized.issues.map(escHtml).join(' • ')+'</p>';
+     if(repair){S.routeRepair=repair;box.insertAdjacentHTML('beforeend','<div class="tripStateNow"><b>RECALCULATED ALTERNATIVE • '+Math.round(repair.plan.miles)+' road miles</b><span>'+escHtml(repair.reason)+'</span></div><button id="acceptRouteRepair" type="button">REMOVE CONFLICTING LOAD + REBUILD</button>');el("acceptRouteRepair")?.addEventListener('click',()=>{repair.removedLoads.forEach(l=>selectedStackKeys.delete(loadKey(l)));updateStackTray();smartAutoStack()});}
+     box.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    S.stackPlan=null;el("doneStack")?.classList.add("hidden");return;
    }
-   let routeVerified=!!(route&&Number(route.miles)>0);
-   if(Number(route?.miles)>0)state.miles=Number(route.miles);
-   // Sanity-check against a legal pickup-first route. If the greedy route is
-   // dramatically longer, rebuild rather than shipping a geographically absurd trip.
-   if(allLoads.length>1&&typeof getMileCountRoadRoute==="function"){
-     const pickupFirst=[startLoc,...allLoads.map(l=>l.pickup),...allLoads.map(l=>l.delivery||l.stop)].filter(isRoutableLocation)
-       .filter((x,i,a)=>i===0||laneCity(x)!==laneCity(a[i-1]));
-     try{
-       const alt=await withTimeout(getMileCountRoadRoute(pickupFirst),5000,null);
-       if(Number(alt?.miles)>0&&state.miles>Number(alt.miles)*1.28){
-         // Rebuild state events in legal pickup-first order.
-         const rebuilt=createTripState(startLoc),pending=[...allLoads],aboard=[];
-         for(const l of pending){if(fits.call(null,l)){applyTripPickup(rebuilt,l);aboard.push(l)}}
-         for(const l of aboard)applyTripDrop(rebuilt,l);
-         state.events=rebuilt.events;state.completed=rebuilt.completed;state.liveRevenue=rebuilt.liveRevenue;state.testRevenue=rebuilt.testRevenue;
-         state.miles=Number(alt.miles);routeStops.length=0;pickupFirst.forEach(x=>routeStops.push(x));
-         cursor=routeStops.at(-1)||cursor;state.location=cursor;route=alt;routeVerified=true;
-       }
-     }catch(e){console.warn("Backtrack sanity check",e)}
+   const weak=window.MileCountPickupDelivery.economicReview(dispatchProblem,optimized);
+   if(weak){
+    const box=el('stackPlanResult');if(box){box.innerHTML='<div class="stackPlanStatus bad">LOW-VALUE LOAD NEEDS REVIEW</div><p class="stackWarn">'+escHtml(weak.reason)+'</p><p>Recalculated alternative: '+Math.round(weak.plan.miles)+' road miles • '+money(weak.plan.afterGas)+' estimated after gas.</p><button id="removeWeakRouteLoad" type="button">REMOVE WEAK LOAD + REBUILD</button>';el('removeWeakRouteLoad')?.addEventListener('click',()=>{selectedStackKeys.delete(loadKey(weak.removed));updateStackTray();smartAutoStack()});box.scrollIntoView({behavior:'smooth',block:'center'});}return;
    }
-   if(S.localMoneyMode){
-     const localHome=(S.home||el("from")?.value||startLoc).trim();
-     if(isRoutableLocation(localHome)&&laneCity(cursor)!==laneCity(localHome)){
-       const homeLeg=await legMiles(cursor,localHome);
-       if(Number.isFinite(homeLeg)&&homeLeg<999999){
-         state.miles+=homeLeg;
-         if(routeStops.at(-1)!==localHome)routeStops.push(localHome);
-         state.location=localHome;
-         state.events.push({type:"home",location:localHome,load:{pickup:cursor,delivery:localHome,pay:0},onboardWeight:state.onboardWeight,onboardSpace:state.onboardSpace,ok:true});
-       }
-     }
-   }
-   
-   const localDriveHours=Number(route?.durationHours||route?.hours||0);
-   const estimatedDriveHours=localDriveHours>0?localDriveHours:(state.miles/43.5);
-   state.driveHours=estimatedDriveHours;
-   const schedule=await buildDispatchTimeline(state.events,startLoc);
+   const finalized=await verifyDispatchRoute(dispatchProblem,optimized);
+   if(buildId!==mcTripBuildSeq)return;
+   optimized=finalized.result;
+   const route=finalized.route,routeVerified=true,routeStops=[...optimized.routeStops];
+   const state={location:optimized.events.at(-1)?.location||startLoc,onboard:[],completed:optimized.loads,
+    events:optimized.events,miles:optimized.miles,liveRevenue:optimized.livePay,testRevenue:optimized.testPay,
+    onboardWeight:optimized.weight,onboardSpace:optimized.space,capacityWeightLimit:brain.payload,capacitySpaceLimit:brain.cargoCapacity,
+    peakWeight:Math.max(0,...optimized.events.map(e=>e.onboardWeight)),peakSpace:Math.max(0,...optimized.events.map(e=>e.onboardSpace)),
+    feasible:true,issues:[],driveHours:optimized.drive/60};
+   const schedule={ok:true,issues:[],driveMinutes:optimized.drive,onDutyMinutes:optimized.duty,
+    start:mcTime(dispatchProblem.startMinutes),finish:mcTime(optimized.time),
+    timeline:optimized.events.map(e=>({type:e.type,arrival:mcTime(e.arrivalMinutes),location:e.location,window:e.load?.windows?.[e.type]?'Broker window':'No supplied appointment'}))};
    state.schedule=schedule;
-   if(!schedule.ok){state.feasible=false;state.issues.push(...schedule.issues)}
-   const fuel=fuelFor(state.miles);
-   const totalRevenue=state.liveRevenue+state.testRevenue;
-   const rpm=state.miles>0?totalRevenue/state.miles:0;
-   const snapshot=tripSnapshot(state);
-   if(buildId!==mcTripBuildSeq)return;
-   S.tripState=state;
-   S.stackPlan={loads:state.completed,routeStops,miles:state.miles,livePay:state.liveRevenue,testPay:state.testRevenue,fuel,rpm,valid:state.feasible,events:state.events,schedule:state.schedule,snapshot,routeVerified};
+   const fuel=fuelFor(state.miles),rpm=optimized.rpm,snapshot=tripSnapshot(state);
+   // Planning does not mutate actual Truck Brain location or onboard inventory.
+   S.stackPlan={...optimized,problem:dispatchProblem,route,routeStops,miles:optimized.miles,
+    livePay:optimized.livePay,testPay:optimized.testPay,fuel,rpm,valid:true,
+    events:optimized.events,schedule,snapshot,routeVerified,driveHours:optimized.drive/60,durationHours:optimized.drive/60};
+   S.finalRouteEvents=[];S.finalRouteStops=[];
    el("doneStack")?.classList.remove("hidden");
 
    if(el("stackPlanResult"))el("stackPlanResult").innerHTML=
-    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY":"TRIP NEEDS CHANGES")+'</div>'+
+    '<div class="stackPlanStatus '+(state.feasible?"good":"bad")+'">'+(state.feasible?"SMART TRIP READY • REVIEW SUPPLIED CONSTRAINTS":"TRIP NEEDS CHANGES")+'</div>'+
     '<div class="stackPlanMetrics"><div><small>FINAL LOCATION</small><b>'+escHtml(snapshot.location||"—")+'</b></div><div><small>LIVE PAY</small><b>'+money(state.liveRevenue)+'</b></div><div><small>TEST PAY</small><b>'+money(state.testRevenue)+'</b></div><div><small>ROAD MILES</small><b>'+Math.round(state.miles).toLocaleString()+' mi</b></div><div><small>ALL-MILE RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div><small>EST. FUEL</small><b>'+money(fuel.fuelCost||0)+'</b></div></div>'+
     (state.schedule?'<div class="tripStateNow"><b>DRIVER DAY • '+(state.schedule.ok?'ON TIME ✓':'IMPOSSIBLE ✕')+'</b><span>'+state.schedule.start+' → '+state.schedule.finish+' • '+(state.schedule.driveMinutes/60).toFixed(1)+' driving hr • '+(state.schedule.onDutyMinutes/60).toFixed(1)+' on-duty hr</span></div>':'')+
+    '<div class="tripStateNow"><b>'+escHtml(optimized.method)+' • '+(optimized.optimal?'globally optimal for supplied matrix':'bounded search')+'</b><span>'+[...dispatchProblem.warnings,...(!dispatchProblem.hos?.enabled?['Driver-hours eligibility not verified; configure limits before dispatch.']:[])].map(escHtml).join(' • ')+'</span></div>'+
     '<div class="tripStateNow"><b>OPTIMIZED STOP ORDER</b><span>Multiple pickups can happen before drops. MileCount will not intentionally return to a market it already left when a legal on-route pickup was available.</span></div>'+
-    '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":e.type==="home"?"HOME":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load.pickup||"")+' → '+escHtml(e.load.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
+    '<div class="stackRoute">'+state.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":e.type==="home"?"HOME":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+' • '+Math.round(e.onboardWeight).toLocaleString()+' lb onboard • '+e.onboardSpace.toFixed(1)+' ft used</span></div>').join("")+'</div>'+
     (state.issues.length?'<p class="stackWarn">'+state.issues.map(escHtml).join(" • ")+'</p>':'')+
     (state.testRevenue?'<p class="stackWarn">Sandbox/test revenue is excluded from LIVE PAY.</p>':'');
    if(el("stackPlanResult")){
@@ -1883,19 +1808,6 @@ async function smartAutoStack(){
          }));
        }
      }
-     if(!state.feasible&&!S.localMoneyMode&&!S.autoPruneRunning&&chosen.length>1){
-       S.autoPruneRunning=true;
-       const completedKeys=new Set(state.completed.map(loadKey));
-       const feasibleSelected=allLoads.filter(l=>completedKeys.has(loadKey(l)));
-       const failedSelected=allLoads.filter(l=>!completedKeys.has(loadKey(l)));
-       if(feasibleSelected.length&&failedSelected.length){
-         selectedStackKeys.clear();feasibleSelected.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
-         S.autoPruneRunning=false;
-         setTimeout(()=>smartAutoStack(),0);
-         return;
-       }
-       S.autoPruneRunning=false;
-     }
      if(state.feasible){
        el("stackPlanResult").insertAdjacentHTML("beforeend",'<button id="finishAutoStack" type="button" style="margin-top:12px">DONE • SHOW ROUTE</button>');
        el("finishAutoStack")?.addEventListener("click",finishAutoStack);
@@ -1906,13 +1818,15 @@ async function smartAutoStack(){
      el("stackPlanResult").scrollIntoView({behavior:"smooth",block:"center"});
    }
  }catch(e){
+   if(buildId!==mcTripBuildSeq)return;
    console.error("Smart AutoStack failed",e);
+   S.stackPlan=null;el("doneStack")?.classList.add("hidden");
    const box=el("stackPlanResult");
    if(box){
      box.innerHTML='<div class="stackPlanStatus bad">AUTOSTACK COULD NOT FINISH</div><p class="stackWarn">'+escHtml(e?.message||"A route service failed. Your selected loads are still saved — tap Smart AutoStack again.")+'</p>';
      box.scrollIntoView({behavior:"smooth",block:"center"});
    }
- }finally{setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");setBusy(false)}
+ }finally{if(mcActiveStackBuildId===buildId){mcActiveStackBuildId=0;setButtonBusy("smartAutoStack",false,"","SMART AUTOSTACK");}setBusy(false)}
 }
 async function proposeAutoCorrect(){
  const p=S.stackPlan;if(!p)return;
@@ -1940,14 +1854,9 @@ function renderAutoCorrectProposal(proposal){
  el("rejectAutoCorrect")?.addEventListener("click",()=>{S.autoCorrectProposal=null;el("stackPlanResult")?.querySelector(".autoCorrectProposal")?.remove()});
 }
 function routeOrderIsLegal(events){
- const picked=new Set();
- for(const e of events){
-  if(e.type==="home")continue;
-  const id=tripLoadId(e.load||{});
-  if(e.type==="drop"&&!picked.has(id))return {ok:false,event:e};
-  if(e.type==="pickup")picked.add(id);
- }
- return {ok:true};
+ const p=S.stackPlan;
+ if(p?.problem){const check=window.MileCountPickupDelivery.audit(p.problem,events);return {ok:check.ok,event:events.find(e=>e.type==='drop'),issues:check.issues};}
+ return {ok:false,issues:['Build an audited trip before editing its order']};
 }
 function renderEditableStopOrder(){
  const p=S.stackPlan,box=el("stackPlanResult");
@@ -1996,10 +1905,12 @@ function deleteRouteLoad(i){
  const event=p.events[i],id=tripLoadId(event.load||{});
  if(!id||event.type==="home")return;
  const removed=event.load;
+ (p.loads||[]).forEach(l=>{if(tripLoadId(l)!==id)selectedStackKeys.add(tripLoadId(l));});
  // Removing either pickup or drop removes the entire load so the route remains legal.
  p.events=p.events.filter(e=>e.type==="home"||tripLoadId(e.load||{})!==id);
  p.loads=(p.loads||[]).filter(l=>tripLoadId(l)!==id);
  selectedStackKeys.delete(id);
+ if(S.basePlanLoad&&loadKey(S.basePlanLoad)===id)S.basePlanLoad=null;
  const pay=Number(removed?.pay||0);
  if(removed?.isSandbox)p.testPay=Math.max(0,Number(p.testPay||0)-pay);
  else p.livePay=Math.max(0,Number(p.livePay||0)-pay);
@@ -2008,6 +1919,8 @@ function deleteRouteLoad(i){
  renderRouteOrderRows();
  // A deleted load invalidates every derived route/map snapshot immediately.
  S.finalRouteEvents=[];S.finalRouteStops=[];S.roundTripMiles=0;
+ p.valid=false;S.totalPay=0;S.addedPay=0;window.MileCountFinalRouteEstimate=null;if(typeof clearMileCountMap==="function")clearMileCountMap();
+ ['roadMiles','driveTime','tripPay','tripAdded'].forEach(id=>{if(el(id))el(id).textContent='Recalculating…';});
  mcTripBuildSeq++;
  setTimeout(()=>smartAutoStack(),0);
 }
@@ -2017,61 +1930,32 @@ function moveRouteStopTo(i,j){
  const next=[...p.events],[item]=next.splice(i,1);next.splice(j,0,item);
  const legal=routeOrderIsLegal(next),m=el("routeOrderMessage");
  if(!legal.ok){if(m)m.textContent="Can't put "+(item.location||"that stop")+" there — its delivery must stay after pickup.";return false}
- p.events=next;if(m)m.textContent="Order changed. Press APPLY MY ROUTE ORDER to recalculate miles.";
+ p.events=next;p.valid=false;p.routeVerified=false;mcTripBuildSeq++;if(typeof clearMileCountMap==="function")clearMileCountMap();if(m)m.textContent="Order changed. Press APPLY MY ROUTE ORDER to recalculate miles.";
  renderRouteOrderRows();return true;
 }
 async function applyManualRouteOrder(){
- const p=S.stackPlan;if(!p?.events?.length)return;
- const legal=routeOrderIsLegal(p.events),m=el("routeOrderMessage");
- if(!legal.ok){if(m)m.textContent="That order is not possible: "+(legal.event?.location||"a delivery")+" is before its pickup.";return}
- const stops=[S.origin||p.routeStops?.[0]].filter(isRoutableLocation);
- p.events.forEach(e=>{if(isRoutableLocation(e.location)&&stops.at(-1)!==e.location)stops.push(e.location)});
- setBusy(true,"Recalculating your custom route…");
+ const p=S.stackPlan,m=el("routeOrderMessage");if(!p?.problem)return;
+ const generation=++mcTripBuildSeq;setBusy(true,"Auditing your custom route…");
  try{
-  let route=null;if(stops.length>1&&typeof getMileCountRoadRoute==="function")route=await withTimeout(getMileCountRoadRoute(stops),5000,null);
-  p.routeStops=stops;p.routeVerified=!!(route&&Number(route.miles)>0);if(Number(route?.miles)>0)p.miles=Number(route.miles);
-  S.finalRouteStops=[...stops];
-  S.finalRouteEvents=p.events.filter(e=>e.type!=="home").map(e=>({type:e.type,location:e.location,load:e.load}));
-  if(typeof showMileCountRoute==="function")await showMileCountRoute([...stops]);
-  const manualDriveHours=Number(route?.durationHours||route?.hours||0)||(Number(p.miles||0)/43.5);
-  p.driveHours=manualDriveHours;
-  if(S.localMoneyMode&&manualDriveHours>10){p.valid=false;if(m)m.textContent="Route is "+manualDriveHours.toFixed(1)+" driving hours — Local Day maximum is 10. Remove an out-of-way load.";return}
-  p.valid=true;
-  p.fuel=fuelFor(p.miles);const total=Number(p.livePay||0)+Number(p.testPay||0);p.rpm=p.miles?total/p.miles:0;S.roundTripMiles=p.miles;
-  if(m)m.textContent="Custom stop order applied ✓ • "+Math.round(p.miles).toLocaleString()+" road miles";
-  if(typeof showMileCountRoute==="function")await showMileCountRoute(stops);
-  const routeBox=el("stackPlanResult")?.querySelector(".stackRoute");
-  if(routeBox)routeBox.innerHTML=p.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+(e.type==="pickup"?"PICKUP":"DROP")+' • '+escHtml(e.location||"Location")+'</b><span>'+escHtml(e.load?.pickup||"")+' → '+escHtml(e.load?.delivery||"")+'</span></div>').join("");
- }catch(e){if(m)m.textContent="Order saved, but road-mile verification is temporarily unavailable."}
- finally{setBusy(false)}
+  const check=window.MileCountPickupDelivery.audit(p.problem,p.events);
+  if(!check.ok){p.valid=false;if(m)m.textContent=check.issues.join(' • ');return;}
+  const finalized=await verifyDispatchRoute(p.problem,{...p,...check.result});
+  if(generation!==mcTripBuildSeq)return;
+  S.stackPlan={...p,...finalized.result,route:finalized.route,valid:true,routeVerified:true,fuel:fuelFor(finalized.result.miles),durationHours:finalized.result.drive/60};
+  S.finalRouteEvents=[...S.stackPlan.events];S.finalRouteStops=[...S.stackPlan.routeStops];S.roundTripMiles=S.stackPlan.miles;
+  const routeBox=el("stackPlanResult")?.querySelector(".stackRoute");if(routeBox)routeBox.innerHTML=S.stackPlan.events.map((e,i)=>'<div><b>STOP '+(i+1)+' • '+e.type.toUpperCase()+' • '+escHtml(e.location)+'</b></div>').join('');
+  if(m)m.textContent='Audited custom route • '+Math.round(S.stackPlan.miles)+' road miles';
+  await finishAutoStack();
+ }catch(e){p.valid=false;if(m)m.textContent=e.message;}finally{setBusy(false);}
 }
 
 async function finishMyPicks(){
- const chosen=stackSelectedLoads();
- if(!chosen.length){alert("Pick at least 1 load first.");return}
- const base=S.basePlanLoad||null;
- const ordered=[];
- if(base)ordered.push(base);
- chosen.forEach(l=>{if(!ordered.some(x=>loadKey(x)===loadKey(l)))ordered.push(l)});
- const stops=[];
- const start=(el("from")?.value||S.origin||ordered[0]?.pickup||"").trim();
- if(isRoutableLocation(start))stops.push(start);
- const events=[];
- let livePay=0,testPay=0,miles=0;
- for(const l of ordered){
-   if(isRoutableLocation(l.pickup)&&stops.at(-1)!==l.pickup)stops.push(l.pickup);
-   events.push({type:"pickup",location:l.pickup,load:l,onboardWeight:Number(l.weight||0),onboardSpace:Number(l.space||0)});
-   if(isRoutableLocation(l.delivery)&&stops.at(-1)!==l.delivery)stops.push(l.delivery);
-   events.push({type:"drop",location:l.delivery,load:l,onboardWeight:0,onboardSpace:0});
-   if(l.isSandbox)testPay+=Number(l.pay||0);else livePay+=Number(l.pay||0);
-   miles+=Math.max(0,Number(l.loadedMiles||0))+Math.max(0,Number(l.deadheadMiles||0));
- }
- S.stackPlan={loads:ordered,routeStops:stops,miles,livePay,testPay,fuel:fuelFor(miles),rpm:miles?livePay/miles:0,valid:true,events,snapshot:{},routeVerified:false,manual:true};
- await finishAutoStack();
+ if(!stackSelectedLoads().length){alert('Pick at least one load first.');return;}
+ await smartAutoStack();if(S.stackPlan?.valid)await finishAutoStack();
 }
 async function finishAutoStack(){
  const p=S.stackPlan;
- if(S.localMoneyMode&&p&&p.valid===false){
+ if(p&&p.valid===false){
    const box=el("stackPlanResult");
    if(box){box.insertAdjacentHTML("afterbegin",'<div class="stackPlanStatus bad">NOT READY YET • Choose a Strong Fit replacement or remove a problem load.</div>');box.scrollIntoView({behavior:"smooth",block:"center"})}
    return;
@@ -2084,15 +1968,11 @@ async function finishAutoStack(){
  const first=loads[0]||S.basePlanLoad||{};
  const last=loads[loads.length-1]||S.basePlanLoad||{};
  S.origin=p.routeStops[0]||first.pickup||S.origin;
- const chosenHome=(el("tripHomeChoice")?.value||S.home||"").trim();
- const freightEnd=p.routeStops[p.routeStops.length-1]||last.delivery||last.stop||S.destination;
+ const freightEnd=p.freightEnd||[...p.events].reverse().find(e=>e.type==='drop')?.location||S.destination;
  S.destination=freightEnd;
- if(S.localMoneyMode&&isRoutableLocation(chosenHome)){
-   S.home=chosenHome;S.homeChosen=true;p.endLocation=chosenHome;
-   if(p.routeStops.at(-1)!==chosenHome)p.routeStops.push(chosenHome);
- }
+ if(p.finalDestination){S.home=p.finalDestination;S.homeChosen=true;}
  S.primaryPay=Number(S.basePlanLoad?.pay||0);
- S.addedPay=Math.max(0,Number(p.livePay||0)+Number(p.testPay||0)-S.primaryPay);
+ S.addedPay=Number(p.livePay||0)+Number(p.testPay||0)-S.primaryPay;
  S.totalPay=Number(p.livePay||0)+Number(p.testPay||0);
  S.roundTripMiles=Number(p.miles||0);
  S.selectedStop=S.destination;
@@ -2101,27 +1981,18 @@ async function finishAutoStack(){
  if(el("roadMiles"))el("roadMiles").textContent=Math.round(Number(p.miles||0)).toLocaleString()+" mi";
  if(el("routeSource"))el("routeSource").textContent=p.routeVerified?"Smart AutoStack • verified road route":"Smart AutoStack • estimated road route";
  const events=Array.isArray(p.events)?p.events:[];
- S.finalRouteEvents=events.filter(e=>e.type!=="home").map(e=>({type:e.type,location:e.location,load:e.load}));
- if(S.localMoneyMode&&S.home&&S.finalRouteEvents.at(-1)?.location!==S.home)S.finalRouteEvents.push({type:"home",location:S.home,label:"HOME / FINAL DESTINATION ✓"});
+ S.finalRouteEvents=events.map(e=>({...e}));
+
  const mapStops=[];
  const mapStart=(S.origin||first.pickup||"").trim();if(isRoutableLocation(mapStart))mapStops.push(mapStart);
- S.finalRouteEvents.forEach(e=>{if(isRoutableLocation(e.location)&&laneCity(mapStops.at(-1))!==laneCity(e.location))mapStops.push(e.location)});
- if(S.localMoneyMode&&isRoutableLocation(S.home)&&laneCity(mapStops.at(-1))!==laneCity(S.home))mapStops.push(S.home);
+ S.finalRouteEvents.forEach(e=>{if(isRoutableLocation(e.location))mapStops.push(e.location)});
+
  S.finalRouteStops=[...mapStops];syncTruckBrain("trip-finalized");
  p.routeStops=[...mapStops];
- // Finalization has one source of truth: verify this exact stop list and use
- // that result for map, miles, endpoints and economics.
- if(S.finalRouteStops.length>=2&&typeof getMileCountRoadRoute==="function"){
-   try{
-     const verified=await withTimeout(getMileCountRoadRoute([...S.finalRouteStops]),6500,null);
-     if(verified&&Number(verified.miles)>0){
-       p.miles=Number(verified.miles);p.routeVerified=true;
-       p.durationHours=Number(verified.durationHours||verified.hours||0);
-       S.roundTripMiles=p.miles;
-     }
-   }catch(e){console.warn("Final trip verification",e)}
- }
- S.origin=first.pickup||S.finalRouteStops[0]||S.origin;
+ // The audited immutable projection is also the map/list/economics source.
+ if(p.problem){const check=window.MileCountPickupDelivery.audit(p.problem,p.events);if(!check.ok){p.valid=false;alert(check.issues.join(' • '));return;}}
+ p.fuel=fuelFor(p.miles);
+ S.origin=S.finalRouteStops[0]||S.origin;
  S.destination=S.finalRouteStops.at(-1)||freightEnd;
  if(el("tripHomeStart"))el("tripHomeStart").textContent=S.origin||"—";
  if(el("tripFinalDestination"))el("tripFinalDestination").textContent=S.destination||"—";
@@ -2139,7 +2010,7 @@ async function finishAutoStack(){
    try{
      if(mapBuildId!==mcTripBuildSeq)return;
      if(typeof initMileCountMap==="function")initMileCountMap();
-     if(typeof showMileCountRoute==="function")await showMileCountRoute([...S.finalRouteStops]);
+     if(typeof showMileCountRoute==="function")await showMileCountRoute([...S.finalRouteStops],S.stackPlan?.route);
      else if(typeof updateOutboundMap==="function")await updateOutboundMap();
    }catch(e){console.warn("AutoStack route display",e)}
  },120);
@@ -2155,9 +2026,7 @@ function renderFinalTripStops(){
     {type:"drop",location:S.destination,label:"Original delivery"}
    ];
  }
- if(S.homeChosen&&!S.homeAdded&&S.home){
-   events.push({type:"homeTarget",location:S.home,label:"CHOSEN HOME / FINAL DESTINATION • ROUTE HOME PENDING"});
- }
+
  if(S.homeAdded&&S.returnPay>0){
    const r=S.returnSelected||{};
    const pickup=r.pickup||S.destination;
@@ -2171,12 +2040,12 @@ function renderFinalTripStops(){
    const type=e.type||"stop";
    const icon=type==="pickup"?"📦":type==="drop"?"🏁":type==="returnPickup"?"💰":type==="returnDrop"?"🏁":type==="home"||type==="homeTarget"?"🏠":"🚚";
    const title=type==="pickup"?"PICKUP":type==="drop"?"DROP":type==="returnPickup"?"RETURN PICKUP":type==="returnDrop"?"RETURN DROP":type==="home"?"HOME":type==="homeTarget"?"HOME TARGET":"START";
-   const lane=e.load&&(e.load.pickup||e.load.delivery)?escHtml(e.load.pickup||"")+" → "+escHtml(e.load.delivery||""):"";
+   const lane=e.load&&(e.load.pickup||e.load.delivery)?escHtml(e.load?.pickup||"")+" → "+escHtml(e.load?.delivery||""):"";
    const pay=e.load&&Number(e.load.pay)>0?" • "+money(e.load.pay):"";
    const detail=e.label?escHtml(e.label):(title+(lane?" • "+lane:"")+pay);
-   return '<div class="stop">'+icon+' <b>STOP '+(i+1)+' • '+escHtml(e.location||"Stop")+'</b><br>'+detail+'</div>';
+   return '<div class="stop">'+icon+' <b>STOP '+(i+1)+' • '+title+' • '+escHtml(e.location||"Stop")+'</b><br>'+detail+'</div>';
  }).join("");
- const start=events[0]?.location||S.origin||"Start";
+ const start=S.stackPlan?.startLocation||S.origin||"Start";
  const end=events[events.length-1]?.location||S.destination||"End";
  box.innerHTML='<details class="simpleDetails" style="margin-top:12px"><summary><span>FULL ROUTE • '+events.length+' STOPS</span><span style="font-size:10px;color:#93a79d;margin-left:auto;margin-right:8px">'+escHtml(start)+' → '+escHtml(end)+'</span></summary><div class="simpleDetailsBody">'+rows+'</div></details>';
 }
@@ -2288,7 +2157,7 @@ el("providerFilter")?.addEventListener("change",applyProviderFilter);
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 bind("smartAutoStack",smartAutoStack);
 bind("doneStack",finishMyPicks);
-bind("clearStack",()=>{selectedStackKeys.clear();S.stackPlan=null;el("doneStack")?.classList.add("hidden");updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
+bind("clearStack",()=>{selectedStackKeys.clear();S.basePlanLoad=null;invalidateStackProjection();S.stackPlan=null;el("doneStack")?.classList.add("hidden");updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
 silentAudit();
 setInterval(()=>{
  try{

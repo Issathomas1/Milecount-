@@ -114,6 +114,8 @@ function resolveMileCountLocation(value){
 }
 async function resolveMileCountLocationNow(value){
  const q=String(value||"").trim();if(!q)throw new Error("Location required");
+ const gps=q.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+ if(gps&&Math.abs(Number(gps[1]))<=90&&Math.abs(Number(gps[2]))<=180){const x={lat:Number(gps[1]),lon:Number(gps[2]),label:q,source:'Driver coordinates'};mileCountGeoCache.set(q,x);return x;}
  if(mileCountGeoCache.has(q))return mileCountGeoCache.get(q);
  if(MileCountLocations[q]){const x={lon:MileCountLocations[q][0],lat:MileCountLocations[q][1],label:q,source:"MileCount verified city table"};mileCountGeoCache.set(q,x);return x}
  let query=q;
@@ -648,4 +650,13 @@ async function mileCountRoutingTest() {
 
   }
 
+}
+
+// One directed road matrix for the complete decision problem, not hundreds of
+// sequential nearest-leg requests. Null/unreachable cells stay unreachable.
+async function getMileCountRoadMatrix(stops){
+ const resolved=await buildResolvedCoordinates(stops);
+ const {response,data}=await mileCountFetchTimed('https://router.project-osrm.org/table/v1/driving/'+resolved.coordinateString+'?annotations=distance,duration',{},15000);
+ if(!response.ok||data.code!=='Ok'||!data.distances||!data.durations)throw Error('Complete road matrix unavailable. Selected loads are preserved.');
+ return {matrix:data.distances.map((row,i)=>row.map((meters,j)=>meters==null||data.durations[i][j]==null?null:{miles:meters/1609.344,minutes:data.durations[i][j]/60})),points:resolved.points,source:'OSRM directed road matrix'};
 }
