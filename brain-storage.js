@@ -14,7 +14,7 @@ class Repository{
  }
  save(state){const snapshot=clone(state);this.storage.setItem(this.key,JSON.stringify({state:snapshot,cloudVersion:this.cloudVersion,dirty:this.userId!=='guest'}));
   if(!this.cloudEnabled){this.onStatus('Truck state saved on this device only');return;}
-  this.queue=this.queue.then(async()=>{if(!this.cloudEnabled)return;try{this.cloudVersion=await this.cloud.save(this.vehicleKey,this.cloudVersion,snapshot);const current=this.local();this.storage.setItem(this.key,JSON.stringify({...current,cloudVersion:this.cloudVersion,dirty:current.state.version!==snapshot.version}));this.onStatus(current.state.version===snapshot.version?'Truck state synced':'Truck state sync pending');}catch(e){this.cloudEnabled=false;this.onStatus('Cloud sync paused; local state retained • '+e.message);}});
+  this.queue=this.queue.then(async()=>{if(!this.cloudEnabled)return;try{this.cloudVersion=await this.cloud.save(this.vehicleKey,this.cloudVersion,snapshot);const current=this.local(),same=(current.state.revision??current.state.version)===(snapshot.revision??snapshot.version);this.storage.setItem(this.key,JSON.stringify({...current,cloudVersion:this.cloudVersion,dirty:!same}));this.onStatus(same?'Truck state synced':'Truck state sync pending');}catch(e){this.cloudEnabled=false;this.onStatus('Cloud sync paused; local state retained • '+e.message);}});
  }
 }
 if(typeof module!=='undefined')module.exports={Repository};root.MileCountBrainStorage={Repository};

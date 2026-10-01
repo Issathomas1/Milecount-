@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 var STORAGE_KEY="milecount_booking_center_v1";
-var STATES={AVAILABLE:"AVAILABLE",REQUESTING:"REQUESTING",PENDING:"PENDING",ACCEPTED:"ACCEPTED",DECLINED:"DECLINED",EXPIRED:"EXPIRED",ACTION_REQUIRED:"ACTION_REQUIRED",CANCELLED:"CANCELLED"};
+var STATES={AVAILABLE:"AVAILABLE",REQUESTING:"REQUESTING",PENDING:"PENDING",ACCEPTED:"ACCEPTED",CLAIMED:"CLAIMED",DECLINED:"DECLINED",EXPIRED:"EXPIRED",ACTION_REQUIRED:"ACTION_REQUIRED",CANCELLED:"CANCELLED"};
 var adapters={};
 var transientActions={};
 var center=null;
@@ -9,12 +9,12 @@ var center=null;
 function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function money(v){return "$"+Math.round(Number(v||0)).toLocaleString()}
 function norm(v){return String(v||"provider").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}
-function keyFor(l){return String((l&&(l.providerLoadId||l.bookingReference||l.name))||"")+"|"+String((l&&l.provider)||"")}
-function nonBookable(l){return !!(l&&(l.isSandbox||l.isLocalSim||/sandbox|sim/i.test(String(l.provider||""))))}
+function keyFor(l){return l? (l._mcLoadKey||String(l.providerLoadId||l.id||l.bookingReference||l.name||"")+"|"+String(l.provider||"")):""}
+function nonBookable(l){return !!(l&&(l.isSandbox||l.isLocalSim||["TEST","SIM"].includes(l.mode)||/sandbox|sim/i.test(String(l.provider||""))))}
 function readStore(){try{var x=JSON.parse(localStorage.getItem(STORAGE_KEY+":"+(window.mcTripStorageKey||"loading"))||"{}");if(x&&typeof x==='object'){Object.keys(x).forEach(function(k){if(x[k].status===STATES.ACCEPTED){x[k].status=STATES.ACTION_REQUIRED;x[k].message='Provider confirmation has not been verified by MileCount.';}});return x;}return{}}catch(e){return{}}}
 function writeStore(x){localStorage.setItem(STORAGE_KEY+":"+(window.mcTripStorageKey||"loading"),JSON.stringify(x))}
 function recordFor(l){return readStore()[keyFor(l)]||null}
-function statusFor(l){if(nonBookable(l))return"NOT_BOOKABLE";var r=recordFor(l);return r?(r.status===STATES.ACCEPTED?STATES.ACTION_REQUIRED:r.status):STATES.AVAILABLE}
+function statusFor(l){if(nonBookable(l))return"NOT_BOOKABLE";var claimed=window.MileCountTruckBrain?.get?.().bookings?.[keyFor(l)];if(claimed?.status===STATES.CLAIMED)return STATES.CLAIMED;var r=recordFor(l);return r?(r.status===STATES.ACCEPTED?STATES.ACTION_REQUIRED:r.status):STATES.AVAILABLE}
 function isConfirmed(l){return statusFor(l)===STATES.ACCEPTED}
 function bridge(){return window.MileCountBookingBridge||{}}
 function allLoads(){try{return bridge().getLoads?bridge().getLoads():[]}catch(e){return[]}}
@@ -48,7 +48,7 @@ function adapterFor(l){return adapters[norm(l&&l.provider)]||defaultAdapter()}
 
 async function beginBooking(l,index){
  if(!l||nonBookable(l))return;
- var r=recordFor(l);if(r&&[STATES.ACCEPTED,STATES.REQUESTING,STATES.PENDING].indexOf(r.status)>=0)return;
+ var r=recordFor(l);if(statusFor(l)===STATES.CLAIMED||r&&[STATES.ACCEPTED,STATES.REQUESTING,STATES.PENDING].indexOf(r.status)>=0)return;
  save(l,STATES.REQUESTING,{message:"Rechecking live availability..."});
  var live=l;
  try{
@@ -73,8 +73,8 @@ function injectStyles(){
  document.head.appendChild(s)
 }
 function cls(st){if(st===STATES.ACCEPTED)return"accepted";if([STATES.REQUESTING,STATES.PENDING,STATES.ACTION_REQUIRED].indexOf(st)>=0)return"pending";if([STATES.DECLINED,STATES.EXPIRED,STATES.CANCELLED].indexOf(st)>=0)return"bad";return""}
-function label(st){return{AVAILABLE:"AVAILABLE",REQUESTING:"CHECKING...",PENDING:"PENDING PROVIDER",ACCEPTED:"CONFIRMED",DECLINED:"DECLINED",EXPIRED:"UNAVAILABLE",ACTION_REQUIRED:"FINISH WITH PROVIDER",CANCELLED:"CANCELLED",NOT_BOOKABLE:"NOT BOOKABLE"}[st]||st}
-function actionLabel(st){if(st===STATES.ACCEPTED)return"CONFIRMED";if(st===STATES.REQUESTING)return"CHECKING...";if(st===STATES.PENDING)return"PENDING";if(st===STATES.ACTION_REQUIRED)return"CONTINUE WITH PROVIDER";if(st===STATES.EXPIRED)return"UNAVAILABLE";return"REVIEW BOOKING"}
+function label(st){return{AVAILABLE:"AVAILABLE",REQUESTING:"CHECKING...",PENDING:"PENDING PROVIDER",ACCEPTED:"PROVIDER CONFIRMED",CLAIMED:"CLAIMED • CARRIER REPORTED",DECLINED:"DECLINED",EXPIRED:"UNAVAILABLE",ACTION_REQUIRED:"FINISH WITH PROVIDER",CANCELLED:"CANCELLED",NOT_BOOKABLE:"NOT BOOKABLE"}[st]||st}
+function actionLabel(st){if(st===STATES.CLAIMED)return "CLAIMED • CARRIER REPORTED";if(st===STATES.ACCEPTED)return"CONFIRMED";if(st===STATES.REQUESTING)return"CHECKING...";if(st===STATES.PENDING)return"PENDING";if(st===STATES.ACTION_REQUIRED)return"CONTINUE WITH PROVIDER";if(st===STATES.EXPIRED)return"UNAVAILABLE";return"REVIEW BOOKING"}
 
 function ensureTop(){
  if(document.getElementById("mcBookingCenterBtn"))return;var h=document.querySelector("header");if(!h)return;
@@ -85,7 +85,7 @@ function ensureCenter(){
 }
 function renderCenter(){
  var c=ensureCenter(),s=readStore(),entries=Object.keys(s).sort(function(a,b){return String(s[b].updatedAt||"").localeCompare(String(s[a].updatedAt||""))});
- var html='<div class="mcBookingPanel"><div class="mcBookingHead"><div><div style="font-size:9px;color:#8adbb5;font-weight:900">MILECOUNT</div><h2>Booking Center</h2></div><button type="button" id="mcCloseBookingCenter">CLOSE</button></div><p style="color:#93a79d;font-size:11px">Only provider-confirmed loads count as committed. Tentative freight can still be planned and stacked.</p>';
+ var html='<div class="mcBookingPanel"><div class="mcBookingHead"><div><div style="font-size:9px;color:#8adbb5;font-weight:900">MILECOUNT</div><h2>Booking Center</h2></div><button type="button" id="mcCloseBookingCenter">CLOSE</button></div><p style="color:#93a79d;font-size:11px">Carrier-reported claims are recorded separately from provider-confirmed bookings. Planned freight reserves route capacity; only a recorded pickup changes onboard cargo.</p>';
  if(!entries.length)html+='<div class="mcPlanCommitNotice">No booking activity yet. Tap BOOK LOAD on a real provider load.</div>';
  entries.forEach(function(k){var r=s[k],live=currentByKey(k),opts=transientActions[k]||optionsFor(live||{});html+='<div class="mcBookingItem"><div class="mcBookingItemTop"><div><b>'+esc(r.provider)+(r.providerLoadId?' • '+esc(r.providerLoadId):'')+'</b><p>'+esc(r.message||"")+'</p></div><span class="mcBookingState '+cls(r.status)+'">'+esc(label(r.status))+'</span></div><div class="mcBookingItemActions">'+((r.status===STATES.ACTION_REQUIRED&&opts.length)?'<button type="button" data-mc-open="'+esc(k)+'">CONTINUE WITH PROVIDER</button>':'')+(([STATES.ACCEPTED,STATES.PENDING,STATES.REQUESTING].indexOf(r.status)<0)?'<button type="button" data-mc-dismiss="'+esc(k)+'" style="background:#15271f">DISMISS</button>':'')+'</div></div>'});
  html+='</div>';c.innerHTML=html;
@@ -102,8 +102,8 @@ function decorate(){
    var st=statusFor(l),row=card.nextElementSibling;
    if(!row||!row.classList.contains("mcBookingActionRow")){row=document.createElement("div");row.className="mcBookingActionRow";card.insertAdjacentElement("afterend",row)}
    if(nonBookable(l)){row.innerHTML='<span class="mcBookingState">NOT BOOKABLE</span><small>Test/SIM freight stays out of real booking.</small>';return}
-   var dis=[STATES.ACCEPTED,STATES.REQUESTING,STATES.PENDING].indexOf(st)>=0?" disabled":"";
-   row.innerHTML='<button type="button"'+dis+'>'+esc(actionLabel(st))+'</button><span class="mcBookingState '+cls(st)+'">'+esc(label(st))+'</span><small>'+(st===STATES.ACCEPTED?"Provider confirmed • committed":st===STATES.ACTION_REQUIRED?"Provider handoff required":"Live availability is rechecked before handoff")+'</small>';
+   var dis=[STATES.ACCEPTED,STATES.CLAIMED,STATES.REQUESTING,STATES.PENDING].indexOf(st)>=0?" disabled":"";
+   row.innerHTML='<button type="button"'+dis+'>'+esc(actionLabel(st))+'</button><span class="mcBookingState '+cls(st)+'">'+esc(label(st))+'</span><small>'+(st===STATES.CLAIMED?"Carrier reported • not verified by provider":st===STATES.ACCEPTED?"Provider confirmed • committed":st===STATES.ACTION_REQUIRED?"Provider handoff required":"Live availability is rechecked before handoff")+'</small>';
    var btn=row.querySelector("button");if(btn)btn.onclick=function(e){e.preventDefault();e.stopPropagation();beginBooking(l,index)}
  });
  renderCenter()
@@ -113,9 +113,10 @@ function refreshCommittedSummary(){
  var tray=document.getElementById("stackTray");if(!tray)return;
  var box=document.getElementById("mcCommitSummary");if(!box){box=document.createElement("div");box.id="mcCommitSummary";box.className="mcCommitSummary";tray.appendChild(box)}
  var planned=bridge().getPlannedLoads?bridge().getPlannedLoads():[],confirmed=planned.filter(isConfirmed),tentative=planned.filter(function(l){return!isConfirmed(l)});
+ var claimed=planned.filter(function(l){return statusFor(l)===STATES.CLAIMED});
  var pay=confirmed.reduce(function(s,l){return s+Number(l.pay||0)},0),weight=confirmed.reduce(function(s,l){return s+Math.max(0,Number(l.weight||0))},0),space=confirmed.reduce(function(s,l){return s+Math.max(0,Number(l.space||0))},0);
- box.innerHTML='<b>CONFIRMED / COMMITTED: '+money(pay)+' • '+confirmed.length+' load'+(confirmed.length===1?"":"s")+'</b> • '+Math.round(weight).toLocaleString()+' lb • '+(Math.round(space*10)/10)+' ft'+(tentative.length?' • '+tentative.length+' tentative':'');
- var result=document.getElementById("stackPlanResult");if(result&&planned.length){var note=result.querySelector("[data-booking-plan]");if(!note){note=document.createElement("div");note.className="mcPlanCommitNotice";note.setAttribute("data-booking-plan","1");result.insertBefore(note,result.firstChild)}note.textContent=confirmed.length+" confirmed / "+planned.length+" planned loads • only confirmed freight counts as committed revenue/capacity."}
+ box.innerHTML='<b>CONFIRMED / COMMITTED: '+money(pay)+' • '+confirmed.length+' load'+(confirmed.length===1?"":"s")+'</b> • '+Math.round(weight).toLocaleString()+' lb • '+(Math.round(space*10)/10)+' ft • '+claimed.length+' carrier-reported claims'+(tentative.length?' • '+tentative.length+' tentative':'');
+ var result=document.getElementById("stackPlanResult");if(result&&planned.length){var note=result.querySelector("[data-booking-plan]");if(!note){note=document.createElement("div");note.className="mcPlanCommitNotice";note.setAttribute("data-booking-plan","1");result.insertBefore(note,result.firstChild)}note.textContent=confirmed.length+" provider-confirmed / "+claimed.length+" carrier-reported / "+planned.length+" planned loads • projected pay is not earned revenue. Onboard capacity changes only at pickup/delivery."}
 }
 function registerProvider(name,adapter){if(name&&adapter)adapters[norm(name)]=adapter}
 function setProviderStatus(l,status,payload){status=String(status||"").toUpperCase();if(Object.keys(STATES).map(function(k){return STATES[k]}).indexOf(status)<0)throw new Error("Unknown booking status");return save(l,status,payload||{})}

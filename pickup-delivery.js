@@ -3,7 +3,7 @@
 'use strict';
 const EPS=1e-7;
 const isTest=l=>!!(l.isSandbox||l.isLocalSim||['TEST','SIM'].includes(l.mode));
-const key=l=>l._mcLoadKey||String(l.id||l.providerLoadId||l.bookingReference||l.name||'')+'|'+String(l.provider||'');
+const key=l=>l._mcLoadKey||String(l.providerLoadId||l.bookingReference||l.id||l.name||'')+'|'+String(l.provider||'');
 function unique(loads){const m=new Map();for(const l of loads||[]){const k=key(l);if(!k||k==='|')throw Error('Each load needs a stable identity');if(!m.has(k))m.set(k,{...l,id:k,_mcLoadKey:k});}return [...m.values()];}
 function problem(input){
  const loads=unique(input.loads), onboard=new Set((input.truck.onboardLoads||[]).map(key));

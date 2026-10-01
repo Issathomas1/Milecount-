@@ -1,6 +1,6 @@
 // Evaluation adapter. Never reports commercially validated coverage.
 // Deploy only with a private, authenticated Valhalla instance and quota controls.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Native fetch keeps authentication server-side without an unpinned remote SDK.
 // Shared browser/server serializer, with no provider secrets.
 import '../../../truck-brain.js';
 import '../../../commercial-routing.js';
@@ -13,9 +13,11 @@ Deno.serve(async req=>{
  if(req.method!=='POST')return json({error:'POST required'},405);
  try{
   if(Number(req.headers.get('content-length')||0)>32768)return json({error:'Request too large'},413);
-  const supabase=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:req.headers.get('Authorization')||''}}});
-  const {data:{user},error}=await supabase.auth.getUser();if(error||!user)return json({error:'Sign in first'},401);
-  const {data:entitlement,error:entError}=await supabase.rpc('milecount_entitlements');if(entError||!entitlement?.commercialRouting)return json({error:'Commercial routing entitlement is unavailable'},403);
+  const apiUrl=Deno.env.get('SUPABASE_URL')!,anonKey=Deno.env.get('SUPABASE_ANON_KEY')!,authorization=req.headers.get('Authorization')||'';
+  const authResponse=await fetch(apiUrl+'/auth/v1/user',{headers:{apikey:anonKey,Authorization:authorization},signal:AbortSignal.timeout(10000)});
+  if(!authResponse.ok)return json({error:'Sign in first'},401);const user=await authResponse.json();if(!user?.id)return json({error:'Sign in first'},401);
+  const entitlementResponse=await fetch(apiUrl+'/rest/v1/rpc/milecount_entitlements',{method:'POST',headers:{apikey:anonKey,Authorization:authorization,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(10000)});
+  const entitlement=entitlementResponse.ok?await entitlementResponse.json():null;if(!entitlement?.commercialRouting)return json({error:'Commercial routing entitlement is unavailable'},403);
   const backend=Deno.env.get('VALHALLA_PRIVATE_URL'),token=Deno.env.get('VALHALLA_PRIVATE_TOKEN');if(!backend||!token)return json({error:'Commercial routing backend is not configured'},503);
   const text=await req.text();if(text.length>32768)return json({error:'Request too large'},413);
   const input=JSON.parse(text),{kind,points,profile,legProfiles}=input;
@@ -23,9 +25,9 @@ Deno.serve(async req=>{
   const api=(globalThis as any).MileCountCommercialRouting;
   const quota=Number(Deno.env.get('COMMERCIAL_ROUTE_UNITS_PER_HOUR')||'0');
   if(!Number.isInteger(quota)||quota<1)return json({error:'Routing quota has not been configured'},503);
-  const server=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const {data:reserved,error:quotaError}=await server.rpc('reserve_commercial_route',{p_user:user.id,p_units:kind==='matrix'?points.length**2:points.length-1,p_limit:quota});
-  if(quotaError||!reserved)return json({error:'Routing quota reached or unavailable; try later'},429);
+  const serverKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const quotaResponse=await fetch(apiUrl+'/rest/v1/rpc/reserve_commercial_route',{method:'POST',headers:{apikey:serverKey,Authorization:'Bearer '+serverKey,'Content-Type':'application/json'},body:JSON.stringify({p_user:user.id,p_units:kind==='matrix'?points.length**2:points.length-1,p_limit:quota}),signal:AbortSignal.timeout(10000)});
+  if(!quotaResponse.ok||await quotaResponse.json()!==true)return json({error:'Routing quota reached or unavailable; try later'},429);
   // Matrix is conservative at GVWR. Final route validates exact per-leg load state.
   const matrixProfile={...profile,currentGrossWeightLb:profile.gvwrLb};
   const options=api.valhallaRequest(points,kind==='matrix'?matrixProfile:profile);

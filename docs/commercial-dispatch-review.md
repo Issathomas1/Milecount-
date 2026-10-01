@@ -1,7 +1,8 @@
 # Commercial dispatch architecture and launch review
 
-Status: implementation branch for review; NOT production-ready commercial navigation.
-No production migration, routing service, paid billing change or percentage fee was deployed.
+Status: dispatch release candidate; NOT production-ready commercial navigation.
+See `production-roadmap.md` for the updated delivery scope and activation gates.
+No paid billing change or percentage fee is included.
 Owner `Issa.bj99@yahoo.com` already has the authenticated server admin role. Email matching
 and browser flags are not used to grant that role.
 
@@ -28,8 +29,8 @@ and browser flags are not used to grant that role.
   replays exact cargo gross weight at each leg. Every result is experimental. Actual
   axle redistribution after loading requires driver verification; it is not inferred.
 - `app.js`: physical event updates replan the remaining route and refresh existing live
-  connections. It does not automatically accept or book a new load. Whole-inventory
-  candidate/subset recommendation and a fleet assignment dashboard remain unfinished.
+  connections. It does not automatically accept or book a new load. Bounded complete-plan candidate/subset recommendations and paid multi-hop Homebound
+  are implemented. A fleet assignment dashboard remains a separate release.
 
 ## Provider decision
 
@@ -77,8 +78,7 @@ real optimization maximum. Existing backend values `free/pro/fleet` do not uniqu
 to four new paid tiers. Do not guess that mapping or change existing charges.
 
 The draft migration provides entitlements, owner bypass, atomic truck-count enforcement,
-cloud state CAS and server-only quota reservation. Its RLS/SQL/concurrency behavior must
-be tested in staging before deployment. Existing cost-saving profile saves now update
+cloud state CAS and server-only quota reservation. Its RLS/SQL/concurrency behavior has been executed in PostgreSQL tests with tenant, CAS, admin, truck-limit and quota assertions before deployment. Existing cost-saving profile saves now update
 the default vehicle rather than inserting another truck on every save.
 
 Recommend Basic / Gold / Premium / Fleet with commercial routing as a metered Premium
@@ -147,25 +147,28 @@ pay, physical event replanning, account isolation/CAS conflict retention, profil
 serialization, honest fallback, rejected restriction warnings, carrier-first ranking,
 subscription tampering/admin access and unverified booking rejection.
 
-Unfinished / not verified:
-1. Real hosted truck router and current restriction datasets; independent low-bridge,
-   road-ban, weight/height/tunnel/hazmat route tests. No Docker/runtime was available
-   here to host a real Valhalla dataset. Serializer tests are not restriction tests.
-2. Staging deployment of SQL/Edge Function, RLS tests, concurrent quota/truck insert
-   tests, authenticated browser smoke test and current commercial provider agreements.
-3. Active turn-by-turn GPS: foreground/background location, rerouting, voice, offline,
-   driver-safe UI and traffic/ETA validation. Returning maneuvers is not navigation.
-4. State-dependent routing matrices, multi-day HOS rest/cycle rules, detailed dimensions/
-   axle distribution, verified entrance coordinates and toll cost feeds.
-5. Fleet vehicle switching/assignment, comprehensive best-next-load subset ranking,
-   homebound opportunity automation, explicit profit override, maximum-detour UI and
-   actual completed-trip operating-cost/earnings ledger. Event routes currently represent
-   the remaining dispatch plan; completed-trip financial totals need a ledger.
-6. Stripe webhook rotation, secure price-ID mapping, signed billing activation and
-   private API booking receipt workflows. Provider failure/empty-inventory distinction
-   needs tightening in legacy adapters, which still catch some failures as empty arrays.
+Verified in this release:
+- Actual PostgreSQL execution of the migration with authenticated/anonymous/service roles:
+  tenant isolation, CAS/null rejection, admin bypass, truck caps and quota permissions.
+- Eleven regression suites and four complete Chromium/Leaflet driver workflows using
+  deterministic service fixtures. Browser tests exercise the real worker, UI, map markers,
+  self-reported claims and route economics. They do not simulate commercial restriction data.
+- Provider cache/single-flight behavior and stale/error/empty distinctions, plus bounded
+  multi-hop recommendations and profit-independent ranking.
 
-Merge authorization has been given for finished work. This branch is intentionally a
-draft because the required commercial-road and end-to-end launch gates have not passed.
+Still gated / not implemented:
+1. A real hosted truck router, licensed/current restriction dataset and independent
+   low-bridge, road-ban, tunnel/hazmat, axle/height/weight tests. Serializer tests do not
+   prove real-road coverage. Commercial qualification remains disabled.
+2. Active turn-by-turn voice/off-route/background/offline navigation and traffic ETA validation.
+3. State-dependent/time-dependent commercial matrices, multi-day HOS and ELD integration.
+4. Fleet vehicle switching/driver assignment, complete realized operating-cost accounting,
+   explicit profit-rule overrides and broader Strong Fit replacement search.
+5. Stripe webhook secret rotation, approved price-ID mapping and real booking API receipts.
+6. Private provider agreements and operational load/booking credentials cannot be inferred
+   from public documentation. Existing live sources are reused without claiming partnerships.
+
+The release is a proven dispatcher increment with an explicit general-road fallback;
+it is not a claim that the entire product roadmap or commercial navigation is complete.
 
 Do not merge the PR just because the code runs. Show me the proposed stop order, total miles, and why the new order beats the old order before merging.

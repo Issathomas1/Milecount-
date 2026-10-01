@@ -1,7 +1,7 @@
 /* One routing boundary. The backend owns provider credentials and qualification. */
 (function(root){
 'use strict';
-const UNAVAILABLE='COMMERCIAL ROUTE UNAVAILABLE — GENERAL ROAD ESTIMATE ONLY';
+const UNAVAILABLE='GENERAL ROAD ESTIMATE — COMMERCIAL ROUTE UNAVAILABLE';
 function valhallaRequest(points,raw){
  const validation=root.MileCountTruckState.validateProfile(raw);if(!validation.ok)throw Error(validation.issues.join(' • '));const p=validation.profile;
  if(p.axleWeightLb==null)throw Error('Verified axle weight is required for experimental truck routing');
@@ -16,11 +16,11 @@ class Router{
   try{
    const profile=await this.getProfile(),v=root.MileCountTruckState.validateProfile(profile);if(!v.ok)throw Error(v.issues.join(' • '));
    if(!this.transport)throw Error('No commercial routing backend connected');
-   const points=await this.resolve(stops),data=await this.transport({kind,points,profile,legProfiles:options.legProfiles||null});
+   const points=await this.resolve(stops),data=await this.transport({kind,points,profile,legProfiles:options.legProfiles||(kind==='route'?stops.slice(1).map(()=>({currentGrossWeightLb:profile.currentGrossWeightLb,hazmat:profile.hazmat})):null)});
    if(!data||data.restrictionViolations?.length)throw Error('Route violates truck restrictions');
    if(kind==='route'&&(!Array.isArray(data.legs)||data.legs.length!==stops.length-1||data.legs.some(l=>!Number.isFinite(l.distance)||l.distance<0||!Number.isFinite(l.duration)||l.duration<0)))throw Error('Commercial response lost route legs');
    if(kind==='matrix'&&(!Array.isArray(data.matrix)||data.matrix.length!==stops.length||data.matrix.some(r=>!Array.isArray(r)||r.length!==stops.length||r.some(c=>c!=null&&(!Number.isFinite(c.miles)||c.miles<0||!Number.isFinite(c.minutes)||c.minutes<0)))))throw Error('Commercial matrix is incomplete');
-   const qualified=data.qualification==='commercial-validated';const result={...data,stops:[...stops],commercialVerified:qualified,routingStatus:qualified?'COMMERCIAL ROUTE':'EXPERIMENTAL TRUCK ROUTE — RESTRICTION COVERAGE UNVERIFIED',vehicleProfile:profile,source:qualified?data.source:'EXPERIMENTAL TRUCK ROUTE — RESTRICTION COVERAGE UNVERIFIED'};
+   const qualified=data.qualification==='commercial-validated';if(options.requireCommercial&&!qualified)throw Error('Truck restriction coverage has not been validated');const result={...data,stops:[...stops],commercialVerified:qualified,routingStatus:qualified?'COMMERCIAL ROUTE':'EXPERIMENTAL TRUCK ROUTE — RESTRICTION COVERAGE UNVERIFIED',vehicleProfile:profile,source:qualified?data.source:'EXPERIMENTAL TRUCK ROUTE — RESTRICTION COVERAGE UNVERIFIED'};
    if(kind==='route'){result.miles=data.legs.reduce((n,l)=>n+l.distance/1609.344,0);result.hours=data.legs.reduce((n,l)=>n+l.duration/3600,0);result.seconds=result.hours*3600;}
    this.onStatus(result);return result;
   }catch(e){failure=e.message;}
