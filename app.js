@@ -1069,12 +1069,27 @@ function localSimPool(home){
 async function fetchDirectFreightLocal(home,strict=false){
  home=String(home||syncTruckBrain("df-search").currentLocation||S.origin||"").trim();
  try{
-  const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:1000,max_weight:currentCapacity().maxWeight,limit:60})}),8000,null);
-  if(!r?.ok)throw Error('Direct Freight search timed out or returned an error');
-  const j=await r.json();
-  S.directFreightConfigured=!!j.configured;if(j.configured===false||!Array.isArray(j.loads))throw Error(j.error||'Direct Freight is not configured');
-  return enforceWeightCap(Array.isArray(j.loads)?j.loads:[]);
- }catch(e){if(strict)throw e;console.warn("Direct Freight adapter",e);return[]}
+  if(!window.MileCountDirectFreight)throw Error("Direct Freight connection client is unavailable");
+  const status=await window.MileCountDirectFreight.status();
+  S.directFreightConfigured=true;S.directFreightConnected=!!status.connected;
+  if(!status.connected)return [];
+  const cap=Math.max(1,Math.min(9999,Number(currentCapacity().maxWeight||9999)));
+  const first=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:0}),8000,null);
+  if(!first)throw Error("Direct Freight search timed out");
+  let loads=Array.isArray(first.loads)?first.loads:[];
+  // Direct Freight is queried in real time only. Fetch a bounded next page when
+  // page 1 is full so Local Day is not accidentally limited to the first page.
+  if(loads.length>=100){
+   const next=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:1}),8000,null).catch(()=>null);
+   if(next?.loads?.length)loads=dedupeNormalizedLoads([...loads,...next.loads]);
+  }
+  S.directFreightSubscriptionTier=first.subscriptionTier||status.connection?.subscription_tier||"unknown";
+  S.directFreightContactLimit=String(S.directFreightSubscriptionTier).toLowerCase().includes("free")?3:null;
+  return enforceWeightCap(loads);
+ }catch(e){
+  if(/connect your direct freight|sign in to milecount/i.test(String(e?.message||e))){S.directFreightConnected=false;return[]}
+  if(strict)throw e;console.warn("Direct Freight adapter",e);return[]
+ }
 }
 async function fetchTrukTekLocal(home,strict=false){
  home=String(home||syncTruckBrain("truktek-search").currentLocation||S.origin||"Atlanta, GA").trim();
