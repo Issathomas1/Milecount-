@@ -1069,30 +1069,12 @@ function localSimPool(home){
 async function fetchDirectFreightLocal(home,strict=false){
  home=String(home||syncTruckBrain("df-search").currentLocation||S.origin||"").trim();
  try{
-  // Until a driver has connected a Direct Freight end-user account, do not let
-  // that optional provider block the rest of MileCount's live provider board.
-  if(!window.MileCountDirectFreight)return [];
-  const status=await window.MileCountDirectFreight.status().catch(()=>({connected:false}));
-  S.directFreightConfigured=true;S.directFreightConnected=!!status.connected;
-  if(!status.connected)return [];
-  const cap=Math.max(1,Math.min(9999,Number(currentCapacity().maxWeight||9999)));
-  const first=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:0}),8000,null);
-  if(!first)return [];
-  let loads=Array.isArray(first.loads)?first.loads:[];
-  if(loads.length>=100){
-   const next=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:1}),8000,null).catch(()=>null);
-   if(next?.loads?.length)loads=dedupeNormalizedLoads([...loads,...next.loads]);
-  }
-  S.directFreightSubscriptionTier=first.subscriptionTier||status.connection?.subscription_tier||"unknown";
-  S.directFreightContactLimit=String(S.directFreightSubscriptionTier).toLowerCase().includes("free")?3:null;
-  return enforceWeightCap(loads);
- }catch(e){
-  // Direct Freight is additive. An unconnected/expired DF account must never
-  // suppress TrukTek or other connected providers.
-  S.directFreightConnected=false;
-  console.warn("Direct Freight optional provider unavailable",e);
-  return [];
- }
+  const r=await withTimeout(fetch("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/directfreight-adapter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:home,radius:175,max_trip_miles:1000,max_weight:currentCapacity().maxWeight,limit:60})}),8000,null);
+  if(!r?.ok)throw Error('Direct Freight search timed out or returned an error');
+  const j=await r.json();
+  S.directFreightConfigured=!!j.configured;if(j.configured===false||!Array.isArray(j.loads))throw Error(j.error||'Direct Freight is not configured');
+  return enforceWeightCap(Array.isArray(j.loads)?j.loads:[]);
+ }catch(e){if(strict)throw e;console.warn("Direct Freight adapter",e);return[]}
 }
 async function fetchTrukTekLocal(home,strict=false){
  home=String(home||syncTruckBrain("truktek-search").currentLocation||S.origin||"Atlanta, GA").trim();
