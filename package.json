@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "test": "node tests/run.cjs",
-    "test:browser": "node tests/browser-workflow.cjs"
+    "test:browser": "node tests/browser-workflow.cjs && node tests/paypal-checkout.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

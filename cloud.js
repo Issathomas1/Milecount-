@@ -88,6 +88,11 @@ window.MileCountCloud=(()=>{
  async function loadTruckBrain(vehicleKey){const a=await rows('truck_brain_states','vehicle_key=eq.'+encodeURIComponent(vehicleKey)+'&select=state,version');return a[0]||null;}
  async function saveTruckBrain(vehicleKey,version,state){return rpc('save_truck_brain',{p_vehicle_key:vehicleKey,p_expected_version:version,p_state:state});}
  async function entitlements(){return rpc('milecount_entitlements')}
+ async function billing(action,plan){
+  const s=await session();if(!s)throw Error('Sign in to MileCount first.');
+  return jsonFetch(MC_URL+'/functions/v1/paypal-billing',{method:'POST',headers:authHeaders(s.access_token),body:JSON.stringify({action,plan})});
+ }
+ async function billingConfig(){return jsonFetch(MC_URL+'/functions/v1/paypal-billing')}
  async function commercialRoute(request){const s=await session();if(!s)throw Error('Sign in for commercial routing');return jsonFetch(MC_URL+'/functions/v1/commercial-route',{method:'POST',headers:authHeaders(s.access_token),body:JSON.stringify(request)});}
- return {loadTruckBrain,saveTruckBrain,entitlements,commercialRoute,isEnabled:()=>true,health,signUp,signIn,signOut,isPasswordRecovery,requestPasswordReset,finishPasswordReset,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,isAdmin,rpc,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
+ return {loadTruckBrain,saveTruckBrain,entitlements,billing,billingConfig,commercialRoute,isEnabled:()=>true,health,signUp,signIn,signOut,isPasswordRecovery,requestPasswordReset,finishPasswordReset,session,profile,vehicles,defaultVehicle,updateVehicle,deleteVehicle,trips,plannerTrips,savePlannerTrip,updatePlannerTrip,isAdmin,rpc,saveVehicle:v=>insert("vehicles",v),saveTrip:t=>insert("trips",t)};
 })();
