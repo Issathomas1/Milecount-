@@ -320,6 +320,7 @@ function pickupDateMatches(load,date){
 }
 
 async function findMoney(){
+ clearTripOpportunityBrowse();
  tripBrowseGeneration++;
  const generation=++loadSearchGeneration;
  captureCapacityInputs();
@@ -646,16 +647,42 @@ async function acceptDispatchChoice(result,index=0){
 }
 window.MileCountTruckBrain.refreshNextMove=refreshDispatchRecommendations;
 let tripBrowseGeneration=0;
+function clearTripOpportunityBrowse(){
+ S.tripOpportunityLoads=null;S.outboundOriginalDestination=null;
+ el('tripSimulationOptions')?.replaceChildren();
+}
+function renderHomeboundSimulations(options,start){
+ const box=el('tripSimulationOptions');if(!box)return;box.replaceChildren();
+ if(!options.length)return;
+ const heading=document.createElement('h3');heading.textContent='SIM HOMEBOUND OPTIONS • NOT BOOKABLE';box.appendChild(heading);
+ const note=document.createElement('p');note.textContent='No matching live loads found. These fictional examples go to your exact home destination. Preview only; SIM pay is not added to your live trip.';box.appendChild(note);
+ for(const load of options){
+  const card=document.createElement('article');card.className='candidateLoad';
+  card.innerHTML='<b>'+escHtml(load.pickup)+' → '+escHtml(load.delivery)+'</b><p>SIM • '+money(load.pay)+' fictional pay • Not bookable</p>';
+  const button=document.createElement('button');button.type='button';button.textContent='Preview SIM route';
+  const details=document.createElement('p');details.className='details';details.setAttribute('role','status');
+  button.onclick=async()=>{button.disabled=true;details.textContent='Calculating example route…';try{
+   const stops=[...new Set([start,load.pickup,load.delivery])],route=await getMileCountRoadRoute(stops);
+   const miles=Number(route.miles);if(!Number.isFinite(miles))throw Error('Road mileage unavailable');
+   const fuel=fuelFor(miles).fuelCost;
+   details.textContent=stops.join(' → ')+' • '+Math.round(miles)+' road mi • '+money(fuel)+' estimated fuel • '+money(load.pay-fuel)+' hypothetical after gas. '+(route.routingStatus||'GENERAL ROAD ESTIMATE — COMMERCIAL ROUTE UNAVAILABLE');
+  }catch(e){details.textContent='SIM route estimate unavailable. '+e.message;}finally{button.disabled=false;}};
+  card.append(button,details);box.appendChild(card);
+ }
+}
 async function browseTripOpportunities(mode='homebound'){
  if(!requirePlan('dispatcher'))return;
  await window.MileCountTruckBrain.ready;
  const generation=++tripBrowseGeneration,brain=syncTruckBrain('autostack-start');
  const original=window.MileCountPickupDelivery.unique([...(S.stackPlan?.loads||[]),...brain.committedLoads,...brain.onboardLoads]);
  const freightEnd=S.stackPlan?.freightEnd||[...(S.finalRouteEvents||[])].reverse().find(e=>e.type==='drop')?.location||original.at(-1)?.delivery;
+ S.outboundOriginalDestination=S.outboundOriginalDestination||S.basePlanLoad?.delivery||original[0]?.delivery;
  const home=(el('tripHomeChoice')?.value||brain.finalDestination||S.home||'').trim();
- const start=mode==='homebound'?freightEnd||brain.currentLocation:brain.currentLocation,target=mode==='homebound'?home:freightEnd;
+ const start=mode==='homebound'?freightEnd||brain.currentLocation:brain.currentLocation,target=mode==='homebound'?home:S.outboundOriginalDestination;
  const status=el('tripOpportunityStatus');showScreen(2);status?.scrollIntoView({behavior:'smooth',block:'start'});
  if(!start||!target||!original.length){if(status)status.textContent='Select your original load and home location first.';return;}
+ renderHomeboundSimulations([],start);
+ S.tripOpportunityLoads=[];S.candidateLoads=[];renderUnifiedLoadList([]);
  S.planCommitments=original;S.home=home;S.homeChosen=!!home;
  if(mode==='homebound')physicalBrain?.configure({homeLocation:home});
  const version=physicalBrain?.get().version,account=brainAccount,selection=stackSelectionRevision;
@@ -667,7 +694,7 @@ async function browseTripOpportunities(mode='homebound'){
   if(!current())return;
   const services=inventoryService(),origins=[...new Set([start,...markets])],snapshots=await Promise.all(origins.map(origin=>services.search({origin})));
   if(!current())return;
-  const collect=()=>window.MileCountPickupDelivery.unique(snapshots.flatMap(s=>s.loads)).filter(window.MileCountTripOpportunities.fresh);
+  const collect=()=>window.MileCountPickupDelivery.unique(snapshots.flatMap(s=>s.loads)).filter(window.MileCountTripOpportunities.fresh).filter(l=>window.MileCountTripOpportunities.matchesTarget(l,mode,target));
   let loads=collect(),distance=new Map();
   // Broaden into two provider-discovered destinations that move toward the target.
   const destinations=[...new Set(loads.map(l=>l.delivery||l.stop))].slice(0,24);
@@ -681,10 +708,11 @@ async function browseTripOpportunities(mode='homebound'){
   if(!current())return;
   loads=loads.map(l=>({...l,tripProgressMiles:window.MileCountTripOpportunities.progress(l,distance)})).sort((a,b)=>(Number(b.tripProgressMiles>0)-Number(a.tripProgressMiles>0))||Number(b.pay||0)-Number(a.pay||0));
   const issues=[...new Set(snapshots.flatMap(s=>s.providers).filter(p=>p.status==='error'||p.status==='stale').map(p=>p.provider+': '+p.error))];
-  S.allUnifiedLoads=window.MileCountPickupDelivery.unique([...original,...loads]);S.candidateLoads=loads;
+  S.allUnifiedLoads=window.MileCountPickupDelivery.unique([...original,...loads]);S.candidateLoads=loads;S.tripOpportunityLoads=loads;
   renderUnifiedLoadList(loads);updateStackTray();
   if(el('loadCandidates'))el('buildOpportunityTrip')?.insertAdjacentElement?.('afterend',el('loadCandidates'));
-  if(status)status.textContent=(mode==='homebound'?'HOMEBOUND':'OUTBOUND')+' • '+start+' → '+target+' • '+loads.length+' live options. Tap + STACK on several, then BUILD SELECTED TRIP. Original loads stay included. These are opportunities, not guaranteed profitable fits.'+(issues.length?' Some provider searches failed: '+issues.join(' • '):'')+(!loads.length?' No fresh freight returned from these markets.':'');
+  if(mode==='homebound'&&!loads.length)renderHomeboundSimulations(window.MileCountTripOpportunities.simulationOptions(start,home,markets),start);
+  if(status)status.textContent=(mode==='homebound'?'HOMEBOUND':'OUTBOUND')+' • '+start+' → '+target+' • '+loads.length+' live options. Tap + STACK on several, then BUILD SELECTED TRIP. Original loads stay included. These are opportunities, not guaranteed profitable fits.'+(issues.length?' Some provider searches failed: '+issues.join(' • '):'')+(!loads.length?(mode==='homebound'?' No matching live loads to your exact home destination. SIM previews are shown below when available.':' No matching live loads to the original drop-off state.'):'');
   el('buildOpportunityTrip')?.classList.toggle('hidden',!loads.length);
   el('tripOpportunityStatus')?.scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){if(current()&&status)status.textContent='Freight search could not finish. Your original trip is preserved. '+e.message;}
@@ -775,7 +803,7 @@ async function saveCurrentTrip(showStatus=false){
   return true;
  }catch(e){console.warn("Trip cloud save failed",e);if(showStatus&&el("tripSaveStatus"))el("tripSaveStatus").textContent=e.message||"Could not save trip.";return false}
 }
-function startNewTrip(){tripBrowseGeneration++;localDayBuildSeq++;stackSelectionRevision++;S.planCommitments=physicalBrain?.get().onboardLoads||[];physicalBrain?.configure({commitments:S.planCommitments,baseLoadId:null,homeLocation:null,homeDeadline:null});invalidateStackProjection('New trip — onboard freight remains committed.');S.truckBrain=null;S.homeboundHops=[];S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.home="";S.origin=(el("from")?.value||"").trim();S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
+function startNewTrip(){clearTripOpportunityBrowse();tripBrowseGeneration++;localDayBuildSeq++;stackSelectionRevision++;S.planCommitments=physicalBrain?.get().onboardLoads||[];physicalBrain?.configure({commitments:S.planCommitments,baseLoadId:null,homeLocation:null,homeDeadline:null});invalidateStackProjection('New trip — onboard freight remains committed.');S.truckBrain=null;S.homeboundHops=[];S.finalRouteEvents=null;S.finalRouteStops=null;S.homeChosen=false;S.localMoneyMode=false;S.home="";S.origin=(el("from")?.value||"").trim();S.basePlanLoad=null;selectedStackKeys.clear();updateStackTray();S.primaryPay=0;S.addedPay=0;S.totalPay=0;S.homeAdded=false;S.returnPay=0;S.extraMiles=0;S.roundTripMiles=0;S.selectedStop="";S.tripMode="idle";S.selectedCandidate=null;S.candidateLoads=[];el("homeResult")?.classList.add("hidden");if(el("getHome")){el("getHome").disabled=false;el("getHome").textContent="PROTECT MY RETURN"}showScreen(1)}
 async function analyzeManualLoad(){
  applyVehicle(el("vehicleType")?.value||"box26",false);
  S.origin=el("from")?.value||"Atlanta, GA"; S.destination=el("to")?.value||"Charlotte, NC";
@@ -1081,6 +1109,7 @@ function resetLocalDaySelection(){
 }
 let localDayBuildSeq=0,stackSelectionRevision=0;
 async function buildLocalMoneyDay(){
+ clearTripOpportunityBrowse();
  tripBrowseGeneration++;
  const localBuild=++localDayBuildSeq;
  const btn=el("localMoneyMode"),status=el("localMoneyStatus");
@@ -1364,7 +1393,7 @@ function filteredUnifiedLoads(loads){
  return loads.filter(l=>providerFilterKey(l)===mode);
 }
 async function applyProviderFilter(){
- const all=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[];
+ const all=S.tripOpportunityLoads??(Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[]);
  const selectedProvider=el("providerFilter")?.value||"all";
  if(selectedProvider==="direct-freight")setBoardStatus("working","Direct Freight • live production freight");
  const filtered=filteredUnifiedLoads(all);
