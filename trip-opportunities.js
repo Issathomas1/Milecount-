@@ -12,5 +12,25 @@ function corridorMarkets(coords,exclude=[]){
 }
 function fresh(load){return load&&load.dataFreshness!=='stale'&&!load.isSandbox&&!load.isLocalSim&&!['TEST','SIM'].includes(load.mode)&&!!load.pickup&&!!(load.delivery||load.stop);}
 function progress(load,distance){const a=distance.get(load.pickup),b=distance.get(load.delivery||load.stop);return Number.isFinite(a)&&Number.isFinite(b)?a-b:null;}
-const api={corridorMarkets,fresh,progress};if(typeof module!=='undefined')module.exports=api;root.MileCountTripOpportunities=api;
+const states={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'District of Columbia'};
+function place(value){
+ let text=String(value||'').trim().replace(/,?\s+(USA|US|United States(?: of America)?)$/i,'').replace(/\s+\d{5}(?:-\d{4})?$/,'').trim();
+ for(const [code,name] of Object.entries(states)){
+  const match=text.match(new RegExp('(?:^|[,\\s]+)('+code+'|'+name+')$','i'));
+  if(match)return {state:code,city:text.slice(0,match.index).replace(/[^a-z0-9]+/gi,' ').trim().toLowerCase()};
+ }
+ return {state:null,city:null};
+}
+function matchesTarget(load,mode,target){
+ const destination=place(load.delivery||load.stop),end=place(target);
+ if(!end.state||destination.state!==end.state)return false;
+ return mode==='outbound'||!!end.city&&destination.city===end.city;
+}
+function simulationOptions(start,home,markets=[]){
+ const target=place(home);if(!target.city||!target.state)return [];
+ return [...new Set([start,...markets])].filter(p=>!matchesTarget({delivery:p},'homebound',home)).slice(0,3).map((pickup,i)=>({
+  id:'home-sim-'+i,provider:'MileCount SIM',pickup,delivery:home,pay:450+i*125,mode:'SIM',isLocalSim:true,isSandbox:true
+ }));
+}
+const api={corridorMarkets,fresh,progress,place,matchesTarget,simulationOptions};if(typeof module!=='undefined')module.exports=api;root.MileCountTripOpportunities=api;
 })(typeof window!=='undefined'?window:globalThis);

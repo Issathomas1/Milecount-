@@ -26,7 +26,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    if(url.includes('/rest/v1/profiles'))return json([{id:'00000000-0000-0000-0000-000000000001',plan:'free'}]);
    if(url.includes('/rest/v1/'))return json([]);
    if(url.includes('/functions/v1/commercial-route'))return json({error:'Commercial router unavailable in QA'},503);
-   if(url.includes('/functions/v1/directfreight-adapter')){const origin=req.postDataJSON()?.origin;const extra=f===fixtures.cases[0]&&origin!==f.start?[{name:'return-1',provider:'Direct Freight',providerLoadId:'return-1',pickup:'Charlotte, NC',delivery:'Greenville, SC',pay:800,weight:null,space:0},{name:'return-2',provider:'Direct Freight',providerLoadId:'return-2',pickup:'Greenville, SC',delivery:'Atlanta, GA',pay:700,weight:null,space:0}]:[];return json({configured:true,loads:[...loads,...extra]});}
+   if(url.includes('/functions/v1/directfreight-adapter')){const origin=req.postDataJSON()?.origin;const extra=f===fixtures.cases[0]&&origin!==f.start?[{name:'return-1',provider:'Direct Freight',providerLoadId:'return-1',pickup:'Charlotte, NC',delivery:'Riverdale, GA',pay:800,weight:null,space:0},{name:'return-2',provider:'Direct Freight',providerLoadId:'return-2',pickup:'Greenville, SC',delivery:'Riverdale, GA',pay:700,weight:null,space:0}]:[];return json({configured:true,loads:[...loads,...extra]});}
    if(url.includes('/functions/')||url.includes('truktek.com/api/loads'))return json({loads:[],configured:true,live_found:0});
    if(url.includes('nominatim')){const q=u.searchParams.get('q')||'',key=Object.keys(fixtures.coordinates).find(k=>q.includes(k)),c=fixtures.coordinates[key];return json(c?[{lat:String(c[1]),lon:String(c[0]),display_name:key}]:[]);}
    if(url.includes('/route/v1/')||url.includes('/table/v1/')){
@@ -95,7 +95,16 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    await page.waitForFunction(()=>mileCountMarkers.length===window.MileCountTruckBrain.get().currentPlan.events.length+1);
    await page.locator('#findOutboundLoads').click();await page.waitForFunction(()=>document.getElementById('tripOpportunityStatus').textContent.startsWith('OUTBOUND •'));
    assert.equal((await page.evaluate(()=>window.MileCountTruckBrain.get().committedLoads)).length,6);
-   console.log('PASS browser Homebound list → two paid hops → rebuild all original loads/map/pay → outbound list');
+   const outboundTarget=(await page.locator('#tripOpportunityStatus').textContent()).split(' • ')[1].split(' → ')[1];const outbound=await page.locator('#loadCandidates .loadLane').allTextContents();assert(outbound.every(l=>require('../trip-opportunities').matchesTarget({delivery:l.split('→')[1]},'outbound',outboundTarget)));console.log('HOMEBOUND FIXTURE',JSON.stringify({miles:full.miles,pay:full.totalPay,order:full.events.map(e=>e.type+' '+e.location),outboundTarget}));
+   const beforeSim=await page.evaluate(()=>JSON.stringify(window.MileCountTruckBrain.get().currentPlan));
+   await page.locator('[data-step="3"]').click();await page.locator('#endLocationFold > summary').click();await page.locator('#tripHomeChoice').fill('Atlanta, GA');await page.locator('#protect').click();
+   await page.waitForFunction(()=>document.getElementById('tripSimulationOptions').textContent.includes('SIM HOMEBOUND OPTIONS'));
+   assert.equal(await page.locator('.stackPick').count(),0);
+   assert((await page.locator('#tripSimulationOptions article b').allTextContents()).every(l=>l.endsWith('→ Atlanta, GA')));
+   await page.locator('#tripSimulationOptions button').first().click();await page.waitForFunction(()=>document.getElementById('tripSimulationOptions').textContent.includes('hypothetical after gas'));
+   assert.equal(await page.evaluate(()=>JSON.stringify(window.MileCountTruckBrain.get().currentPlan)),beforeSim);
+   assert.equal(await page.locator('#tripSimulationOptions .bookingConfirm').count(),0);
+   console.log('PASS browser exact-home list → stack two home loads → preserved original outbound state → empty LIVE → isolated SIM route preview');
   }
   if(f===fixtures.cases[0]){
    await page.setViewportSize({width:390,height:844});
