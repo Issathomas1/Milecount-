@@ -1199,7 +1199,7 @@ map
 fuel
 app
 ===================== -->
-<script src="cloud.js?v=20261001-opportunities1"></script>
+<script src="cloud.js?v=20261001-opportunities1"></script>\n<script src="direct-freight.js?v=20261002-userauth1"></script>
 <script src="brain-storage.js?v=20261001-opportunities1"></script>
 <script src="truck-brain.js?v=20261001-partial1"></script>
 <script src="dispatch-brain.js?v=20261001-opportunities1"></script>
@@ -1295,6 +1295,28 @@ async function mileCountDirectSignIn(){
 </script>
 
 
-</body>
+<script>
+(async function mileCountDirectFreightUI(){
+ const form=document.getElementById("dfConnectForm"),connected=document.getElementById("dfConnected"),msg=document.getElementById("dfMessage");
+ if(!form||!window.MileCountDirectFreight)return;
+ function render(d){
+  const on=!!d?.connected;form.classList.toggle("hidden",on);connected.classList.toggle("hidden",!on);
+  if(on){document.getElementById("dfAccount").textContent=d.connection?.account_email||d.accountEmail||"Connected";
+   const tier=d.connection?.subscription_tier||d.subscriptionTier||"unknown";
+   document.getElementById("dfPlan").textContent=tier.toLowerCase().includes("free")?"Direct Freight free account • contact information is limited by Direct Freight to 3 loads per day.":"Direct Freight account connected • returned fields may be displayed according to your Direct Freight access.";
+  }
+ }
+ try{render(await window.MileCountDirectFreight.status())}catch(e){msg.textContent=""}
+ document.getElementById("dfConnect").addEventListener("click",async function(){
+  this.disabled=true;msg.textContent="Connecting securely…";
+  try{const d=await window.MileCountDirectFreight.connect(document.getElementById("dfEmail").value.trim(),document.getElementById("dfPassword").value);document.getElementById("dfPassword").value="";render(d);msg.textContent="Direct Freight connected ✓ Real-time searches will use this account."}
+  catch(e){msg.textContent=e.message}finally{this.disabled=false}
+ });
+ document.getElementById("dfDisconnect").addEventListener("click",async function(){
+  this.disabled=true;try{await window.MileCountDirectFreight.disconnect();render({connected:false});msg.textContent="Direct Freight disconnected."}catch(e){msg.textContent=e.message}finally{this.disabled=false}
+ });
+})();
+</script>
+\n</body>
 
 </html>
