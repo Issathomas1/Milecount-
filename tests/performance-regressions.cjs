@@ -3,8 +3,10 @@ const app=fs.readFileSync('app.js','utf8'),map=fs.readFileSync('map-loads.js','u
 function chunk(s,a,b){return s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a)))}
 async function filters(source){
  const nodes={providerFilter:{value:'direct-freight'},providerFilterShowing:{textContent:''}};
- const c={S:{allUnifiedLoads:[{provider:'Direct Freight'}],directFreightLastUpdated:Date.now(),origin:'A',destination:'B'},el:id=>nodes[id],setBoardStatus(){},filteredUnifiedLoads:x=>x,updateCostUI:()=>({}),renderUnifiedLoadList(){},window:{renderMileCountLoadMap:async()=>{}},Date};
+ const c={S:{directFreightConnected:true,allUnifiedLoads:[{provider:'Direct Freight'}],directFreightLastUpdated:Date.now(),origin:'A',destination:'B'},el:id=>nodes[id],setBoardStatus(){},filteredUnifiedLoads:x=>x,updateCostUI:()=>({}),renderUnifiedLoadList(){},window:{renderMileCountLoadMap:async()=>{}},Date};
  vm.createContext(c);vm.runInContext(chunk(source,'async function applyProviderFilter(){','function currentCapacity('),c);await c.applyProviderFilter();assert(nodes.providerFilterShowing.textContent.includes('Direct Freight: 1'));
+ c.S.directFreightConnected=false;await c.applyProviderFilter();assert(nodes.providerFilterShowing.textContent.includes('Connect your Direct Freight account'));
+ c.S.directFreightConnected=true;c.S.directFreightLastUpdated=null;await c.applyProviderFilter();assert(!nodes.providerFilterShowing.textContent.includes('null min'));
 }
 async function mapTests(source,newVersion){
  let hydrateResolve,updates=0;const count={textContent:''},c={sourceLoads:[],sourceProfile:{},mapRenderGeneration:0,window:{},ensureMap:()=>({invalidateSize(){}}),document:{getElementById:()=>count},preparedLoads:()=>[],redraw:()=>updates++,fitItems(){},hydrateMissingLoadPoints:()=>new Promise(r=>hydrateResolve=r),console,setTimeout(){}};

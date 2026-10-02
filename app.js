@@ -1413,7 +1413,6 @@ function filteredUnifiedLoads(loads){
 async function applyProviderFilter(){
  const all=S.tripOpportunityLoads??(Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[]);
  const selectedProvider=el("providerFilter")?.value||"all";
- if(selectedProvider==="direct-freight")setBoardStatus("working","Direct Freight • live production freight");
  const filtered=filteredUnifiedLoads(all);
  S.candidateLoads=filtered;
  const profile=updateCostUI();
@@ -1422,7 +1421,7 @@ async function applyProviderFilter(){
  const showing=el("providerFilterShowing");
  if(showing){
   const df=selectedProvider==="direct-freight",age=S.directFreightLastUpdated?Math.max(0,Math.round((Date.now()-S.directFreightLastUpdated)/60000)):null;
-  showing.textContent=df?"Direct Freight: "+filtered.length+" live load"+(filtered.length===1?"":"s")+" returned • updated "+(age===0?"just now":age+" min ago"):"Showing "+filtered.length+" of "+all.length+" freight opportunities";
+  showing.textContent=df?(S.directFreightConnected?"Direct Freight: "+filtered.length+" matching load"+(filtered.length===1?"":"s")+(age===null?"":" • updated "+(age===0?"just now":age+" min ago")):"Connect your Direct Freight account to search its loads."):"Showing "+filtered.length+" of "+all.length+" freight opportunities";
  }
 }
 
@@ -2126,7 +2125,7 @@ function renderUnifiedLoadList(loads){
     (String(l.provider||'').toLowerCase()==='direct freight'?'<button type="button" class="dfDetailsOpen" data-df-index="'+i+'">Full provider details</button>':'')+
     (l.economicsPending?'<p class="details">Road costs not calculated yet. Add to your stack to check the route.</p>':'')+
     '<p class="details">Add to your stack to compare the full route, fuel and after-gas estimate.</p></div></article>';
- }).join(""):'<div class="details">No freight is currently available from connected sources.</div>';
+ }).join(""):'<div class="details">'+(el('providerFilter')?.value==='direct-freight'?(S.directFreightConnected?'No Direct Freight loads match this search. Try another pickup area or adjust your filters.':'Connect your Direct Freight account using the button above to search its loads.'):'No freight is currently available from connected sources.')+'</div>';
  document.querySelectorAll('[data-inspect]').forEach(b=>b.onclick=()=>{const panel=el('loadDetails-'+b.dataset.inspect);panel.hidden=!panel.hidden;b.setAttribute('aria-expanded',String(!panel.hidden));b.textContent=panel.hidden?'Details':'Less';});
  document.querySelectorAll('.dfDetailsOpen').forEach(b=>b.onclick=()=>openDirectFreightDetails(loads[Number(b.dataset.dfIndex)]));
  document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
@@ -2201,6 +2200,27 @@ window.MileCountNavigation={
  getTripLoads:bookingLoadsForTrip
 };
 el("providerFilter")?.addEventListener("change",applyProviderFilter);
+bind('dfSearch',async()=>{
+ if(el('dfSearch').disabled)return;
+ if(el('find')?.disabled){if(el('dfMessage'))el('dfMessage').textContent='Connected. Let the current search finish, then tap Find Direct Freight loads.';return;}
+ el('dfSearch').disabled=true;
+ try{
+  S.directFreightConfigured=true;S.directFreightConnected=true;
+  updateProviderFilterOptions(S.allUnifiedLoads||[]);el('providerFilter').value='direct-freight';
+  await runNormalLoadSearch();
+  if(S.directFreightConnected&&el('dfMessage'))el('dfMessage').textContent='Search finished. Review the matching Direct Freight loads in your results.';
+ }finally{el('dfSearch').disabled=false;}
+});
+window.addEventListener('milecount:directfreight-auth-required',()=>{S.directFreightConnected=false;});
+window.addEventListener('milecount:directfreight-disconnected',()=>{
+ // Invalidate in-flight results and remove disconnected-provider discovery
+ // rows, while retaining the driver's selected/committed trip separately.
+ ++loadSearchGeneration;
+ S.directFreightConnected=false;S.directFreightLiveCount=0;S.directFreightLastUpdated=null;
+ for(const key of ['allUnifiedLoads','liveBoardLoads','candidateLoads','tripOpportunityLoads'])if(Array.isArray(S[key]))S[key]=S[key].filter(l=>providerFilterKey(l)!=='direct-freight');
+ if(el('providerFilter'))el('providerFilter').value='all';
+ applyProviderFilter();
+});
 window.addEventListener("unhandledrejection",e=>{console.warn("MileCount async error",e.reason);setBoardStatus("warn","A service request failed. MileCount kept the app running — tap Refresh to retry.")});
 bind('editSelectedLoads',()=>{renderSelectedStackLoads();showScreen(2);window.MileCountSimpleUI?.openStack?.();el('selectedStackLoads')?.scrollIntoView({behavior:'smooth',block:'start'});});
 bind('findOutboundLoads',()=>browseTripOpportunities('outbound'));
