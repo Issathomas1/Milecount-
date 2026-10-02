@@ -7,7 +7,19 @@ The live PayPal plan was verified in the merchant dashboard on October 2, 2026:
 - $19 USD every month, unlimited cycles, no trial or setup fee
 - Dashboard currently says no tax, pause after one missed billing cycle, and automatic billing of outstanding payments **on**.
 - Its live Default App client ID matches the public SDK snippet supplied by the owner.
-- Webhook credential and return/cancel URLs were not yet attached when inspected.
+- The plan now uses Default App as its webhook credential, with MileCount pricing return/cancel URLs attached.
+
+## Setup checkpoint — October 2, 2026
+
+- Owner approved enabling subscriptions on both existing apps, adding payment notifications, and securely storing their secrets in Supabase.
+- Live Default App subscriptions enabled; sandbox Default Application already enabled.
+- Live webhook `2FR1616367147070S` points to `paypal-billing/webhook`.
+- Sandbox webhook `82987396TW6578410` points to `paypal-billing-test/webhook`.
+- Both webhooks subscribe to all eight Billing subscription events and Payment sale completed, denied, refunded and reversed. No unrelated account or payout events selected.
+- Migration applied and both Edge Functions deployed as version 1. Public GET checks returned HTTP 200 with `enabled:false`, no client ID and no purchasable plans.
+- Billing tables verified with RLS enabled and no authenticated-client table privileges. Advisor results contain no new billing function exposure warnings; the no-policy notices are intentional for service-only billing tables. Existing non-billing advisories remain outside this change.
+- Secrets are **not stored yet**. Supabase dashboard sign-in is blocked at the owner-selected ChatGPT → Apple authentication step awaiting explicit Apple authorization from automatic approval review.
+- No sandbox subscription/payment lifecycle has run. No real payment has been created. PR remains draft; frontend is not merged.
 
 No secret belongs in this repository, the browser, a screenshot, or chat.
 
@@ -23,13 +35,12 @@ Cancellation stops future billing, preserving the remaining paid month unless pa
 
 1. Apply the migration and deploy `paypal-billing` with gateway JWT verification disabled: the handler performs explicit user-token and webhook-signature verification. Leave checkout disabled.
 2. Store these in Supabase Edge Function secrets, never frontend environment variables:
-   - `PAYPAL_ENVIRONMENT=live`
    - `PAYPAL_CLIENT_ID` from the existing live Default App
    - `PAYPAL_CLIENT_SECRET` from that same app
    - `PAYPAL_WEBHOOK_ID` from the matching app/environment
    - `PAYPAL_CHECKOUT_ENABLED=false` until all launch checks pass
 3. Add `https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/paypal-billing/webhook` to that app for `BILLING.SUBSCRIPTION.CREATED`, `ACTIVATED`, `UPDATED`, `CANCELLED`, `SUSPENDED`, `EXPIRED`, `PAYMENT.FAILED`, and `PAYMENT.SALE.COMPLETED`, `DENIED`, `REFUNDED`, `REVERSED` (the full `BILLING.SUBSCRIPTION.` prefix applies to those subscription suffixes). Attach the same app to the Basic plan's webhook credential field. Use the live dashboard's supported event list.
-4. Test the corresponding sandbox app/plan in a separate function deployment with `PAYPAL_ENVIRONMENT=sandbox`, its own client/secret/webhook, `PAYPAL_SANDBOX_BASIC_PLAN_ID`, and optional `PAYPAL_PREVIEW_ORIGIN`. Never reuse a live plan ID in sandbox. Run actual approval, settled payment, renewal, failure, cancellation, refund and return-page recovery tests. Automated fixtures do not replace this gate.
+4. Test the corresponding sandbox app/plan using `paypal-billing-test`. Its wrapper forces sandbox and reads only `PAYPAL_TEST_CLIENT_ID`, `PAYPAL_TEST_CLIENT_SECRET`, `PAYPAL_TEST_WEBHOOK_ID`, `PAYPAL_TEST_CHECKOUT_ENABLED`, `PAYPAL_TEST_SANDBOX_BASIC_PLAN_ID`, and optional `PAYPAL_TEST_PREVIEW_ORIGIN`. The live wrapper forces live and uses the unprefixed credentials above. Project-wide secrets cannot switch the deployments or leak live credentials into the test handler. Never reuse a live plan ID in sandbox. Prepare an isolated test checkout/return page before running actual approval, settled payment, renewal, failure, cancellation, refund and return-page recovery tests. Automated fixtures do not replace this gate.
 5. Review tax requirements and cancellation/refund disclosures before activation. Current price validation intentionally rejects a tax-bearing plan until the display is reviewed.
 6. Resolve the pre-existing free Basic fallback: `app.js` currently gives basic planning limits to accounts without an active entitlement. Decide/enforce the intended free preview versus paid Basic boundary across protected services before accepting paid users. This billing change does not silently change existing drivers' planning access.
 7. Retire or fix the old Stripe webhook writer. The migration prevents it from overwriting a PayPal subscription, but its legacy `pro` plan mapping is still a separate migration concern.

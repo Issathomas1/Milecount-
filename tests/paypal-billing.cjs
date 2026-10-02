@@ -1,6 +1,15 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),{PGlite}=require('@electric-sql/pglite');
 (async()=>{
  const {createHandler}=await import('../supabase/functions/paypal-billing/handler.mjs');
+ const {billingEnvironment}=await import('../supabase/functions/paypal-billing/environment.mjs');
+ const shared={PAYPAL_ENVIRONMENT:'live',PAYPAL_CLIENT_SECRET:'live-secret',PAYPAL_CHECKOUT_ENABLED:'true',SUPABASE_URL:'db'};
+ const isolated=billingEnvironment(k=>shared[k],'sandbox');
+ assert.equal(isolated('PAYPAL_ENVIRONMENT'),'sandbox');
+ assert.equal(isolated('PAYPAL_CLIENT_SECRET'),undefined,'sandbox cannot inherit a live secret');
+ assert.equal(isolated('PAYPAL_CHECKOUT_ENABLED'),undefined,'live checkout switch cannot enable sandbox');
+ assert.equal(isolated('SUPABASE_URL'),'db');
+ shared.PAYPAL_TEST_CLIENT_SECRET='test-secret';assert.equal(isolated('PAYPAL_CLIENT_SECRET'),'test-secret');
+ shared.PAYPAL_ENVIRONMENT='sandbox';assert.equal(billingEnvironment(k=>shared[k],'live')('PAYPAL_ENVIRONMENT'),'live','deployment environment cannot be switched by a project secret');
  const {BASIC,validatePlan,paidSnapshot,nextMonth}=await import('../supabase/functions/paypal-billing/policy.mjs');
  const db=new PGlite();
  const user='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
