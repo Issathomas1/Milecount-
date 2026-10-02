@@ -1069,16 +1069,16 @@ function localSimPool(home){
 async function fetchDirectFreightLocal(home,strict=false){
  home=String(home||syncTruckBrain("df-search").currentLocation||S.origin||"").trim();
  try{
-  if(!window.MileCountDirectFreight)throw Error("Direct Freight connection client is unavailable");
-  const status=await window.MileCountDirectFreight.status();
+  // Until a driver has connected a Direct Freight end-user account, do not let
+  // that optional provider block the rest of MileCount's live provider board.
+  if(!window.MileCountDirectFreight)return [];
+  const status=await window.MileCountDirectFreight.status().catch(()=>({connected:false}));
   S.directFreightConfigured=true;S.directFreightConnected=!!status.connected;
   if(!status.connected)return [];
   const cap=Math.max(1,Math.min(9999,Number(currentCapacity().maxWeight||9999)));
   const first=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:0}),8000,null);
-  if(!first)throw Error("Direct Freight search timed out");
+  if(!first)return [];
   let loads=Array.isArray(first.loads)?first.loads:[];
-  // Direct Freight is queried in real time only. Fetch a bounded next page when
-  // page 1 is full so Local Day is not accidentally limited to the first page.
   if(loads.length>=100){
    const next=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:1}),8000,null).catch(()=>null);
    if(next?.loads?.length)loads=dedupeNormalizedLoads([...loads,...next.loads]);
@@ -1087,8 +1087,11 @@ async function fetchDirectFreightLocal(home,strict=false){
   S.directFreightContactLimit=String(S.directFreightSubscriptionTier).toLowerCase().includes("free")?3:null;
   return enforceWeightCap(loads);
  }catch(e){
-  if(/connect your direct freight|sign in to milecount/i.test(String(e?.message||e))){S.directFreightConnected=false;return[]}
-  if(strict)throw e;console.warn("Direct Freight adapter",e);return[]
+  // Direct Freight is additive. An unconnected/expired DF account must never
+  // suppress TrukTek or other connected providers.
+  S.directFreightConnected=false;
+  console.warn("Direct Freight optional provider unavailable",e);
+  return [];
  }
 }
 async function fetchTrukTekLocal(home,strict=false){
