@@ -17,7 +17,10 @@ Direct Freight credentials are sent only to the MileCount Edge Function and are 
    if(!s?.access_token)throw new Error("Sign in to MileCount first.");
    const r=await fetch(URL,{method:"POST",cache:"no-store",signal:controller.signal,headers:{"Content-Type":"application/json","apikey":KEY,"Authorization":"Bearer "+s.access_token},body:JSON.stringify(body)});
    const data=await r.json();
-   if(!r.ok||data.ok===false)throw new Error(data.error||"Direct Freight request failed.");
+   if(!r.ok||data.ok===false){
+    if(body.action==='search'&&data.needsUserAuth&&typeof window.dispatchEvent==='function')window.dispatchEvent(new CustomEvent('milecount:directfreight-auth-required'));
+    throw new Error(data.error||"Direct Freight request failed.");
+   }
    return data;
   })();
   try{return await Promise.race([request,timeout])}finally{clearTimeout(timer)}

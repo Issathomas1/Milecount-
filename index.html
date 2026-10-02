@@ -528,6 +528,28 @@ class="screen active"
   <span id="providerCount">CHECKING SOURCES</span>
 </div>
 
+<div id="dfConnectionCard">
+<details id="directFreightPanel" class="simpleDetails" style="scroll-margin-top:80px">
+<summary id="dfSummary">Direct Freight · Connect your account</summary>
+<div class="simpleDetailsBody">
+  <p class="details">Use your Direct Freight login to bring its loads into MileCount.</p>
+  <form id="dfConnectForm">
+    <label>DIRECT FREIGHT EMAIL<input id="dfEmail" type="email" autocomplete="username" required></label>
+    <label>DIRECT FREIGHT PASSWORD<input id="dfPassword" type="password" autocomplete="current-password" required></label>
+    <button id="dfConnect" type="submit">CONNECT & FIND LOADS</button>
+  </form>
+  <div id="dfConnected" class="hidden">
+    <p id="dfAccount" class="details" style="overflow-wrap:anywhere"></p>
+    <p id="dfPlan" class="details"></p>
+    <button id="dfSearch" type="button">FIND DIRECT FREIGHT LOADS</button>
+    <button id="dfDisconnect" type="button" style="background:#15271f;margin-top:8px">Disconnect account</button>
+  </div>
+  <p id="dfMessage" class="details" role="status" aria-live="polite"></p>
+  <p class="details">Free Direct Freight accounts can see contact details for 3 loads per day. This does not limit your search to 3 listings.</p>
+</div>
+</details>
+</div>
+
 <div class="simplePrimaryGrid">
 <label>FROM
 <input id="from" list="usLocations" value="Atlanta, GA" placeholder="City, ST or ZIP" autocomplete="off">
@@ -712,6 +734,8 @@ MILECOUNT AUTOSTACK
 <h2>
 Load results.
 </h2>
+
+<button id="dfManage" type="button" style="background:#15271f;font-size:14px;padding:12px">Direct Freight · Connect account</button>
 
 <p class="details">Tap a load to inspect the trip economics or add it to your plan.</p>
 <div class="stackHelp"><b>Build a stack</b><span>Tap + STACK on 2 or more loads, then let Milecount optimize the order.</span></div>
@@ -1200,7 +1224,7 @@ fuel
 app
 ===================== -->
 <script src="cloud.js?v=20261001-opportunities1"></script>
-<script src="direct-freight.js?v=20261002-searchrepair1"></script>
+<script src="direct-freight.js?v=20261002-dfconnect1"></script>
 <script src="brain-storage.js?v=20261001-opportunities1"></script>
 <script src="truck-brain.js?v=20261001-partial1"></script>
 <script src="dispatch-brain.js?v=20261001-opportunities1"></script>
@@ -1214,7 +1238,7 @@ app
 <script src="provider-inventory.js?v=20261001-opportunities1"></script>
 <script src="optimizer-client.js?v=20261001-stackrepair1"></script>
 <script src="trip-opportunities.js?v=20261001-destination2"></script>
-<script src="app.js?v=20261002-marketrepair1"></script>
+<script src="app.js?v=20261002-dfconnect1"></script>
 <script src="truck-profile-ui.js?v=20261001-partial1"></script>
 <script src="booking.js?v=20261001-simple1"></script>
 <script src="simple-ui.js?v=20261001-simple1"></script>
@@ -1296,29 +1320,7 @@ async function mileCountDirectSignIn(){
 </script>
 
 
-<script>
-(async function mileCountDirectFreightUI(){
- const form=document.getElementById("dfConnectForm"),connected=document.getElementById("dfConnected"),msg=document.getElementById("dfMessage");
- if(!form||!window.MileCountDirectFreight)return;
- function render(d){
-  const on=!!d?.connected;form.classList.toggle("hidden",on);connected.classList.toggle("hidden",!on);
-  if(on){document.getElementById("dfAccount").textContent=d.connection?.account_email||d.accountEmail||"Connected";
-   const tier=d.connection?.subscription_tier||d.subscriptionTier||"unknown";
-   document.getElementById("dfPlan").textContent=tier.toLowerCase().includes("free")?"Direct Freight free account • contact information is limited by Direct Freight to 3 loads per day.":"Direct Freight account connected • returned fields may be displayed according to your Direct Freight access.";
-  }
- }
- document.getElementById("dfConnect").addEventListener("click",async function(){
-  this.disabled=true;msg.textContent="Connecting securely…";
-  try{const d=await window.MileCountDirectFreight.connect(document.getElementById("dfEmail").value.trim(),document.getElementById("dfPassword").value);document.getElementById("dfPassword").value="";render(d);msg.textContent="Direct Freight connected ✓ Real-time searches will use this account."}
-  catch(e){msg.textContent=e.message}finally{this.disabled=false}
- });
- document.getElementById("dfDisconnect").addEventListener("click",async function(){
-  this.disabled=true;try{await window.MileCountDirectFreight.disconnect();render({connected:false});msg.textContent="Direct Freight disconnected."}catch(e){msg.textContent=e.message}finally{this.disabled=false}
- });
- try{render(await window.MileCountDirectFreight.status())}catch(e){msg.textContent=""}
-
-})();
-</script>
+<script src="direct-freight-ui.js?v=20261002-dfconnect1"></script>
 
 </body>
 
