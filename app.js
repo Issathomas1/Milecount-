@@ -1126,6 +1126,8 @@ async function buildLocalMoneyDay(){
    }
    if(!S.smartDispatchLocationEnabled&&!typedHome){if(status)status.textContent="Choose where the truck is first.";return}
    const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:typedHome).trim();
+   const localState=window.MileCountTripOpportunities.place(typedHome||home).state;
+   if(!localState){if(status)status.textContent='Enter a city and state so Local Day can stay inside that state.';return;}
    S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxLoads=5;
    const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your truck location":home;
    if(status)status.textContent="Finding local money around "+homeLabel+"…";
@@ -1133,24 +1135,23 @@ async function buildLocalMoneyDay(){
    // Fetch every source concurrently. Do NOT let a slow provider block the first screen.
    // Local Day must NEVER reuse the nationwide/current candidate board.
    // Automatic dispatch only consumes fresh LIVE provider freight. Demo browsing stays separate.
-   const localSeed=(typedHome||S.home||"Atlanta, GA").trim();
    const sourceJobs=[
      fetchTrukTekLocal(home).catch(()=>[]),
      fetchDirectFreightLocal(home).catch(()=>[])
    ];
-   const localState=(String(localSeed).match(/,\s*([A-Z]{2})\s*$/i)||[])[1]?.toUpperCase()||"";
-   const isLocalCandidate=l=>{
-     const p=String(l?.pickup||"").trim().toUpperCase();
-     // When a city/state is known, Local Day starts with pickups in that state.
-     // With coordinates, the provider query determines the local search area.
-     return !isPlanningTestLoad(l)&&(!localState||p.endsWith(", "+localState));
-   };
+   const staysInState=l=>window.MileCountTripOpportunities.place(l?.pickup).state===localState&&window.MileCountTripOpportunities.place(l?.delivery||l?.stop).state===localState;
+   const isLocalCandidate=l=>!isPlanningTestLoad(l)&&staysInState(l);
    const quick=await Promise.all(sourceJobs.map(p=>Promise.race([p,new Promise(r=>setTimeout(()=>r([]),1200))])));
    if(localBuild!==localDayBuildSeq)return;
    let raw=dedupeNormalizedLoads(enforceWeightCap(quick.flat().filter(isLocalCandidate)));
    // Always render a first screen immediately from source data; routing enrichment must never hide loads.
    raw.sort((a,b)=>Number(b.pay||0)-Number(a.pay||0));
-   resetLocalDaySelection();
+   const retained=resetLocalDaySelection();
+   if(retained.some(l=>!staysInState(l))){
+     invalidateStackProjection('Existing committed freight leaves '+localState+'.');updateStackTray();
+     if(status)status.textContent='An onboard or booked load is outside '+localState+'. It was kept; finish or resolve that commitment before building an in-state local day.';
+     return;
+   }
    const first=raw.slice(0,5);
    S.candidateLoads=first;S.allUnifiedLoads=[...first];
    renderUnifiedLoadList(first);showScreen(2);
@@ -1191,7 +1192,7 @@ async function buildLocalMoneyDay(){
      const accepted=S.stackPlan?.valid?S.stackPlan.loads.length:0;
      const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
      S.localSourceCounts=sc;
-     if(status)status.textContent=enriched.length?(accepted?"LOCAL DAY • "+accepted+" loads checked together.":"No verified paid same-day match. Select available loads for a multi-day preview."):"No LIVE local freight returned by connected providers. No TEST or SIM loads were added.";
+     if(status)status.textContent=enriched.length?(accepted?"LOCAL DAY • "+localState+" only • "+accepted+" loads checked together.":"No verified paid same-day match. Select available loads for a multi-day preview."):"No LIVE local freight returned by connected providers. No TEST or SIM loads were added.";
      if(!picks.length&&!retainedKeys.size&&el('stackPlanResult'))el('stackPlanResult').innerHTML=enriched.length?'<p>No paid same-day round trip could be verified. Available loads are below — select any to build a multi-day route preview.</p>':'<p>No LIVE local freight returned by connected providers. Try another location or refresh later.</p>';
    });
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
