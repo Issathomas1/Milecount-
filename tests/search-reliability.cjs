@@ -7,7 +7,7 @@ const fastTimer=(fn,ms)=>setTimeout(fn,Math.min(ms,30));
 function context(){
  const c={console:{warn(){}},setTimeout:fastTimer,clearTimeout,AbortController,Map,Promise,Date,window:{},S:{},loadSearchGeneration:0,tripBrowseGeneration:0,
   el:()=>null,val:(id,f)=>f,clearTripOpportunityBrowse(){},captureCapacityInputs(){},setBoardStatus(kind,text){c.status={kind,text}},syncOwnerAccess:async()=>{},updateStackTray(){},applyVehicle(){},updateCostUI:()=>({target:2,breakEven:1}),activeVehicle:{cargoLength:26,payload:9999},
-  fetchDirectFreightLocal:async()=>[],fetchLoadBootSandbox:async()=>[],enforceWeightCap:x=>x,laneMatches:()=>true,pickupDateMatches:()=>true,updateProviderFilterOptions(){},filteredUnifiedLoads:x=>x,
+  fetchDirectFreightLocal:async()=>[],fetchTrukTekLocal:async()=>[],fetchLoadBootSandbox:async()=>[],enforceWeightCap:x=>x,laneMatches:()=>true,pickupDateMatches:()=>true,updateProviderFilterOptions(){},filteredUnifiedLoads:x=>x,
   roadMilesBetween:async()=>20,fuelFor:m=>({fuelCost:m/2,gallons:m/8,dieselPrice:4,source:'TEST'}),loadEconomics:l=>({deadhead:l.deadheadMiles||0,rpm:l.pay/((l.loadedMiles||0)+(l.deadheadMiles||0))}),qualityScore:l=>l.pay,
   renderUnifiedLoadList(x){c.rendered=x},showScreen(n){c.screen=n},providerJSON:async()=>({loads:[]})};
  vm.createContext(c);vm.runInContext(chunk('function withTimeout(','async function providerJSON(')+chunk('async function forEachConcurrent(','let loadSearchGeneration=')+chunk('async function findMoney(','function selectCandidate('),c);return c;
@@ -29,6 +29,8 @@ const load=id=>({name:id,provider_load_id:id,pickup:'Atlanta, GA',delivery:'Char
   if(broken==='Direct Freight'){assert.equal(c.rendered[0].equipment,'Box Truck');assert.equal(c.rendered[0].map_lat,33.75)}
  }
  console.log('PASS either provider outage preserves the other provider and source fields');
+ const nearby=context();nearby.fetchTrukTekLocal=async()=>[{...load('nearby'),provider:'TrukTek',providerLoadId:'nearby'}];await nearby.findMoney();assert.equal(nearby.rendered.length,1);assert(nearby.status.text.includes('nearby alternatives'));
+ console.log('PASS empty lane discovers clearly labeled nearby alternatives');
  // A large board cannot wait indefinitely for routing; unknown costs stay unknown.
  const c=context(),road=deferred();c.roadMilesBetween=()=>road.promise;c.providerJSON=async()=>({loads:Array.from({length:100},(_,i)=>load(String(i)))});
  await c.findMoney();assert.equal(c.rendered.length,100);assert(c.rendered.every(l=>l.economicsPending&&!l.fuel));const snapshot=JSON.stringify(c.rendered);road.resolve(20);await new Promise(r=>setTimeout(r,5));assert.equal(JSON.stringify(c.rendered),snapshot);

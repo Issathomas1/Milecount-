@@ -343,8 +343,19 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  const directRequest=fetchDirectFreightLocal(searchOrigin,true);directRequest.catch(()=>{});
  const sandboxRequest=isLiveBrowse?Promise.resolve([]):fetchLoadBootSandbox(false).catch(()=>[]);
  let loads=[];let liveProvider=false; let providerErrors=[];
- let providerResponded=false,providerLiveFound=0,resolvedLane=null;
+ let providerResponded=false,providerLiveFound=0,resolvedLane=null,nearbyAlternatives=false;
  try{const j=await providerJSON("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({origin:searchOrigin,destination:searchDestination,space_ft:space,weight_lb:weight,max_deadhead:Math.max(0,val("maxDeadhead",100)),min_rpm:Math.max(0,val("minRPM",0)),pickup_date:requestedDate||null,equipment:el("vehicleType")?.value||"box26",search_mode:isLiveBrowse?"live_board":(window.MileCountActiveMapArea?"map_area":"lane"),map_bounds:window.MileCountActiveMapArea||null,map_center:window.MileCountActiveMapArea?.center||null,map_zoom:window.MileCountActiveMapArea?.zoom||null})});if(generation!==loadSearchGeneration)return;providerResponded=true;providerLiveFound=Number(j.live_found||0);resolvedLane=j.resolved||null;loads=(j.loads||[]).map(x=>({...x,name:x.name+" • TrukTek",pay:x.pay,space:x.space,weight:x.weight,stop:x.delivery||searchDestination,fallback:Number(x.deadhead||0),deadhead:Number(x.deadhead||0),loadedMiles:Number(x.loadedMiles||0),origin:x.origin,destination:x.destination,provider:"TrukTek",providerLoadId:x.provider_load_id,bookingReference:x.booking_reference,routeCoordinates:x.routeCoordinates||[],pickup:x.pickup,delivery:x.delivery,broker:x.broker,pickupDate:x.pickupDate,deliveryDate:x.deliveryDate}));loads=enforceWeightCap(loads);if(window.MileCountActiveMapArea&&typeof window.MileCountLoadInArea==="function")loads=loads.filter(l=>window.MileCountLoadInArea(l,window.MileCountActiveMapArea));liveProvider=loads.length>0}catch(e){providerErrors.push("TrukTek");console.warn("TrukTek live pilot unavailable",e);if(generation===loadSearchGeneration)setBoardStatus("warn","TrukTek is temporarily slow/unavailable. Other connected freight can still display.")}
+ // A lane with no compatible freight is not an empty market. Show clearly
+ // labeled nearby alternatives for inspection; Homebound/outbound still apply
+ // their exact destination rules in the trip-opportunity layer.
+ if(!isLiveBrowse&&!loads.length&&providerResponded){
+  try{
+   const nearby=await fetchTrukTekLocal(searchOrigin,true);
+   if(generation!==loadSearchGeneration)return;
+   loads=nearby.map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),destinationPreferred:laneMatches(l,searchOrigin,searchDestination)}));
+   nearbyAlternatives=loads.length>0;liveProvider=loads.length>0;
+  }catch(e){providerErrors.push("TrukTek market");}
+ }
  // Direct Freight production board: query in real time for this lane's origin.
  try{
    const direct=await directRequest;
@@ -425,7 +436,7 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
 
  if(isLiveBrowse)S.liveBoardLoads=[...loads];
  if(providerErrors.length)setBoardStatus("warn",providerErrors.join(" / ")+" unavailable • "+loads.length+" loads from responding sources. Retry to refresh.");
- else setBoardStatus("ok",loads.length?("Freight updated • "+loads.length+" provider load"+(loads.length===1?"":"s")+" processed"):"Connected • no matching live freight right now");
+ else setBoardStatus("ok",loads.length?((nearbyAlternatives?"No truck-fit lane matches • nearby alternatives: ":"Freight updated • ")+loads.length+" provider load"+(loads.length===1?"":"s")+" processed"):"Connected • no matching live freight right now");
  S.allUnifiedLoads=loads;updateProviderFilterOptions(loads);
  const visible=filteredUnifiedLoads(loads);S.candidateLoads=visible;S.selectedCandidate=best;
  if(typeof window.renderMileCountLoadMap==="function")window.renderMileCountLoadMap(visible,{breakEven:profile.breakEven,target:profile.target,origin:searchOrigin,destination:searchDestination});
@@ -1087,18 +1098,17 @@ async function fetchDirectFreightLocal(home,strict=false){
 }
 async function fetchTrukTekLocal(home,strict=false){
  home=String(home||syncTruckBrain("truktek-search").currentLocation||S.origin||"Atlanta, GA").trim();
- const parts=String(home||"Atlanta, GA").split(","),city=(parts[0]||"Atlanta").trim(),state=(parts[1]||"GA").trim().slice(0,2).toUpperCase();
  try{
-  const url="https://www.truktek.com/api/loads?octy="+encodeURIComponent(city)+"&ost="+encodeURIComponent(state)+"&milesSlider=100&gross_rpm=0";
-  const j=await providerJSON(url,{cache:"no-store"},6500);if(!Array.isArray(j.loads))throw Error('TrukTek returned an invalid load list');
-  return enforceWeightCap((j.loads||[]).map(x=>({
-   name:(x.octy+", "+x.ost)+" → "+(x.dcty+", "+x.dst),
-   provider:"TrukTek",providerLoadId:String(x.loadId||""),
-   pickup:x.octy+", "+x.ost,delivery:x.dcty+", "+x.dst,pay:Number(x.ratePay||0),
-   loadedMiles:Number(x.loadDist||0),deadheadMiles:Number(x.o2oDist||0),
-   weight:Number(x.weight||0),space:Number(x.length||0),pickupDate:x.pickupDate||null,
-   deliveryDate:x.deliveryDate||null,equipment:x.equip||null,pickupWindow:x.pickupWindow||null,deliveryWindow:x.deliveryWindow||null,commodity:x.commodity||null,sourceUrl:x.sourceUrl||x.url||null,isSandbox:false,sourceType:"REAL"
-  })));
+  // Provider calls must go through our CORS-enabled adapter. A raw browser call
+  // is blocked, and an origin-only upstream query resolves to (0,0).
+  const capacity=currentCapacity();
+  const j=await providerJSON("https://lrnyxqtmywkhtrmsjquc.supabase.co/functions/v1/truktek-public-pilot",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({origin:home,destination:home,search_mode:"origin_board",max_deadhead:175,min_rpm:0,space_ft:capacity.maxSpace,weight_lb:capacity.maxWeight})
+  },10000);
+  if(!Array.isArray(j.loads))throw Error('TrukTek returned an invalid load list');
+  return enforceWeightCap(j.loads.map(x=>({...x,provider:"TrukTek",providerLoadId:String(x.provider_load_id||""),isSandbox:false,sourceType:"REAL"})));
+
  }catch(e){if(strict)throw e;console.warn("TrukTek local direct search",e);return[]}
 }
 function dedupeNormalizedLoads(loads){
@@ -1200,8 +1210,8 @@ async function buildLocalMoneyDay(){
      const accepted=S.stackPlan?.valid?S.stackPlan.loads.length:0;
      const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
      S.localSourceCounts=sc;
-     if(status)status.textContent=enriched.length?(accepted?"LOCAL DAY • "+localState+" only • "+accepted+" loads checked together.":"No verified paid same-day match. Select available loads for a multi-day preview."):"No LIVE local freight returned by connected providers. No TEST or SIM loads were added.";
-     if(!picks.length&&!retainedKeys.size&&el('stackPlanResult'))el('stackPlanResult').innerHTML=enriched.length?'<p>No paid same-day round trip could be verified. Available loads are below — select any to build a multi-day route preview.</p>':'<p>No LIVE local freight returned by connected providers. Try another location or refresh later.</p>';
+     if(status)status.textContent=enriched.length?(accepted?"LOCAL DAY • "+localState+" only • "+accepted+" loads checked together.":"No verified paid same-day match. Select available loads for a multi-day preview."):"No LIVE loads fit this truck with both stops in "+localState+" right now. Refresh later or view nearby outbound freight.";
+     if(!picks.length&&!retainedKeys.size&&el('stackPlanResult'))el('stackPlanResult').innerHTML=enriched.length?'<p>No paid same-day round trip could be verified. Available loads are below — select any to build a multi-day route preview.</p>':'<p>No LIVE loads fit this truck with pickup and delivery in '+escHtml(localState)+'. Refresh later or browse nearby outbound freight.</p>';
    });
  }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
  finally{if(btn){btn.disabled=false;btn.textContent="💰 BUILD MY LOCAL DAY"}}
