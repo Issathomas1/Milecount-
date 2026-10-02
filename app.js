@@ -1067,8 +1067,32 @@ function localSimPool(home){
  return rows.map((r,i)=>({name:state+" LOCAL SIM "+(i+1),provider:"MileCount Local SIM",providerLoadId:"MC-"+state+"-"+today+"-"+(i+1),pickup:r[0],delivery:r[1],pay:r[2],loadedMiles:r[3],weight:r[4],space:r[5],pickupDate:today,pickupWindow:null,deliveryWindow:null,simSuggestedPickup:r[6],simSuggestedDelivery:r[7],equipment:"Box Truck",commodity:"Local palletized freight",isSandbox:true,isLocalSim:true,sandboxLabel:"LOCAL SIM • NOT BOOKABLE"}));
 }
 async function fetchDirectFreightLocal(home,strict=false){
- // Direct Freight is optional. Never let its account/auth state block the core load board.
- return [];
+ home=String(home||syncTruckBrain("df-search").currentLocation||S.origin||"").trim();
+ try{
+  // Until a driver has connected a Direct Freight end-user account, do not let
+  // that optional provider block the rest of MileCount's live provider board.
+  if(!window.MileCountDirectFreight)return [];
+  const status=await window.MileCountDirectFreight.status().catch(()=>({connected:false}));
+  S.directFreightConfigured=true;S.directFreightConnected=!!status.connected;
+  if(!status.connected)return [];
+  const cap=Math.max(1,Math.min(9999,Number(currentCapacity().maxWeight||9999)));
+  const first=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:0}),8000,null);
+  if(!first)return [];
+  let loads=Array.isArray(first.loads)?first.loads:[];
+  if(loads.length>=100){
+   const next=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:1}),8000,null).catch(()=>null);
+   if(next?.loads?.length)loads=dedupeNormalizedLoads([...loads,...next.loads]);
+  }
+  S.directFreightSubscriptionTier=first.subscriptionTier||status.connection?.subscription_tier||"unknown";
+  S.directFreightContactLimit=String(S.directFreightSubscriptionTier).toLowerCase().includes("free")?3:null;
+  return enforceWeightCap(loads);
+ }catch(e){
+  // Direct Freight is additive. An unconnected/expired DF account must never
+  // suppress TrukTek or other connected providers.
+  S.directFreightConnected=false;
+  console.warn("Direct Freight optional provider unavailable",e);
+  return [];
+ }
 }
 async function fetchTrukTekLocal(home,strict=false){
  home=String(home||syncTruckBrain("truktek-search").currentLocation||S.origin||"Atlanta, GA").trim();
