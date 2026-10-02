@@ -1,0 +1,7 @@
+[functions.paypal-billing]
+# The handler verifies user JWTs through Auth and PayPal webhook signatures itself.
+verify_jwt = false
+
+[functions.paypal-billing-test]
+# Same explicit Auth and webhook checks; credentials and entitlements stay separate.
+verify_jwt = false
