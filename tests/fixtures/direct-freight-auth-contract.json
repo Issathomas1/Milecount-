@@ -1,0 +1,46 @@
+{
+  "source": "https://apidocs.directfreight.com/swagger.json",
+  "retrieved": "2026-10-03",
+  "loginRequest": {
+    "properties": {
+      "login": {
+        "description": "The e-mail, or username information needed to log in. ",
+        "type": "string"
+      },
+      "realm": {
+        "description": "This specifies who to log in with. If left blank we will assume email/password. Valid realms are username, email, facebook(not implemneted), google(not implemented), and linkedin(not implemented). ",
+        "enum": [
+          "username",
+          "email"
+        ],
+        "type": "string"
+      },
+      "secret": {
+        "description": "The password, or token required for this login. ",
+        "type": "string"
+      }
+    },
+    "required": [
+      "login",
+      "realm",
+      "secret"
+    ],
+    "type": "object",
+    "x-restlet": {
+      "section": "END_USER_AUTHENTICATIONS"
+    }
+  },
+  "loginResponse": {
+    "properties": {
+      "end-user-token": {
+        "description": "On success an end-user-token is returned.",
+        "example": "XX423ASOEUHT4AESUTH",
+        "type": "string"
+      }
+    },
+    "type": "object",
+    "x-restlet": {
+      "section": "END_USER_AUTHENTICATIONS"
+    }
+  }
+}
