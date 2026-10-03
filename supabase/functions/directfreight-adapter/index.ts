@@ -49,6 +49,13 @@ Deno.serve(async(req)=>{
   if(!conn?.access_token)return out({ok:false,connected:false,needsUserAuth:true,loads:[],error:"Connect your Direct Freight account before searching Direct Freight."},401);
   const origin=String(body.origin||"").trim(),m=origin.match(/^(.+?),\s*([A-Za-z]{2})$/);
   const payload:any={origin_city:m?.[1]?.trim()||undefined,origin_state:m?.[2]?[m[2].toUpperCase()]:undefined,origin_radius:Math.min(300,Math.max(25,Number(body.radius||150))),item_count:Math.min(100,Math.max(1,Number(body.limit||50))),page_number:Math.max(0,Number(body.page||0)),max_tripmiles:Math.min(1000,Math.max(1,Number(body.max_trip_miles||500))),max_weight:Math.min(10000,Math.max(1,Number(body.max_weight||9999))),hide_blank_weights:false,hide_blank_payrates:false,return_web_url:true,sort_parameter:"age",sort_direction:"asc"};
+  if(body.local_state!=null){
+   const state=String(body.local_state).trim().toUpperCase();
+   if(!/^[A-Z]{2}$/.test(state)||!m||m[2].toUpperCase()!==state)return out({ok:false,error:"Local Day needs a starting city and matching state."},400);
+   // Apply the delivery-state constraint before provider pagination so outbound
+   // inventory cannot fill the first pages and hide local opportunities.
+   payload.origin_state=[state];payload.destination_state=[state];
+  }
   Object.keys(payload).forEach(k=>payload[k]===undefined&&delete payload[k]);
   const r=await fetch(DF+"/boards/loads",{method:"POST",headers:{"Accept":"application/json","Content-Type":"application/json","api-token":partner,"end-user-token":conn.access_token},body:JSON.stringify(payload)});
   const data=await r.json().catch(()=>({}));

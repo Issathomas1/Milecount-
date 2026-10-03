@@ -330,6 +330,7 @@ async function findMoney(options={}){
  clearTripOpportunityBrowse();
  tripBrowseGeneration++;
  const generation=++loadSearchGeneration;
+ S.localMoneyMode=false;el("localDayResults")?.classList.add("hidden");
  captureCapacityInputs();
  setBoardStatus("working","Checking connected freight…");
  syncOwnerAccess().then(()=>updateStackTray()).catch(()=>{});
@@ -1067,7 +1068,7 @@ function localSimPool(home){
  }
  return rows.map((r,i)=>({name:state+" LOCAL SIM "+(i+1),provider:"MileCount Local SIM",providerLoadId:"MC-"+state+"-"+today+"-"+(i+1),pickup:r[0],delivery:r[1],pay:r[2],loadedMiles:r[3],weight:r[4],space:r[5],pickupDate:today,pickupWindow:null,deliveryWindow:null,simSuggestedPickup:r[6],simSuggestedDelivery:r[7],equipment:"Box Truck",commodity:"Local palletized freight",isSandbox:true,isLocalSim:true,sandboxLabel:"LOCAL SIM • NOT BOOKABLE"}));
 }
-async function fetchDirectFreightLocal(home,strict=false){
+async function fetchDirectFreightLocal(home,strict=false,localState=null){
  home=String(home||syncTruckBrain("df-search").currentLocation||S.origin||"").trim();
  try{
   // Until a driver has connected a Direct Freight end-user account, do not let
@@ -1078,11 +1079,12 @@ async function fetchDirectFreightLocal(home,strict=false){
   S.directFreightConfigured=true;S.directFreightConnected=!!status.connected;
   if(!status.connected)return [];
   const cap=Math.max(1,Math.min(9999,Number(currentCapacity().maxWeight||9999)));
-  const first=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:0}),6000,null);
+  const query={origin:localState?window.MileCountTripOpportunities.place(home).city+", "+localState:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,...(localState?{local_state:localState}:{})};
+  const first=await withTimeout(window.MileCountDirectFreight.search({...query,page:0}),6000,null);
   if(!first)throw Error("Direct Freight search timed out");
   let loads=Array.isArray(first.loads)?first.loads:[];
   if(loads.length>=100){
-   const next=await withTimeout(window.MileCountDirectFreight.search({origin:home,radius:175,max_trip_miles:1000,max_weight:cap,limit:100,page:1}),2500,null).catch(()=>null);
+   const next=await withTimeout(window.MileCountDirectFreight.search({...query,page:1}),2500,null).catch(()=>null);
    if(next?.loads?.length)loads=dedupeNormalizedLoads([...loads,...next.loads]);
   }
   S.directFreightSubscriptionTier=first.subscriptionTier||status.connection?.subscription_tier||"unknown";
@@ -1127,94 +1129,80 @@ function resetLocalDaySelection(){
 }
 let localDayBuildSeq=0,stackSelectionRevision=0;
 async function buildLocalMoneyDay(){
+ if(el('localMoneyMode')?.disabled)return;
  clearTripOpportunityBrowse();
- tripBrowseGeneration++;
- const localBuild=++localDayBuildSeq;
- const btn=el("localMoneyMode"),status=el("localMoneyStatus");
- if(btn){btn.disabled=true;btn.textContent="BUILDING LOCAL DAY…"}
+ const browse=++tripBrowseGeneration,generation=++loadSearchGeneration,localBuild=++localDayBuildSeq;
+ const current=()=>localBuild===localDayBuildSeq&&generation===loadSearchGeneration&&browse===tripBrowseGeneration;
+ const btn=el('localMoneyMode'),panel=el('localDayResults'),retry=el('retryLocalDay');
+ const report=text=>{if(!current())return;for(const id of ['localMoneyStatus','localDayResultStatus'])if(el(id))el(id).textContent=text;};
+ if(btn){btn.disabled=true;btn.textContent='BUILDING LOCAL DAY…';}
+ if(retry)retry.disabled=true;
  try{
-   let typedHome=(el("from")?.value||"").trim();
-   if(!typedHome&&!S.manualTruckLocation&&!S.smartDispatchLocationEnabled&&navigator.geolocation){
-     await new Promise(resolve=>navigator.geolocation.getCurrentPosition(pos=>{
-       const lat=Number(pos.coords.latitude),lng=Number(pos.coords.longitude);
-       S.driverLocation={lat,lng,accuracy:Number(pos.coords.accuracy||0),updatedAt:Date.now()};
-       S.smartDispatchLocationEnabled=true;S.smartDispatchOrigin=lat.toFixed(5)+","+lng.toFixed(5);resolve();
-     },()=>resolve(),{enableHighAccuracy:false,timeout:2500,maximumAge:300000}));
-     typedHome=(el("from")?.value||"").trim();
-   }
-   if(!S.smartDispatchLocationEnabled&&!typedHome){if(status)status.textContent="Choose where the truck is first.";return}
-   const home=(S.smartDispatchLocationEnabled&&isRoutableLocation(S.smartDispatchOrigin)?S.smartDispatchOrigin:typedHome).trim();
-   const localState=window.MileCountTripOpportunities.place(typedHome||home).state;
-   if(!localState){if(status)status.textContent='Enter a city and state so Local Day can stay inside that state.';return;}
-   S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxLoads=5;
-   const homeLabel=(S.smartDispatchLocationEnabled&&S.smartDispatchOrigin===home)?"your truck location":home;
-   if(status)status.textContent="Finding local money around "+homeLabel+"…";
-
-   // Fetch every source concurrently. Do NOT let a slow provider block the first screen.
-   // Local Day must NEVER reuse the nationwide/current candidate board.
-   // Automatic dispatch only consumes fresh LIVE provider freight. Demo browsing stays separate.
-   const sourceJobs=[
-     fetchTrukTekLocal(home).catch(()=>[]),
-     fetchDirectFreightLocal(home).catch(()=>[])
-   ];
+   const typedHome=(el('from')?.value||'').trim();
+   const localState=window.MileCountTripOpportunities.place(typedHome).state;
+   // Never silently use a GPS coordinate with no known state or a previous trip's home.
+   if(!typedHome||!localState){report('Enter your starting city and state, such as Atlanta, GA.');el('localMoneyStatus')?.scrollIntoView?.({block:'center'});return;}
+   const home=typedHome;
+   await window.MileCountTruckBrain?.ready;
+   if(!current())return;
+   captureCapacityInputs();
    const staysInState=l=>window.MileCountTripOpportunities.place(l?.pickup).state===localState&&window.MileCountTripOpportunities.place(l?.delivery||l?.stop).state===localState;
-   const isLocalCandidate=l=>!isPlanningTestLoad(l)&&staysInState(l);
-   const quick=await Promise.all(sourceJobs.map(p=>Promise.race([p,new Promise(r=>setTimeout(()=>r([]),1200))])));
-   if(localBuild!==localDayBuildSeq)return;
-   let raw=dedupeNormalizedLoads(enforceWeightCap(quick.flat().filter(isLocalCandidate)));
-   // Always render a first screen immediately from source data; routing enrichment must never hide loads.
-   raw.sort((a,b)=>Number(b.pay||0)-Number(a.pay||0));
    const retained=resetLocalDaySelection();
+   panel?.classList.remove('hidden');
    if(retained.some(l=>!staysInState(l))){
-     invalidateStackProjection('Existing committed freight leaves '+localState+'.');updateStackTray();
-     if(status)status.textContent='An onboard or booked load is outside '+localState+'. It was kept; finish or resolve that commitment before building an in-state local day.';
-     return;
+     invalidateStackProjection('Existing committed freight leaves '+localState+'.');updateStackTray();showScreen(2);
+     report('A booked or onboard load leaves '+localState+'. It was kept. Finish that trip or review your stack before building a local day.');return;
    }
-   const first=raw.slice(0,5);
-   S.candidateLoads=first;S.allUnifiedLoads=[...first];
-   renderUnifiedLoadList(first);showScreen(2);
-   if(status)status.textContent=first.length?"Showing first "+first.length+" • checking more loads…":"Checking connected providers…";
-
-   // Show the first local loads immediately. Do NOT auto-select/stack until the
-   // local pool is established; this prevents nationwide sandbox lanes from being mixed in.
-   selectedStackKeys.clear();invalidateStackProjection('Building a LIVE local day…');updateStackTray();
-   const selectionRevision=stackSelectionRevision;
-
-   // Full provider results + route enrichment continue in background.
-   await Promise.all(sourceJobs).then(async all=>{
-     if(localBuild!==localDayBuildSeq)return;
-     let full=dedupeNormalizedLoads(enforceWeightCap(all.flat().filter(isLocalCandidate))).slice(0,40);
-     const enriched=await Promise.all(full.map(async l=>{
-       try{
-         const route=await withTimeout(getMileCountRoadRoute([home,l.pickup,l.delivery||l.pickup,home]),5000,null);
-         if(route&&Number.isFinite(route.miles)&&Number.isFinite(route.hours)){
-          l.localSoloMiles=route.miles;l.localSoloDriveMinutes=route.hours*60;
-          l.deadheadMiles=Number(route.legs?.[0]?.distance||0)/1609.344;
-          l.localAfterGas=Number(l.pay||0)-Number(fuelFor(route.miles).fuelCost||0);
-         }
-       }catch(e){}
-       return l; // route timeout never deletes the load
-     }));
-     if(localBuild!==localDayBuildSeq)return;
-     enriched.sort((a,b)=>Number(b.localAfterGas??b.pay??0)-Number(a.localAfterGas??a.pay??0));
-     // Refresh the board, but preserve any selections that still exist in the new local pool.
-     S.candidateLoads=enriched;S.allUnifiedLoads=[...enriched];renderUnifiedLoadList(enriched);updateStackTray();
-     // Once the complete LOCAL pool is visible, select the strongest plan candidates.
-     const localCandidates=enriched.filter(l=>Number(l.pay)>0&&Number.isFinite(l.localSoloDriveMinutes)&&l.localSoloDriveMinutes<=600&&l.localAfterGas>0);
-     if(stackSelectionRevision!==selectionRevision){if(status)status.textContent="LIVE results updated. Your load choices were preserved.";return;}
-     const retainedKeys=new Set(editableStackLoads().map(loadKey));
-     const slots=Math.max(0,Math.min(currentPlan().maxStack===Infinity?5:currentPlan().maxStack,5)-retainedKeys.size);
-     const picks=localCandidates.filter(l=>!retainedKeys.has(loadKey(l))).slice(0,slots);
-     selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
-     if(picks.length>=1||retainedKeys.size)await smartAutoStack({automatic:true});
-     const accepted=S.stackPlan?.valid?S.stackPlan.loads.length:0;
-     const sc={real:enriched.filter(x=>!x.isSandbox&&!x.isLocalSim).length,sandbox:enriched.filter(x=>x.isSandbox&&!x.isLocalSim).length,sim:enriched.filter(x=>x.isLocalSim).length};
-     S.localSourceCounts=sc;
-     if(status)status.textContent=enriched.length?(accepted?"LOCAL DAY • "+localState+" only • "+accepted+" loads checked together.":"No verified paid same-day match. Select available loads for a multi-day preview."):"No LIVE loads fit this truck with both stops in "+localState+" right now. Refresh later or view nearby outbound freight.";
-     if(!picks.length&&!retainedKeys.size&&el('stackPlanResult'))el('stackPlanResult').innerHTML=enriched.length?'<p>No paid same-day round trip could be verified. Available loads are below — select any to build a multi-day route preview.</p>':'<p>No LIVE loads fit this truck with pickup and delivery in '+escHtml(localState)+'. Refresh later or browse nearby outbound freight.</p>';
-   });
- }catch(e){console.warn("Local Money Mode",e);if(status)status.textContent="Could not finish the local-day build. Try again."}
- finally{if(btn){btn.disabled=false;btn.textContent="💰 BUILD MY LOCAL DAY"}}
+   S.home=home;S.origin=home;S.homeChosen=true;S.localMoneyMode=true;S.localMaxLoads=5;
+   S.liveOnlyBrowse=true;S.tripOpportunityLoads=null;
+   if(el('tripHomeChoice'))el('tripHomeChoice').value=home;
+   physicalBrain?.configure({homeLocation:home,commitments:retained,baseLoadId:S.basePlanLoad?loadKey(S.basePlanLoad):null});
+   S.candidateLoads=[];S.allUnifiedLoads=[];S.liveBoardLoads=[];
+   invalidateStackProjection('Finding an in-state round trip…');renderUnifiedLoadList([]);showScreen(2);
+   report('Finding loads with pickup and delivery in '+localState+'…');
+   const selectionRevision=stackSelectionRevision,failures=[];
+   const collect=async(name,request)=>{try{return await request();}catch(e){failures.push(name);return [];}};
+   const jobs=[collect('TrukTek',()=>fetchTrukTekLocal(home,true)),collect('Direct Freight',()=>fetchDirectFreightLocal(home,true,localState))];
+   const localPool=groups=>dedupeNormalizedLoads(enforceWeightCap(groups.flat().filter(l=>!isPlanningTestLoad(l)&&staysInState(l)))).sort((a,b)=>Number(b.pay||0)-Number(a.pay||0));
+   const display=loads=>{S.candidateLoads=loads;S.allUnifiedLoads=[...loads];S.liveBoardLoads=[...loads];renderUnifiedLoadList(loads);updateStackTray();};
+   const quick=await Promise.all(jobs.map(p=>withTimeout(p,1200,[])));
+   if(!current())return;
+   const first=localPool(quick);display(first);
+   report(first.length?'Found '+first.length+' in-state loads. Checking the remaining sources…':'Checking connected providers for '+localState+' loads…');
+   const all=await Promise.all(jobs);
+   if(!current())return;
+   const loads=localPool(all);display(loads);
+   S.localSourceCounts={real:loads.length,sandbox:0,sim:0};
+   const unavailable=failures.length?' '+failures.join(' and ')+' unavailable; retry to check again.':'';
+   if(stackSelectionRevision!==selectionRevision){report('Local results updated. Your load choices were kept.'+unavailable);return;}
+   if(!loads.length&&!retained.length){
+     const message=failures.length?'Could not find a local match in the sources that responded.'+unavailable:'No live loads with both stops in '+localState+' were returned for this truck. Try again later.';
+     report(message);if(el('stackPlanResult'))el('stackPlanResult').innerHTML='<p>'+escHtml(message)+'</p>';return;
+   }
+   // Rank provider opportunities once, then verify the complete pickup/drop/home
+   // plan. Forty independent five-second route gates used to discard every
+   // candidate when the routing service was merely slow.
+   const retainedKeys=new Set(retained.map(loadKey));
+   const slots=Math.max(0,Math.min(currentPlan().maxStack,5)-retainedKeys.size);
+   const picks=loads.filter(l=>Number(l.pay)>0&&!retainedKeys.has(loadKey(l))).slice(0,slots);
+   selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
+   if(!picks.length&&!retained.length){
+     const message='Local loads found, but no rates were supplied. Open a load for details or add it to your stack to compare a route.';
+     report(message+unavailable);if(el('stackPlanResult'))el('stackPlanResult').innerHTML='<p>'+message+'</p>';return;
+   }
+   report('Checking '+(picks.length+retained.length)+' loads together, including the drive back to '+home+'…');
+   await smartAutoStack({automatic:true,deadline:Date.now()+30000,isCurrent:()=>current()&&stackSelectionRevision===selectionRevision});
+   if(!current())return;
+   if(stackSelectionRevision!==selectionRevision){report('Your load choices were kept. Review your stack to continue.');return;}
+   if(S.stackPlan?.valid){
+     report('Local day ready: '+S.stackPlan.loads.length+' loads in '+localState+', returning to '+home+'.'+unavailable);
+     await finishAutoStack();
+   }else report('Local loads found, but a same-day route could not be completed. Your results are below; review your stack or try again.'+unavailable);
+ }catch(e){
+   if(current()){console.warn('Local Day',e);report('Could not finish your local day. Your available loads are kept. Try local day again.');}
+ }finally{
+   if(btn){btn.disabled=false;btn.textContent='💰 BUILD MY LOCAL DAY';}if(retry)retry.disabled=false;
+ }
 }
 
 async function browseStateLoads(state){
@@ -1259,6 +1247,7 @@ async function browseStateLoads(state){
  }catch(e){console.warn("State load browser",e);if(status)status.textContent="Could not load this state. Try again."}
 }
 bind("localMoneyMode",buildLocalMoneyDay);
+bind("retryLocalDay",buildLocalMoneyDay);
 el("stateLoadBrowser")?.addEventListener("change",e=>browseStateLoads(e.target.value));
 bind("browseLiveLoads",()=>browseLiveLoadBoard(false));
 bind("refreshLiveMap",async()=>{await browseLiveLoadBoard(true);await Promise.all([refreshLiveLoadCount(),refreshUnifiedFreightBoard(true)])});
@@ -1715,6 +1704,15 @@ function invalidateStackProjection(message='Selection changed — rebuild the ro
 
 let mcTripBuildSeq=0,mcActiveStackBuildId=0;
 async function smartAutoStack(options={}){
+ // Local Day has one deadline across matrix, solver, verification and retries.
+ const bounded=promise=>{
+  if(!options.deadline)return promise;
+  const expired={};return withTimeout(promise,Math.max(0,options.deadline-Date.now()),expired).then(result=>{
+   if(result===expired)throw Error('The route service took too long. Your selected loads are saved. Try local day again.');
+   return result;
+  });
+ };
+ const solve=(...args)=>bounded(runDispatchSolver(...args));
  if(el('stackPlanResult'))el('stackPlanResult').dataset.phase='review';
  const previousPlan=S.stackPlan;
  const buildId=++mcTripBuildSeq;
@@ -1732,24 +1730,25 @@ async function smartAutoStack(options={}){
  setButtonBusy("smartAutoStack",true,"BUILDING TRIP…","SMART AUTOSTACK");
  try{
    const missing=[...selectedKeys].filter(k=>!selectionPool.some(l=>loadKey(l)===k));if(missing.length)throw Error("A selected load is no longer in the provider results. Re-select it or remove it before building.");
-   await window.MileCountTruckBrain?.ready;
+   await bounded(window.MileCountTruckBrain?.ready);
+   if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
    const brain=syncTruckBrain("autostack-start"),startLoc=brain.currentLocation;
    const allLoads=window.MileCountPickupDelivery.unique([...(base?[base]:[]),...chosen,...brain.onboardLoads]);
    const dispatchProblem=buildPickupDeliveryProblem(brain,allLoads,base);
    dispatchProblem.planningPreview=allLoads.some(l=>!Number.isFinite(Number(l.weight))||Number(l.weight)<=0||!Number.isFinite(Number(l.space))||Number(l.space)<=0);
-   const roadData=await getMileCountRoadMatrix(dispatchProblem.locations);
-   if(buildId!==mcTripBuildSeq)return;
+   const roadData=await bounded(getMileCountRoadMatrix(dispatchProblem.locations));
+   if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
    dispatchProblem.matrix=roadData.matrix;
-   let optimized=await runDispatchSolver(allLoads.length?'optimize':'solve',dispatchProblem);
+   let optimized=await solve(allLoads.length?'optimize':'solve',dispatchProblem);
    if(!options.automatic&&!optimized.ok&&optimized.issues?.some(issue=>issue.includes('No sequence meets')||issue.includes('appointment bounds'))){
     // Keep the geographic route useful without claiming an impossible one-day schedule.
     const previewProblem={...dispatchProblem,planningPreview:true,previewTiming:true,maxDriveMinutes:null,hos:null,homeDeadlineMinutes:null};
-    const preview=await runDispatchSolver(allLoads.length?'optimize':'solve',previewProblem);
-    if(buildId!==mcTripBuildSeq)return;
+    const preview=await solve(allLoads.length?'optimize':'solve',previewProblem);
+    if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
     if(preview.ok){Object.assign(dispatchProblem,previewProblem);optimized=preview;}
    }
    if(!optimized.ok){
-    const repair=await runDispatchSolver('recommend',dispatchProblem);if(buildId!==mcTripBuildSeq)return;
+    const repair=await solve('recommend',dispatchProblem);if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
     if(options.automatic&&repair?.removedLoads?.length&&repair.plan.loads.length){
      dropPlannedStackLoads(repair.removedLoads.map(loadKey));
      invalidateStackProjection('AutoStack is checking a better combination…');updateStackTray();
@@ -1769,7 +1768,7 @@ async function smartAutoStack(options={}){
     }
     S.stackPlan=null;el("doneStack")?.classList.add("hidden");return;
    }
-   const weak=dispatchProblem.planningPreview?null:await runDispatchSolver('economicReview',dispatchProblem,optimized);if(buildId!==mcTripBuildSeq)return;
+   const weak=dispatchProblem.planningPreview?null:await solve('economicReview',dispatchProblem,optimized);if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
    if(weak){
     if(options.automatic){
      dropPlannedStackLoads([loadKey(weak.removed)]);invalidateStackProjection('AutoStack is improving the trip…');updateStackTray();
@@ -1777,8 +1776,8 @@ async function smartAutoStack(options={}){
     }
     const box=el('stackPlanResult');if(box){box.innerHTML='<div class="stackPlanStatus bad">LOW-VALUE LOAD NEEDS REVIEW</div><p class="stackWarn">'+escHtml(weak.reason)+'</p><p>Recalculated alternative: '+Math.round(weak.plan.miles)+' road miles • '+money(weak.plan.afterGas)+' estimated after gas.</p><button id="removeWeakRouteLoad" type="button">REMOVE WEAK LOAD + REBUILD</button>';el('removeWeakRouteLoad')?.addEventListener('click',()=>removeStackLoads([loadKey(weak.removed)]));box.scrollIntoView({behavior:'smooth',block:'center'});}return;
    }
-   const finalized=await verifyDispatchRoute(dispatchProblem,optimized);
-   if(buildId!==mcTripBuildSeq)return;
+   const finalized=await bounded(verifyDispatchRoute(dispatchProblem,optimized));
+   if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
    optimized=finalized.result;
    const route=finalized.route,routeVerified=true,routeStops=[...optimized.routeStops];
    optimized.detourMiles=0;if(brain.guardrails.maxDetour!=null){const baseline=window.MileCountPickupDelivery.solve({...dispatchProblem,loads:dispatchProblem.loads.filter(l=>l.initialOnboard||l.id===dispatchProblem.baseLoadId)});if(!baseline.ok)throw Error('Cannot calculate detour against the base/onboard plan');optimized.detourMiles=Math.max(0,optimized.miles-baseline.miles);}
@@ -1849,7 +1848,7 @@ async function smartAutoStack(options={}){
      el("stackPlanResult").scrollIntoView({behavior:"smooth",block:"center"});
    }
  }catch(e){
-   if(buildId!==mcTripBuildSeq)return;
+   if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
    console.error("Smart AutoStack failed",e);
    const unchanged=previousPlan?.valid&&previousPlan.problem?.truck.version===(physicalBrain?.get().version||0);S.stackPlan=unchanged?previousPlan:null;if(!unchanged)el('doneStack')?.classList.add('hidden');
    const box=el("stackPlanResult");
@@ -2143,6 +2142,7 @@ async function refreshUnifiedFreightBoard(forceSandbox=false,generation=loadSear
  S.candidateLoads=filtered;
  const profile=updateCostUI();
  if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(filtered,{breakEven:profile.breakEven,target:profile.target,origin:S.origin,destination:S.destination});
+ if(generation!==loadSearchGeneration)return;
  renderUnifiedLoadList(filtered);
  const showing=el("providerFilterShowing");
  if(showing)showing.textContent="Showing "+filtered.length+" of "+all.length+" freight opportunities";

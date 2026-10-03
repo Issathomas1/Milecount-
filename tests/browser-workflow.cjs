@@ -125,6 +125,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    assert.deepEqual(errors,[]);console.log('PASS browser mixed-mode error → remove TEST/SIM → finalized route → individual removal → LIVE-only Local Day');
   }
   if(f===fixtures.cases[0]){
+   await page.locator('[data-step="2"]').click();
    await page.locator('#clearStack').click();
    await page.locator('#truckBrainPanel > summary').click();
    for(const key of ['emptyWeightLb','heightFt','widthFt','vehicleLengthFt','axleCount','axleWeightLb','trailerCount'])await page.locator('#commercialTruckForm [name='+key+']').fill('');

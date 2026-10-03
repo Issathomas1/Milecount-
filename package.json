@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "test": "node tests/run.cjs",
-    "test:browser": "node tests/browser-workflow.cjs && node tests/browser-search.cjs && node tests/browser-direct-freight.cjs"
+    "test:browser": "node tests/browser-workflow.cjs && node tests/browser-search.cjs && node tests/browser-direct-freight.cjs && node tests/browser-local-day.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

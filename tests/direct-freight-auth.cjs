@@ -38,6 +38,13 @@ function harness(){
  assert.equal((await h.request({action:'search',origin:'Atlanta, GA'},'session-B')).status,401);
  await h.request({action:'search',origin:'Atlanta, GA'});assert.equal(h.calls.at(-1).headers['end-user-token'],'fixture-user-'+login.email);
  assert.equal(h.calls.at(-1).headers['api-token'],'fixture-partner');
+ assert.equal(h.calls.at(-1).body.destination_state,undefined,'Normal outbound discovery stays unrestricted');
+ await h.request({action:'search',origin:'Atlanta, GA',local_state:'GA',page:0});
+ assert.deepEqual(h.calls.at(-1).body.origin_state,['GA']);assert.deepEqual(h.calls.at(-1).body.destination_state,['GA']);
+ await h.request({action:'search',origin:'Atlanta, GA',local_state:'GA',page:1});
+ assert.deepEqual(h.calls.at(-1).body.destination_state,['GA']);assert.equal(h.calls.at(-1).body.page_number,1);
+ assert.equal((await h.request({action:'search',origin:'Atlanta, GA',local_state:'FL'})).status,400);
+ assert.equal((await h.request({action:'search',origin:'33.7,-84.3',local_state:'GA'})).status,400);
  await h.request({...login,email:'second@example.invalid'},'session-B');
  await h.request({action:'disconnect'});assert(!h.connections.has('A'));assert(h.connections.has('B'));
  const bad=harness();bad.setProvider({error:'Invalid credentials'},422);assert.equal((await bad.request(login)).status,400);assert.equal(bad.connections.size,0);
