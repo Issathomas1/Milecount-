@@ -106,6 +106,29 @@ async function mileCountFetchTimed(url,options={},ms=8000){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),ms);
  try{const response=await fetch(url,{...options,signal:controller.signal});const data=await response.json();return {response,data}}finally{clearTimeout(timer)}
 }
+async function mileCountCloudRoadFallback(payload){
+ if(typeof window==="undefined"||!window.MileCountCloud?.roadFallback)return null;
+ try{
+  const result=await window.MileCountCloud.roadFallback(payload);
+  return result?.ok===false?null:result;
+ }catch(e){
+  console.warn("MileCount road fallback unavailable",e?.message||e);
+  return null;
+ }
+}
+async function mileCountFetchWithFallback(url,payload,ms=8000){
+ let direct=null,directError=null;
+ try{
+  direct=await mileCountFetchTimed(url,{},ms);
+  if(direct.response?.ok)return {...direct,via:"direct"};
+  directError=new Error("Road service returned "+(direct.response?.status||"an error"));
+ }catch(e){directError=e}
+ const cloud=await mileCountCloudRoadFallback(payload);
+ if(cloud?.data)return {response:{ok:true,status:200},data:cloud.data,via:"cloud"};
+ if(direct)return direct;
+ const reason=directError?.name==="AbortError"?"Road service timed out":(directError?.message||"Road service unavailable");
+ throw new Error(reason+". Your selected loads are preserved.");
+}
 function resolveMileCountLocation(value){
  const key=String(value||"").trim();
  if(mileCountGeoPending.has(key))return mileCountGeoPending.get(key);
@@ -120,13 +143,11 @@ async function resolveMileCountLocationNow(value){
  if(MileCountLocations[q]){const x={lon:MileCountLocations[q][0],lat:MileCountLocations[q][1],label:q,source:"MileCount verified city table"};mileCountGeoCache.set(q,x);return x}
  let query=q;
  if(/^\d{5}$/.test(q)){const {response:z,data:j}=await mileCountFetchTimed("https://api.zippopotam.us/us/"+q,{},2200);if(z.ok){const p=j.places?.[0];if(p)query=(p["place name"]||"")+", "+(p["state abbreviation"]||"")+" "+q}}
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2200);
- try{
-  const r=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q="+encodeURIComponent(query),{headers:{"Accept":"application/json"},signal:controller.signal});
-  if(!r.ok)throw new Error("Geocoder "+r.status);
-  const j=await r.json(),p=j?.[0];if(!p)throw new Error("Location not found: "+q);
-  const x={lon:Number(p.lon),lat:Number(p.lat),label:p.display_name||q,source:"OpenStreetMap Nominatim"};mileCountGeoCache.set(q,x);return x
- }finally{clearTimeout(timer)}
+ const geoUrl="https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q="+encodeURIComponent(query);
+ const {response:r,data:j,via}=await mileCountFetchWithFallback(geoUrl,{kind:"geocode",query:q},6500);
+ if(!r.ok)throw new Error("Geocoder "+r.status);
+ const p=j?.[0];if(!p)throw new Error("Location not found: "+q);
+ const x={lon:Number(p.lon),lat:Number(p.lat),label:p.display_name||q,source:via==="cloud"?"OpenStreetMap Nominatim via MileCount Cloud fallback":"OpenStreetMap Nominatim"};mileCountGeoCache.set(q,x);return x
 }
 async function buildResolvedCoordinates(stops){
  const points=await Promise.all(stops.map(resolveMileCountLocation));
@@ -297,7 +318,7 @@ async function fetchMileCountRoadRoute(
     "&steps=true";
 
 
-  const {response,data}=await mileCountFetchTimed(url);
+  const {response,data,via}=await mileCountFetchWithFallback(url,{kind:"route",points:resolved.points},12000);
 
 
   if (!response.ok) {
@@ -371,7 +392,7 @@ async function fetchMileCountRoadRoute(
       route.legs,
 
     source:
-      "OSRM road route / OpenStreetMap geography",
+      via==="cloud"?"OSRM road route via MileCount Cloud fallback / OpenStreetMap geography":"OSRM road route / OpenStreetMap geography",
 
     resolvedLocations: resolved.points
 
@@ -656,9 +677,9 @@ async function mileCountRoutingTest() {
 // sequential nearest-leg requests. Null/unreachable cells stay unreachable.
 async function getMileCountGeneralRoadMatrix(stops){
  const resolved=await buildResolvedCoordinates(stops);
- const {response,data}=await mileCountFetchTimed('https://router.project-osrm.org/table/v1/driving/'+resolved.coordinateString+'?annotations=distance,duration',{},15000);
+ const {response,data,via}=await mileCountFetchWithFallback('https://router.project-osrm.org/table/v1/driving/'+resolved.coordinateString+'?annotations=distance,duration',{kind:'matrix',points:resolved.points},18000);
  if(!response.ok||data.code!=='Ok'||!data.distances||!data.durations)throw Error('Complete road matrix unavailable. Selected loads are preserved.');
- return {matrix:data.distances.map((row,i)=>row.map((meters,j)=>meters==null||data.durations[i][j]==null?null:{miles:meters/1609.344,minutes:data.durations[i][j]/60})),points:resolved.points,source:'OSRM directed road matrix'};
+ return {matrix:data.distances.map((row,i)=>row.map((meters,j)=>meters==null||data.durations[i][j]==null?null:{miles:meters/1609.344,minutes:data.durations[i][j]/60})),points:resolved.points,source:via==='cloud'?'OSRM directed road matrix via MileCount Cloud fallback':'OSRM directed road matrix'};
 }
 
 // All planning and map callers use this boundary; general estimates remain labeled.
