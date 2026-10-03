@@ -568,7 +568,7 @@ class="screen active"
 <button id="find" class="simpleSearchBtn">FIND LOADS</button>
 <button id="localMoneyMode" type="button" class="simpleSearchBtn" style="background:#0d2118;border:1px solid #2d6b4d;margin-top:8px">💰 BUILD MY LOCAL DAY</button>
 <details class="simpleDetails"><summary>Driver day schedule</summary><div class="simpleDetailsBody"><div class="filterGrid"><label>START TIME<input id="dayStartTime" type="time" value="06:00"></label><label>DISPATCH TIMEZONE<select id="dispatchTimeZone"><option value="America/New_York">Eastern</option><option value="America/Chicago">Central</option><option value="America/Denver">Mountain</option><option value="America/Los_Angeles">Pacific</option></select></label><label>DRIVING LIMITS<select id="dispatchHos"><option value="unconfigured">Confirm applicability with carrier</option><option value="us-property">US property-carrying single shift</option></select></label><label>DRIVE MIN ALREADY USED<input id="hosDriveUsed" type="number" min="0" value="0"></label><label>MIN SINCE SHIFT START<input id="hosDutyUsed" type="number" min="0" value="0"></label><label>DRIVE MIN SINCE LAST BREAK<input id="hosSinceBreak" type="number" min="0" value="0"></label><label>WEEKLY CYCLE MIN REMAINING<input id="hosCycleRemaining" type="number" min="0" placeholder="Required when using driving limits"></label><label>PICKUP SERVICE MIN<input id="pickupServiceMin" type="number" min="0" value="20"></label><label>DROP SERVICE MIN<input id="dropServiceMin" type="number" min="0" value="20"></label></div><p class="details">Supplied broker appointments require dates and timezones. SIM times stay flexible. Configure driving limits when applicable; confirm your duty status with the carrier. Local Day keeps a 10-hour driving target. Road routes currently use general driving geography; verify truck restrictions before dispatch.</p></div></details>
-<div id="localMoneyStatus" class="details">Builds the strongest feasible local day and routes you home.</div>
+<div id="localMoneyStatus" class="details" role="status">Builds the strongest feasible local day and routes you home.</div>
 
 
 
@@ -734,6 +734,8 @@ MILECOUNT AUTOSTACK
 <h2>
 Load results.
 </h2>
+
+<section id="localDayResults" class="tripStateNow hidden" aria-label="Local day progress"><b>YOUR LOCAL DAY</b><p id="localDayResultStatus" role="status" aria-live="polite"></p><button id="retryLocalDay" type="button">Try local day again</button></section>
 
 <button id="dfManage" type="button" style="background:#15271f;font-size:14px;padding:12px">Direct Freight · Connect account</button>
 
