@@ -37,7 +37,7 @@ async function init(){
  let session;try{session=await Promise.race([MileCountCloud.session(),new Promise(resolve=>setTimeout(()=>resolve(null),10000))]);}catch(e){}
  if(!session?.user?.id){$('gateStatus').textContent='Sign in with your existing MileCount account to save and compare your offers.';return;}
  userId=session.user.id;key='milecount:car:v1:'+userId;try{const stored=JSON.parse(localStorage.getItem(key)||'null');draft=stored?.version===1&&Array.isArray(stored.jobs)&&stored.settings?stored:fresh();draft.demo=false;}catch(e){draft=fresh();}
- $('gate').hidden=true;$('workspace').hidden=false;render();
+ $('gate').hidden=true;$('workspace').hidden=false;render();window.MileCountConnections?.init(userId);
  $('settings').addEventListener('submit',e=>e.preventDefault());$('settings').addEventListener('input',()=>{draft.settings=formData($('settings'));invalidate();save();});
  $('offerForm').addEventListener('input',()=>{draft.offerDraft={...formData($('offerForm')),id:editing,canStack:$('offerForm').elements.canStack.checked,committed:$('offerForm').elements.committed.checked};save();});
  $('offerForm').addEventListener('submit',e=>{e.preventDefault();if(!editing&&draft.jobs.length>=5){status('Compare up to five offers. Remove one before adding another.');return;}
