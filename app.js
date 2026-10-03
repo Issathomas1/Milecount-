@@ -1187,7 +1187,7 @@ async function buildLocalMoneyDay(){
    const picks=loads.filter(l=>Number(l.pay)>0&&!retainedKeys.has(loadKey(l))&&window.MileCountEquipment?.check(l,el("vehicleType")?.value).status!=="incompatible").slice(0,slots);
    selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
    if(!picks.length&&!retained.length){
-     const message='Local loads found, but none has both a supplied rate and suitable equipment for automatic planning. Review the equipment and missing details with the provider.';
+     const message=loads.some(l=>Number(l.pay)>0)?'Local loads found, but their listed equipment is incompatible with this vehicle. Review the requirements with the provider.':'Local loads found, but no rates were supplied. Open a load for details or add it to your stack to compare a route.';
      report(message+unavailable);if(el('stackPlanResult'))el('stackPlanResult').innerHTML='<p>'+message+'</p>';return;
    }
    report('Checking '+(picks.length+retained.length)+' loads together, including the drive back to '+home+'…');
