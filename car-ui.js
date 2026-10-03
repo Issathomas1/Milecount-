@@ -2,7 +2,7 @@
 'use strict';
 const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n),escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const localTime=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
-let userId,key,draft,manual,revision=0,worker,editing=null,busy=false;
+let userId,key,draft,manual,revision=0,worker,editing=null,busy=false,importer;
 const fresh=()=>({version:1,demo:false,settings:{departure:localTime(),hours:'4'},jobs:[],offerDraft:{}});
 function status(text){$('status').textContent=text;}
 function formData(form){return Object.fromEntries([...new FormData(form)]);}
@@ -12,7 +12,7 @@ function invalidate(message){revision++;worker?.terminate();worker=null;busy=fal
 function render(){
  writeForm($('settings'),draft.settings);writeForm($('offerForm'),draft.offerDraft);editing=draft.jobs.some(j=>j.id===draft.offerDraft?.id)?draft.offerDraft.id:null;for(const form of [$('settings'),$('offerForm')])form.querySelectorAll('input,button').forEach(el=>el.disabled=!!draft.demo);$('addOffer').hidden=!!draft.demo;if(editing)$('addOffer').open=true;$('count').textContent=draft.jobs.length;
  $('modeNotice').classList.toggle('demo',!!draft.demo);$('modeNotice').textContent=draft.demo?'DEMO · Sample pay, miles and times. These packages are not real or bookable.':'Driver-entered offers · Live package feeds are not connected yet.';
- $('demo').hidden=!!draft.demo;$('manual').hidden=!draft.demo;
+ $('demo').hidden=!!draft.demo;$('manual').hidden=!draft.demo;$('screenshotImport').hidden=!!draft.demo;
  $('jobList').innerHTML=draft.jobs.length?draft.jobs.map(j=>'<article class="job"><strong>'+escape(j.name||'Package offer')+'</strong><span>'+escape(j.pickup)+' → '+escape(j.delivery)+'</span><div class="muted">'+(j.committed?'Already accepted · ':'')+(j.canStack?'Stacking allowed by you':'Compare on its own')+' · '+(draft.demo?'DEMO':'Driver entered')+'</div><div class="actions"><b>'+money(Number(j.pay)||0)+'</b><div><button type="button" '+(draft.demo?'disabled ':'')+'data-edit="'+escape(j.id)+'">Edit</button> <button type="button" data-remove="'+escape(j.id)+'">Remove</button></div></div></article>').join(''):'<p class="muted">No offers yet. Add an offer awaiting pickup, or try a sample day.</p>';
  save();
 }
@@ -38,6 +38,11 @@ async function init(){
  if(!session?.user?.id){$('gateStatus').textContent='Sign in with your existing MileCount account to save and compare your offers.';return;}
  userId=session.user.id;key='milecount:car:v1:'+userId;try{const stored=JSON.parse(localStorage.getItem(key)||'null');draft=stored?.version===1&&Array.isArray(stored.jobs)&&stored.settings?stored:fresh();draft.demo=false;}catch(e){draft=fresh();}
  $('gate').hidden=true;$('workspace').hidden=false;render();window.MileCountConnections?.init(userId);
+ importer=MileCountOfferImport.init({userId,isDemo:()=>draft.demo,onUse:fields=>{
+ if(draft.jobs.length>=5){document.getElementById('importStatus').textContent='Remove an offer first. You can compare up to five.';return false;}
+ if(Object.values(draft.offerDraft||{}).some(Boolean)&&!confirm('Replace the offer currently being edited with these screenshot details? Your saved offers remain.'))return false;
+ editing=null;draft.offerDraft={...fields,canStack:false,committed:false};invalidate('Screenshot details need review before saving.');render();$('addOffer').open=true;$('addOffer').scrollIntoView({block:'start'});return true;
+ }});
  $('settings').addEventListener('submit',e=>e.preventDefault());$('settings').addEventListener('input',()=>{draft.settings=formData($('settings'));invalidate();save();});
  $('offerForm').addEventListener('input',()=>{draft.offerDraft={...formData($('offerForm')),id:editing,canStack:$('offerForm').elements.canStack.checked,committed:$('offerForm').elements.committed.checked};save();});
  $('offerForm').addEventListener('submit',e=>{e.preventDefault();if(!editing&&draft.jobs.length>=5){status('Compare up to five offers. Remove one before adding another.');return;}
@@ -45,7 +50,7 @@ async function init(){
  if(editing)draft.jobs=draft.jobs.map(x=>x.id===editing?j:x);else draft.jobs.push(j);editing=null;draft.offerDraft={};invalidate('Offer saved. Ready to compare your day.');render();$('addOffer').open=false;
  });
  $('jobList').addEventListener('click',e=>{const edit=e.target.closest('[data-edit]'),remove=e.target.closest('[data-remove]');if(edit){editing=edit.dataset.edit;draft.offerDraft={...draft.jobs.find(j=>j.id===editing)};save();writeForm($('offerForm'),draft.offerDraft);$('addOffer').open=true;$('addOffer').scrollIntoView();}if(remove){draft.jobs=draft.jobs.filter(j=>j.id!==remove.dataset.remove);if(editing===remove.dataset.remove){editing=null;draft.offerDraft={};}invalidate('Removed from this plan. This does not cancel a provider booking.');render();}});
- $('demo').onclick=()=>{manual=draft;draft=demoDraft();editing=null;invalidate();render();build();};$('manual').onclick=()=>{draft=manual||fresh();editing=null;invalidate('Your own saved offers are restored.');render();};$('build').onclick=build;
+ $('demo').onclick=()=>{importer?.clear();manual=draft;draft=demoDraft();editing=null;invalidate();render();build();};$('manual').onclick=()=>{draft=manual||fresh();editing=null;invalidate('Your own saved offers are restored.');render();};$('build').onclick=build;
  addEventListener('storage',e=>{if(e.key==='milecount_supabase_session'){location.reload();}else if(e.key===key){invalidate('This plan changed in another tab. Reload to use the latest saved offers.');$('build').disabled=true;$('workspace').querySelectorAll('input,button').forEach(el=>el.disabled=true);}});
 }
 init();
