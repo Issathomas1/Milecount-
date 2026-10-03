@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MileCount · Cars & packages</title><link rel="stylesheet" href="car.css"></head>
+<body><header><a href="./" class="brand">MileCount<span>.</span></a><a href="./">Truck mode</a></header>
+<main><section id="gate" class="card"><h1>Cars. Packages.<br>Smarter days.</h1><p id="gateStatus" role="status">Checking your MileCount account…</p><a class="button" href="./">Sign in to MileCount</a><p>Then return here. Your existing MileCount account works in both modes.</p></section>
+<div id="workspace" hidden>
+<div class="intro"><span class="eyebrow">CAR & SMALL PACKAGE PILOT</span><h1>Make your next<br>mile pay.</h1><p>Compare offers. Stack what fits. Finish near home.</p></div>
+<nav aria-label="Car planner sections"><a href="#day">My day</a><a href="#offers">Offers <span id="count">0</span></a><a href="#results">My route</a></nav>
+<div id="modeNotice" class="notice">Driver-entered offers · Live package feeds are not connected yet.</div>
+<div class="actions"><button type="button" id="demo">Try a sample day</button><button type="button" id="manual" hidden>Back to my offers</button></div>
+<section class="card" id="day"><h2>1. Where are we going?</h2><form id="settings" novalidate><div class="grid">
+<label>Start address, city, state<input name="start" placeholder="Street address, Atlanta, GA" autocomplete="off"></label>
+<label>Finish address, city, state<input name="home" placeholder="Same as start if blank" autocomplete="off"></label>
+<label>Leave at<input name="departure" type="datetime-local"></label><label>Hours available<input name="hours" type="number" min="0.25" max="16" step="0.25" value="4"></label>
+</div><details><summary>My car & earnings goal</summary><p class="muted">Editable planning assumptions. Blank fields still save. Verify your car's available capacity and package fit before accepting work.</p><div class="grid">
+<label>Car name<input name="vehicle" placeholder="My car"></label><label>MPG<input name="mpg" type="number" min="1" step="0.1" placeholder="Estimate: 25"></label>
+<label>Gas price ($/gal)<input name="gas" type="number" min="0" step="0.01" placeholder="Estimate: 3.50"></label><label>Wear & maintenance ($/mi)<input name="wear" type="number" min="0" step="0.01" placeholder="Estimate: 0.20"></label>
+<label>Available payload (lb)<input name="payload" type="number" min="1" placeholder="Assumption: 200"></label><label>Available cargo volume (cu ft)<input name="volume" type="number" min="0.1" step="0.1" placeholder="Assumption: 8"></label>
+<label>Goal after vehicle costs ($/hr)<input name="target" type="number" min="0" step="1" placeholder="Goal: 20"></label><label>Trip parking & tolls ($)<input name="overhead" type="number" min="0" step="0.01" placeholder="0 — enter expected costs"></label>
+</div></details></form><small id="saveStatus" role="status">Saved on this device for your account.</small></section>
+<section class="card" id="offers"><h2>2. Add your offers</h2><p>Up to 5 packages. Enter driver pay, not the customer's delivery charge.</p><div id="jobList"></div>
+<details id="addOffer"><summary>+ Add a package offer</summary><form id="offerForm"><div class="grid">
+<label>Package / source<input name="name" maxlength="100" placeholder="Auto parts offer"></label><label>Driver pay ($)<input name="pay" type="number" min="0" step="0.01" required></label>
+<label>Pickup address, city, state<input name="pickup" required maxlength="240"></label><label>Delivery address, city, state<input name="delivery" required maxlength="240"></label>
+</div><details><summary>Timing, size & stacking</summary><div class="grid">
+<label>Pickup by (optional)<input name="pickupBy" type="datetime-local"></label><label>Deliver by (optional)<input name="deliverBy" type="datetime-local"></label>
+<label>Weight (lb, if known)<input name="weight" type="number" min="0" step="0.1"></label><label>Volume (cu ft, if known)<input name="volume" type="number" min="0" step="0.1"></label>
+<label>Wait + service per stop (min)<input name="service" type="number" min="0" value="5"></label><label>Other fees for this offer ($)<input name="fee" type="number" min="0" step="0.01" value="0"></label>
+</div><label class="check"><input name="canStack" type="checkbox">The provider allows combining this offer with other deliveries.</label><label class="check"><input name="committed" type="checkbox">I already accepted this offer. Keep it in my plan.</label></details>
+<button type="submit" class="primary">Save offer</button></form></details>
+</section>
+<section class="card" id="results" tabindex="-1"><h2>3. Your best next move</h2><p id="status" role="status" aria-live="polite">Add your offers, then compare the complete trip home.</p><div id="plan"></div></section>
+<details class="card"><summary>Delivery connections</summary><p>No live package feed is active in this pilot. Enter offers you have permission to use. Partner access, job acceptance and any provider-required driver app remain subject to each company's approval.</p><ul><li><a href="https://onfleet.com/partnerships" target="_blank" rel="noopener">Onfleet partnership program</a></li><li><a href="https://www.dispatchit.com/drivers" target="_blank" rel="noopener">Dispatch drivers</a></li><li><a href="https://www.frayt.com/" target="_blank" rel="noopener">FRAYT</a></li><li><a href="https://www.curri.com/" target="_blank" rel="noopener">Curri</a></li></ul></details>
+<p class="muted footer">MileCount by Edit All Futures LLC · Planning estimates, before tax. Route previews are not live navigation or booking confirmations. <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p>
+<div class="dock"><button id="build" class="primary" type="button">Find my best day →</button><a href="#day" aria-label="Back to top">↑ Top</a></div>
+</div></main><script src="cloud.js"></script><script src="routing.js"></script><script src="pickup-delivery.js"></script><script src="car-planner.js"></script><script src="car-ui.js"></script></body></html>
