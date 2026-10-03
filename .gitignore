@@ -4,3 +4,7 @@ test-results/
 .env
 .env.*
 !.env.example
+ios/**/.build/
+ios/**/Generated/
+ios/**/*.xcodeproj/
+ios/**/.swiftpm/

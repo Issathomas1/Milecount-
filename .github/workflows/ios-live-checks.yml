@@ -1,0 +1,24 @@
+name: iPhone live-mode prototype
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios-live-checks.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios-live-checks.yml']
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ios/MileCountLive
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: swift test
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - run: xcodebuild -project MileCountLive.xcodeproj -scheme MileCountLive -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/milecount-ios-build CODE_SIGNING_ALLOWED=NO build

@@ -1,0 +1,61 @@
+name: MileCountLive
+options:
+  deploymentTarget:
+    iOS: '16.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1'
+    MARKETING_VERSION: '0.1.0'
+    CURRENT_PROJECT_VERSION: '1'
+    MILECOUNT_APP_GROUP: group.com.editallfutures.milecount.live
+    CODE_SIGN_STYLE: Automatic
+targets:
+  MileCountLive:
+    type: application
+    platform: iOS
+    sources: [App, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.editallfutures.milecount.live
+    info:
+      path: Generated/App-Info.plist
+      properties:
+        CFBundleDisplayName: MileCount Live Test
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        MileCountAppGroup: $(MILECOUNT_APP_GROUP)
+    entitlements:
+      path: Generated/App.entitlements
+      properties:
+        com.apple.security.application-groups: [$(MILECOUNT_APP_GROUP)]
+    dependencies:
+      - target: MileCountBroadcast
+        embed: true
+  MileCountBroadcast:
+    type: app-extension
+    platform: iOS
+    sources: [Broadcast, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.editallfutures.milecount.live.broadcast
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+    info:
+      path: Generated/Broadcast-Info.plist
+      properties:
+        CFBundleDisplayName: MileCount Sample Reader
+        MileCountAppGroup: $(MILECOUNT_APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SampleHandler
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+    entitlements:
+      path: Generated/Broadcast.entitlements
+      properties:
+        com.apple.security.application-groups: [$(MILECOUNT_APP_GROUP)]
+schemes:
+  MileCountLive:
+    build:
+      targets:
+        MileCountLive: all
