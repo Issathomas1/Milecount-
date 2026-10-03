@@ -9,8 +9,8 @@ const USER='11111111-1111-4111-8111-111111111111',ARGYLE='22222222-2222-4222-822
  function setup(overrides={}){
   let clock=now,mapping=null,deleted=false,foreign=false,badPage=false,second=false,failProvider=false;
   const calls=[];
-  const config={SUPABASE_URL:'https://db.example',SUPABASE_SERVICE_ROLE_KEY:'server-only',ARGYLE_API_KEY_ID:'key-id',ARGYLE_API_KEY_SECRET:'secret-only',ARGYLE_FLOW_ID:'reviewed-flow',ARGYLE_ITEMS_JSON:JSON.stringify({doordash:'item_doordash',instacart:'item_instacart',spark:'item_spark'}),...overrides};
-  const account=()=>({id:ACCOUNT,user:foreign?OTHER:ARGYLE,item:'item_doordash',connection:{status:'connected'},scanned_at:until,availability:{gigs:{status:'synced'}},ongoing_refresh:{status:'enabled'}});
+  const config={SUPABASE_URL:'https://db.example',SUPABASE_SERVICE_ROLE_KEY:'server-only',ARGYLE_API_KEY_ID:'key-id',ARGYLE_API_KEY_SECRET:'secret-only',ARGYLE_FLOW_ID:'reviewed-flow',ARGYLE_ITEMS_JSON:JSON.stringify({instacart:'item_instacart',spark:'item_spark'}),...overrides};
+  const account=()=>({id:ACCOUNT,user:foreign?OTHER:ARGYLE,item:'item_instacart',connection:{status:'connected'},scanned_at:until,availability:{gigs:{status:'synced'}},ongoing_refresh:{status:'enabled'}});
   const response=(data,status=200)=>new Response(status===204?null:JSON.stringify(data),{status,headers:{'Content-Type':'application/json'}});
   const fetchImpl=async(url,opts={})=>{
    const u=new URL(url),method=opts.method||'GET',body=opts.body?JSON.parse(opts.body):null;calls.push({url:u.href,method,body,headers:opts.headers});
@@ -43,18 +43,19 @@ const USER='11111111-1111-4111-8111-111111111111',ARGYLE='22222222-2222-4222-822
   const invoke=async(body,token='valid',origin='https://milecount.editallfutures.com')=>{clock+=3000;const r=await handler(new Request('https://edge.example',{method:'POST',headers:{Authorization:'Bearer '+token,Origin:origin},body:JSON.stringify(body)}));return {status:r.status,data:await r.json()};};
   return {invoke,handler,calls,setForeign:()=>foreign=true,setBadPage:()=>badPage=true,setFailure:()=>failProvider=true,get deleted(){return deleted;},get second(){return second;},lock:()=>mapping.locked_until=new Date(clock+100000).toISOString()};
  }
- const missing=setup({ARGYLE_API_KEY_SECRET:''});let r=await missing.invoke({action:'link',provider:'doordash',consent:true});assert.equal(r.data.configured,false);assert.equal(missing.calls.filter(c=>c.url.includes('argyle.com')).length,0);
+ const missing=setup({ARGYLE_API_KEY_SECRET:''});let r=await missing.invoke({action:'link',provider:'instacart',consent:true});assert.equal(r.data.configured,false);assert.equal(missing.calls.filter(c=>c.url.includes('argyle.com')).length,0);
+ const removed=setup({ARGYLE_ITEMS_JSON:JSON.stringify({doordash:'item_doordash',instacart:'item_instacart'})});r=await removed.invoke({action:'link',provider:'doordash',consent:true});assert.equal(r.status,400,'Removed provider cannot be linked even with stale configuration');assert(!removed.calls.some(c=>c.url.includes('argyle.com')));r=await removed.invoke({action:'status'});assert.deepEqual(r.data.providers.map(p=>p.key),['instacart','spark']);
  const production=setup({ARGYLE_ENVIRONMENT:'production'});r=await production.invoke({action:'status'});assert.equal(r.data.configured,false,'Production must be explicitly activated');
  const h=setup();r=await h.invoke({action:'status'},'bad');assert.equal(r.status,401);assert.equal(h.calls.length,1,'No provider/data access before auth');
  r=await h.invoke({action:'status'},'valid','https://evil.example');assert.equal(r.status,403);
- r=await h.invoke({action:'link',provider:'doordash'});assert.equal(r.status,400,'Consent required');
- r=await h.invoke({action:'link',provider:'doordash',consent:true,userId:OTHER,user:OTHER});assert.equal(r.status,200);assert.equal(r.data.userToken,'short-lived-token');assert.equal(r.data.environment,'sandbox');assert.deepEqual(r.data.items,['item_doordash']);assert.equal(r.data.liveOffers,false);assert(!JSON.stringify(r.data).includes('secret-only'));
+ r=await h.invoke({action:'link',provider:'instacart'});assert.equal(r.status,400,'Consent required');
+ r=await h.invoke({action:'link',provider:'instacart',consent:true,userId:OTHER,user:OTHER});assert.equal(r.status,200);assert.equal(r.data.userToken,'short-lived-token');assert.equal(r.data.environment,'sandbox');assert.deepEqual(r.data.items,['item_instacart']);assert.equal(r.data.liveOffers,false);assert(!JSON.stringify(r.data).includes('secret-only'));
  r=await h.invoke({action:'activity',user:OTHER});assert.equal(r.status,200);assert.equal(r.data.activity.completed,2);assert(h.second,'Pagination followed');assert.equal(r.data.activity.totals[0].earnings,61);assert(!JSON.stringify(r.data).includes('start_location'));
  h.setBadPage();r=await h.invoke({action:'activity'});assert.equal(r.status,502);assert(!h.calls.some(c=>c.url.includes('evil.example')),'Never forward credentials to pagination URL');
- h.setForeign();r=await h.invoke({action:'disconnect',accountId:ACCOUNT,confirm:true});assert.equal(r.status,403);assert(!h.deleted);r=await h.invoke({action:'link',provider:'doordash',accountId:ACCOUNT,consent:true});assert.equal(r.status,403);
- const d=setup();await d.invoke({action:'link',provider:'doordash',consent:true});r=await d.invoke({action:'disconnect',accountId:ACCOUNT});assert.equal(r.status,400);assert(!d.deleted);r=await d.invoke({action:'disconnect',accountId:ACCOUNT,confirm:true});assert.equal(r.status,200);assert(d.deleted);
- const locked=setup();await locked.invoke({action:'link',provider:'doordash',consent:true});locked.lock();r=await locked.invoke({action:'link',provider:'doordash',consent:true});assert.equal(r.status,429,'Concurrent requests cannot create/link another user');
- const failure=setup();await failure.invoke({action:'link',provider:'doordash',consent:true});failure.setFailure();r=await failure.invoke({action:'activity'});assert.equal(r.status,502);assert(!JSON.stringify(r.data).includes('DO NOT LEAK'));
+ h.setForeign();r=await h.invoke({action:'disconnect',accountId:ACCOUNT,confirm:true});assert.equal(r.status,403);assert(!h.deleted);r=await h.invoke({action:'link',provider:'instacart',accountId:ACCOUNT,consent:true});assert.equal(r.status,403);
+ const d=setup();await d.invoke({action:'link',provider:'instacart',consent:true});r=await d.invoke({action:'disconnect',accountId:ACCOUNT});assert.equal(r.status,400);assert(!d.deleted);r=await d.invoke({action:'disconnect',accountId:ACCOUNT,confirm:true});assert.equal(r.status,200);assert(d.deleted);
+ const locked=setup();await locked.invoke({action:'link',provider:'instacart',consent:true});locked.lock();r=await locked.invoke({action:'link',provider:'instacart',consent:true});assert.equal(r.status,429,'Concurrent requests cannot create/link another user');
+ const failure=setup();await failure.invoke({action:'link',provider:'instacart',consent:true});failure.setFailure();r=await failure.invoke({action:'activity'});assert.equal(r.status,502);assert(!JSON.stringify(r.data).includes('DO NOT LEAK'));
  // Run the real migration with PostgreSQL semantics, then inspect privileges/RLS.
  const {PGlite}=require('@electric-sql/pglite'),db=new PGlite();
  await db.exec('create role anon; create role authenticated; create role service_role bypassrls; create schema auth; create table auth.users(id uuid primary key);');

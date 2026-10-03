@@ -1,6 +1,6 @@
 // Server-only Argyle adapter. No driver passwords, API secrets, or raw gig
 // payloads are stored by MileCount. All ownership comes from verified Auth.
-const PROVIDERS = { doordash: 'DoorDash', instacart: 'Instacart', spark: 'Spark Driver' };
+const PROVIDERS = { instacart: 'Instacart', spark: 'Spark Driver' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ITEM = /^item_[A-Za-z0-9_-]+$/;
 class Fault extends Error {

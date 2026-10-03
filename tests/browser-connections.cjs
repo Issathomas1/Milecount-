@@ -15,21 +15,21 @@ const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:
    if(url.includes('/functions/v1/argyle-connect')){
     const body=route.request().postDataJSON();actions.push(body);
     if(failure)return json({ok:false,error:'Provider unavailable. Retry later.'},502);
-    const config={ok:true,configured,environment:'sandbox',liveOffers:false,providers:['doordash','instacart','spark'].map((key,i)=>({key,name:['DoorDash','Instacart','Spark Driver'][i],available:configured})),message:configured?'Test connections only. Use Argyle sample accounts, not your driver login.':'Account connections are awaiting activation. Your saved offers and planner still work.'};
-    if(body.action==='link'){assert.equal(body.consent,true);connected=true;return json({...config,userToken:'secret-test-token',flowId:'test-flow',items:['item_doordash']});}
+    const config={ok:true,configured,environment:'sandbox',liveOffers:false,providers:['instacart','spark'].map((key,i)=>({key,name:['Instacart','Spark Driver'][i],available:configured})),message:configured?'Test connections only. Use Argyle sample accounts, not your driver login.':'Account connections are awaiting activation. Your saved offers and planner still work.'};
+    if(body.action==='link'){assert.equal(body.consent,true);connected=true;return json({...config,userToken:'secret-test-token',flowId:'test-flow',items:['item_instacart']});}
     if(body.action==='disconnect'){assert.equal(body.confirm,true);connected=false;return json({ok:true,disconnected:true});}
-    return json({...config,accounts:connected?[{id:'acct',provider:'doordash',name:'DoorDash <img src=x onerror=alert(1)>',status:'connected',syncStatus:'synced',scannedAt:'2026-10-03T12:00:00Z',refreshStatus:'enabled'}]:[],activity:connected?{completed:1,totals:[{currency:'USD',earnings:25.5,paidRecords:1,completed:1,missingPay:0}],records:[{id:'gig',accountId:'acct',start:'2026-10-02T12:00:00Z',pay:25.5,currency:'USD',miles:10}],partial:false}:null,checkedAt:'2026-10-03T12:01:00Z'});
+    return json({...config,accounts:connected?[{id:'acct',provider:'instacart',name:'Instacart <img src=x onerror=alert(1)>',status:'connected',syncStatus:'synced',scannedAt:'2026-10-03T12:00:00Z',refreshStatus:'enabled'}]:[],activity:connected?{completed:1,totals:[{currency:'USD',earnings:25.5,paidRecords:1,completed:1,missingPay:0}],records:[{id:'gig',accountId:'acct',start:'2026-10-02T12:00:00Z',pay:25.5,currency:'USD',miles:10}],partial:false}:null,checkedAt:'2026-10-03T12:01:00Z'});
    }
    return json({},503);
   });
   const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+'/car.html');await page.getByText('Account connections are awaiting activation.',{exact:false}).waitFor();
-  assert.equal(await page.locator('[data-connect]').count(),3);assert.equal(await page.locator('[data-connect]:enabled').count(),0);assert.equal(sdkRequests,0);assert.equal(await page.locator('#connectionEarnings').textContent(),'');
+  assert.equal(await page.locator('[data-connect]').count(),2);assert.equal(await page.locator('[data-connect]:enabled').count(),0);assert.equal(sdkRequests,0);assert.equal(await page.locator('#connectionEarnings').textContent(),'');
   assert.match(await page.locator('#modeNotice').textContent(),/Live package feeds are not connected/);
   configured=true;await page.reload();await page.locator('#connectionConsentArea').waitFor({state:'visible'});assert.equal(await page.locator('[data-connect]:enabled').count(),0);
-  await page.locator('#connectionConsent').check();await page.locator('[data-connect="doordash"]').click();
+  await page.locator('#connectionConsent').check();await page.locator('[data-connect="instacart"]').click();
   await page.waitForFunction(()=>document.querySelector('#connectionEarnings').textContent.includes('$25.50'));
-  assert.equal(sdkRequests,1);assert.deepEqual(await page.evaluate(()=>window.qaArgyleOptions),{sandbox:true,items:['item_doordash'],flowId:'test-flow'});
+  assert.equal(sdkRequests,1);assert.deepEqual(await page.evaluate(()=>window.qaArgyleOptions),{sandbox:true,items:['item_instacart'],flowId:'test-flow'});
   assert.equal(await page.locator('#connectionAccounts img').count(),0,'Provider names escaped');
   assert.equal(await page.locator('#jobList .job').count(),0,'History never becomes an available offer');
   assert(await page.evaluate(()=>!JSON.stringify(localStorage).includes('secret-test-token')),'No Link token persisted');

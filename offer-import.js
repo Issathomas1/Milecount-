@@ -2,7 +2,7 @@
 'use strict';
 function parse(text){
  const lines=String(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
- const source=/doordash/i.test(text)?'DoorDash':/instacart/i.test(text)?'Instacart':/spark|walmart/i.test(text)?'Spark Driver':'';
+ const source=/instacart/i.test(text)?'Instacart':/spark|walmart/i.test(text)?'Spark Driver':'';
  const amounts=lines.filter(l=>!/(?:\/\s*(?:mi|hr)|per\s*(?:mile|hour)|bonus|extra|tip alone)/i.test(l)).flatMap(l=>[...l.matchAll(/\$\s*(\d{1,4}(?:,\d{3})*(?:\.\d{2})?)(?![\d.])/g)].map(m=>({value:m[1].replace(/,/g,''),line:l})));
  const totals=amounts.filter(a=>/total|guaranteed|offer pay|earnings/i.test(a.line));
  const candidates=totals.length===1?totals:amounts;

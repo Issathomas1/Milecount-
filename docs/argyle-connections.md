@@ -17,7 +17,7 @@ Set these secrets on the existing Supabase project, using its secret manager:
 - `ARGYLE_FLOW_ID`: a reviewed embedded Link flow limited to the required gig
   activity. Disable deposit switching, document uploads, banking and unrelated
   identity/payroll collection. Confirm the product's permitted use with Argyle.
-- `ARGYLE_ITEMS_JSON`: an object mapping `doordash`, `instacart`, and/or `spark`
+- `ARGYLE_ITEMS_JSON`: an object mapping `instacart` and/or `spark`
   to their actual verified Argyle Item IDs. Omit unsupported platforms. Check
   each Item's field coverage, health, known limitations and refresh interval in
   Argyle Console / Coverage. Never guess IDs or enable unsupported items.
