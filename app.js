@@ -1184,10 +1184,10 @@ async function buildLocalMoneyDay(){
    // candidate when the routing service was merely slow.
    const retainedKeys=new Set(retained.map(loadKey));
    const slots=Math.max(0,Math.min(currentPlan().maxStack,5)-retainedKeys.size);
-   const picks=loads.filter(l=>Number(l.pay)>0&&!retainedKeys.has(loadKey(l))).slice(0,slots);
+   const picks=loads.filter(l=>Number(l.pay)>0&&!retainedKeys.has(loadKey(l))&&window.MileCountEquipment?.check(l,el("vehicleType")?.value).status!=="incompatible").slice(0,slots);
    selectedStackKeys.clear();picks.forEach(l=>selectedStackKeys.add(loadKey(l)));updateStackTray();
    if(!picks.length&&!retained.length){
-     const message='Local loads found, but no rates were supplied. Open a load for details or add it to your stack to compare a route.';
+     const message=loads.some(l=>Number(l.pay)>0)?'Local loads found, but their listed equipment is incompatible with this vehicle. Review the requirements with the provider.':'Local loads found, but no rates were supplied. Open a load for details or add it to your stack to compare a route.';
      report(message+unavailable);if(el('stackPlanResult'))el('stackPlanResult').innerHTML='<p>'+message+'</p>';return;
    }
    report('Checking '+(picks.length+retained.length)+' loads together, including the drive back to '+home+'…');
@@ -1542,6 +1542,8 @@ function toggleStackLoad(index){
  stackSelectionRevision++;
  const loads=S.candidateLoads||[],l=loads[index];if(!l)return;
  const key=loadKey(l),p=currentPlan();
+ const fit=window.MileCountEquipment?.check(l,el("vehicleType")?.value);
+ if(!selectedStackKeys.has(key)&&fit?.status==="incompatible"){alert(fit.message);return;}
  // Regression fix: this function receives "index"; the previous entitlement
  // check referenced an undefined variable "i", throwing before STACK could toggle.
  if(!selectedStackKeys.has(key)&&selectedStackKeys.size>=p.maxStack){alert(p.name+" supports up to "+p.maxStack+" AutoStack loads. Upgrade for more.");return}
@@ -1643,6 +1645,9 @@ function buildPickupDeliveryProblem(brain,loads,base){
  const start=mcZonedMinute(date,mcClock(el('dayStartTime')?.value||'06:00')??360,zone,anchor);
  const warnings=[];
  const normalized=loads.map(l=>{
+  const fit=window.MileCountEquipment?.check(l,el("vehicleType")?.value);
+  if(fit?.status==="incompatible"&&!brain.onboardLoads.some(x=>loadKey(x)===loadKey(l)))throw Object.assign(Error(fit.message+" "+l.pickup+" → "+l.delivery),{code:"EQUIPMENT_MISMATCH"});
+  if(fit?.status==="unknown")warnings.push(fit.message+": "+l.pickup+" → "+l.delivery);
   const windows={};
   if(!l.isSandbox&&!l.isLocalSim)for(const type of ['pickup','drop']){
    if(type==='pickup'&&brain.onboardLoads.some(x=>loadKey(x)===loadKey(l)))continue;
@@ -1850,7 +1855,7 @@ async function smartAutoStack(options={}){
  }catch(e){
    if(buildId!==mcTripBuildSeq||options.isCurrent?.()===false)return;
    console.error("Smart AutoStack failed",e);
-   const unchanged=previousPlan?.valid&&previousPlan.problem?.truck.version===(physicalBrain?.get().version||0);S.stackPlan=unchanged?previousPlan:null;if(!unchanged)el('doneStack')?.classList.add('hidden');
+   const unchanged=e?.code!=="EQUIPMENT_MISMATCH"&&previousPlan?.valid&&previousPlan.problem?.truck.version===(physicalBrain?.get().version||0);S.stackPlan=unchanged?previousPlan:null;if(!unchanged)el('doneStack')?.classList.add('hidden');
    const box=el("stackPlanResult");
    if(box){
      box.innerHTML='<div class="stackPlanStatus bad">ROUTE REFRESH NEEDS ATTENTION</div><p class="stackWarn">'+escHtml(e?.message||"A route service failed. Your selected loads are still saved — tap Smart AutoStack again.")+'</p>';
@@ -2111,10 +2116,12 @@ function renderUnifiedLoadList(loads){
    const loaded=Math.max(0,Number(l.loadedMiles||0)),weight=Number(l.weight||0);
    const test=isPlanningTestLoad(l),rate=Number(l.pay)>0?money(l.pay):'Rate not supplied';
    const ref=l.providerLoadId||l.bookingReference||'';
+   const fit=window.MileCountEquipment?.check(l,el('vehicleType')?.value);
    return '<article class="candidateLoad loadResult" data-load-index="'+i+'">'+
     '<div class="loadTop"><div class="loadLane">'+escHtml(l.pickup||"Pickup not supplied")+'<span class="laneArrow"> → </span>'+escHtml(l.delivery||"Delivery not supplied")+'</div><div class="loadPay">'+rate+'</div></div>'+
     '<div class="loadMeta">'+escHtml(test?'TEST / SIM • Not bookable':'LIVE • '+(l.provider||'Provider'))+'</div>'+
     '<div class="loadQuickFacts"><span>'+escHtml(l.equipment||'Equipment not supplied')+'</span><span>'+(loaded?Math.round(loaded)+' loaded mi':'Miles not supplied')+'</span><span>'+(weight?weight.toLocaleString()+' lb':'Weight not supplied')+'</span></div>'+
+    (fit?'<p class="details equipmentFit">'+escHtml(fit.message)+'</p>':'')+
     (l.tripProgressMiles!=null?'<p class="details">'+(l.tripProgressMiles>0?Math.round(l.tripProgressMiles)+' road miles closer to your target':'Review detour before adding')+'</p>':'')+
     '<div class="loadActions"><button type="button" class="inspectLoad" data-inspect="'+i+'" aria-expanded="false" aria-controls="loadDetails-'+i+'">Details</button><button type="button" class="stackPick" data-stack-index="'+i+'" aria-pressed="false">+ Stack</button></div>'+
     '<div id="loadDetails-'+i+'" class="loadExtra" hidden><p>Pickup: '+escHtml(l.pickupDate||'Not supplied')+'<br>Delivery: '+escHtml(l.deliveryDate||'Not supplied')+'<br>Space: '+(Number(l.space)>0?escHtml(l.space)+' ft':'Not supplied')+'</p>'+
