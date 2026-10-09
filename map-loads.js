@@ -147,7 +147,8 @@ function popupHtml(load,index,profile){
  const pickup=load.pickupDate||load.pickup_at||"—";
  const after=Number(load.afterFuel||0);
  const sourceLink=load.bookingUrl||load.booking_url||load.sourceUrl||load.source_url||"";
- const sourceButton=sourceLink?'<a class="mcMapSource" href="'+esc(sourceLink)+'" target="_blank" rel="noopener">OPEN SOURCE</a>':"";
+ const loadBoot=/loadboot/i.test(provider)&&!!load.providerLoadId;
+ const sourceButton=sourceLink?'<a class="mcMapSource" href="'+esc(sourceLink)+'" target="_blank" rel="noopener">'+(loadBoot?'via LoadBoot':'OPEN SOURCE')+'</a>':"";
  return '<div class="mcMapPopup">'+
    '<div class="mcMapPopupTop"><b>'+esc(origin)+' → '+esc(destination)+'</b><strong>'+money(load.pay)+'</strong></div>'+
    '<div class="mcMapProvider">'+esc(provider)+' • '+esc(e.label)+'</div>'+

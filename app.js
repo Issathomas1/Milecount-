@@ -342,6 +342,7 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  const searchOrigin=S.origin,searchDestination=isLiveBrowse?"Anywhere, USA":S.destination;
  const requestedDate=isLiveBrowse?"":(el("pickupDate")?.value||""),maxDH=Math.max(0,val("maxDeadhead",100)),minRPM=Math.max(0,val("minRPM",0));
  const directRequest=fetchDirectFreightLocal(searchOrigin,true);directRequest.catch(()=>{});
+ const loadBootRequest=window.MileCountLoadBoot?.search({origin:searchOrigin})||Promise.resolve([]);loadBootRequest.catch(()=>{});
  const sandboxRequest=isLiveBrowse?Promise.resolve([]):fetchLoadBootSandbox(false).catch(()=>[]);
  let loads=[];let liveProvider=false; let providerErrors=[];
  let providerResponded=false,providerLiveFound=0,resolvedLane=null,nearbyAlternatives=false;
@@ -371,8 +372,14 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  }catch(e){providerErrors.push("Direct Freight");console.warn("Direct Freight lane aggregation unavailable",e)}
  if(generation!==loadSearchGeneration)return;
  updateProviderFilterOptions(loads);
- // Every lane search aggregates every connected source. LoadBoot is sandbox/test
- // only, so it is clearly labeled and never contributes to live trip revenue.
+ try{
+   const liveBoot=await loadBootRequest;
+   if(generation!==loadSearchGeneration)return;
+   const matching=enforceWeightCap(liveBoot).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),destinationPreferred:laneMatches(l,searchOrigin,searchDestination)}));
+   loads.push(...matching);providerResponded=true;providerLiveFound+=matching.length;liveProvider=liveProvider||matching.length>0;
+   if(el('loadBootLiveStatus'))el('loadBootLiveStatus').textContent=matching.length+' LIVE LOADS in this pickup area';
+ }catch(e){providerErrors.push('LoadBoot');if(el('loadBootLiveStatus'))el('loadBootLiveStatus').textContent='LoadBoot temporarily unavailable';}
+ // Sandbox remains separate from production and never contributes to live revenue.
  if(!isLiveBrowse){
    try{
      const sb=await sandboxRequest;
@@ -587,7 +594,8 @@ function scheduleContinuousDispatch(reason){
 function inventoryService(){
  if(!dispatchInventory)dispatchInventory=new window.MileCountInventory.Inventory([
   {id:'directfreight',name:'Direct Freight',search:q=>fetchDirectFreightLocal(q.origin,true)},
-  {id:'truktek',name:'TrukTek',search:q=>fetchTrukTekLocal(q.origin,true)}
+  {id:'truktek',name:'TrukTek',search:q=>fetchTrukTekLocal(q.origin,true)},
+  {id:'loadboot',name:'LoadBoot',minRefreshMs:0,maxStaleMs:0,search:q=>window.MileCountLoadBoot?.search(q)||Promise.resolve([])}
  ]);
  return dispatchInventory;
 }
@@ -1162,7 +1170,7 @@ async function buildLocalMoneyDay(){
    report('Finding loads with pickup and delivery in '+localState+'…');
    const selectionRevision=stackSelectionRevision,failures=[];
    const collect=async(name,request)=>{try{return await request();}catch(e){failures.push(name);return [];}};
-   const jobs=[collect('TrukTek',()=>fetchTrukTekLocal(home,true)),collect('Direct Freight',()=>fetchDirectFreightLocal(home,true,localState))];
+   const jobs=[collect('TrukTek',()=>fetchTrukTekLocal(home,true)),collect('Direct Freight',()=>fetchDirectFreightLocal(home,true,localState)),collect('LoadBoot',()=>window.MileCountLoadBoot?.search({origin:home})||Promise.resolve([]))];
    const localPool=groups=>dedupeNormalizedLoads(enforceWeightCap(groups.flat().filter(l=>!isPlanningTestLoad(l)&&staysInState(l)))).sort((a,b)=>Number(b.pay||0)-Number(a.pay||0));
    const display=loads=>{S.candidateLoads=loads;S.allUnifiedLoads=[...loads];S.liveBoardLoads=[...loads];renderUnifiedLoadList(loads);updateStackTray();};
    const quick=await Promise.all(jobs.map(p=>withTimeout(p,1200,[])));
@@ -1218,10 +1226,10 @@ async function browseStateLoads(state){
    S.origin=seed;
    if(el("from"))el("from").value=seed;
    if(status)status.textContent="🚚 TRUCK LOCATION: "+seed+" • Loading local freight…";
-   const [truk,direct,sandbox]=await Promise.all([fetchTrukTekLocal(seed),fetchDirectFreightLocal(seed),fetchLoadBootSandbox(false)]);
+   const [truk,direct,sandbox,loadboot]=await Promise.all([fetchTrukTekLocal(seed),fetchDirectFreightLocal(seed),fetchLoadBootSandbox(false),(window.MileCountLoadBoot?.search({origin:seed})||Promise.resolve([])).catch(()=>[])]);
    const existing=Array.isArray(S.allUnifiedLoads)?S.allUnifiedLoads:[];
    const sims=localSimPool(seed);
-   const all=dedupeNormalizedLoads(enforceWeightCap([...existing,...truk,...direct,...sandbox,...sims]));
+   const all=dedupeNormalizedLoads(enforceWeightCap([...existing,...truk,...direct,...loadboot,...sandbox,...sims]));
    const inState=all.filter(l=>{
      // State browsing is LOCAL discovery: the pickup must be inside the state
      // the driver selected. A load merely delivering into that state belongs to
@@ -1324,7 +1332,7 @@ function normalizeLoadBootSandbox(x){
    space:0,
    broker:x.posted_by??null,
    routeCoordinates:[],
-   sourceUrl:"https://loadboot.com/app/carrier/?src=milecount&ref="+encodeURIComponent(ref),
+   sourceUrl:"https://loadboot.com/app/carrier/?src=milecount-edit-all-futures-llc&ref="+encodeURIComponent(ref),
    isSandbox:true,
    sandboxLabel:"SANDBOX TEST"
  };
@@ -1369,7 +1377,7 @@ async function fetchLoadBootSandboxNow(){
 
 
 function providerFilterKey(l){
- if(isLoadBootRecord(l))return "loadboot-sandbox";
+ if(isLoadBootRecord(l))return l.isSandbox?"loadboot-sandbox":"loadboot";
  if(l.isLocalSim)return "milecount-sim";
  return String(l.provider||"unknown").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 }
@@ -1379,9 +1387,10 @@ function updateProviderFilterOptions(loads){
  const seen=new Map();
  (loads||[]).forEach(l=>{
    const key=providerFilterKey(l);
-   const label=isLoadBootRecord(l)?"LoadBoot Sandbox":(l.isLocalSim?"MileCount SIM":(String(l.provider||"").toLowerCase()==="direct freight"?"Direct Freight"+(Number.isFinite(S.directFreightLiveCount)?" • "+S.directFreightLiveCount+" live":""):(l.provider||"Other Provider")));
+   const label=isLoadBootRecord(l)?(l.isSandbox?"LoadBoot Sandbox":"LoadBoot"):(l.isLocalSim?"MileCount SIM":(String(l.provider||"").toLowerCase()==="direct freight"?"Direct Freight"+(Number.isFinite(S.directFreightLiveCount)?" • "+S.directFreightLiveCount+" live":""):(l.provider||"Other Provider")));
    if(key&&!seen.has(key))seen.set(key,label);
  });
+ if(!seen.has("loadboot"))seen.set("loadboot","LoadBoot");
  if(S.directFreightConfigured&&!seen.has("direct-freight"))seen.set("direct-freight","Direct Freight"+(Number.isFinite(S.directFreightLiveCount)?" • "+S.directFreightLiveCount+" live":""));
  const options=[
   ["all","All Companies"],
@@ -2091,7 +2100,7 @@ function escHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<'
 
 function isLoadBootRecord(l){return String(l?.provider||"").toLowerCase().includes("loadboot")&&!!l?.providerLoadId}
 function unifiedSourceLabel(l){
- if(isLoadBootRecord(l))return "SANDBOX TEST • via LoadBoot";
+ if(isLoadBootRecord(l))return l.isSandbox?"SANDBOX TEST • via LoadBoot":"LIVE • via LoadBoot";
  if(l?.isLocalSim||String(l?.provider||"").includes("MileCount"))return "SIM • MileCount • NOT BOOKABLE";
  return "LIVE • "+(l.provider||"Provider");
 }
@@ -2120,6 +2129,7 @@ function renderUnifiedLoadList(loads){
    return '<article class="candidateLoad loadResult" data-load-index="'+i+'">'+
     '<div class="loadTop"><div class="loadLane">'+escHtml(l.pickup||"Pickup not supplied")+'<span class="laneArrow"> → </span>'+escHtml(l.delivery||"Delivery not supplied")+'</div><div class="loadPay">'+rate+'</div></div>'+
     '<div class="loadMeta">'+escHtml(test?'TEST / SIM • Not bookable':'LIVE • '+(l.provider||'Provider'))+'</div>'+
+    (isLoadBootRecord(l)?'<p class="loadBootRef"><a href="'+escHtml(l.sourceUrl)+'" target="_blank" rel="noopener">via LoadBoot</a></p>':'')+
     '<div class="loadQuickFacts"><span>'+escHtml(l.equipment||'Equipment not supplied')+'</span><span>'+(loaded?Math.round(loaded)+' loaded mi':'Miles not supplied')+'</span><span>'+(weight?weight.toLocaleString()+' lb':'Weight not supplied')+'</span></div>'+
     (fit?'<p class="details equipmentFit">'+escHtml(fit.message)+'</p>':'')+
     (l.tripProgressMiles!=null?'<p class="details">'+(l.tripProgressMiles>0?Math.round(l.tripProgressMiles)+' road miles closer to your target':'Review detour before adding')+'</p>':'')+
@@ -2142,7 +2152,7 @@ async function refreshUnifiedFreightBoard(forceSandbox=false,generation=loadSear
  const sandbox=await fetchLoadBootSandbox(forceSandbox);
  if(generation!==loadSearchGeneration)return;
  const live=Array.isArray(S.liveBoardLoads)?S.liveBoardLoads:[];
- const all=enforceWeightCap([...live,...sandbox]);
+ const all=enforceWeightCap([...live,...sandbox]).filter(l=>!isLoadBootRecord(l)||l.isSandbox||window.MileCountLoadBoot?.fresh(l));
  S.allUnifiedLoads=all;
  updateProviderFilterOptions(all);
  const filtered=filteredUnifiedLoads(all);
@@ -2166,20 +2176,11 @@ async function showLoadBootSandbox(){
  S.candidateLoads=loads;
  const profile=updateCostUI();
  if(typeof window.renderMileCountLoadMap==="function")await window.renderMileCountLoadMap(loads,{breakEven:profile.breakEven,target:profile.target,origin:"",destination:""});
- if(el("loadCandidates"))el("loadCandidates").innerHTML=loads.map((l,i)=>{
-   const rpm=Number(l.rpm||0);
-   return '<button type="button" class="candidateLoad loadResult '+(i===0?"selected":"")+'" data-load-index="'+i+'">'+
-    '<div class="loadTop"><div><div class="loadLane">'+escHtml(l.pickup||"Not provided by provider")+' → '+escHtml(l.delivery||"Not provided by provider")+'</div><div class="loadMeta">SANDBOX TEST • '+(l.equipment||"Equipment not specified")+' • '+(l.commodity||"")+'</div></div><div class="loadPay">'+money(l.pay)+'</div></div>'+
-    '<div class="loadMetrics"><div class="loadMetric"><small>RPM</small><b>'+(rpm?"$"+rpm.toFixed(2):"—")+'</b></div><div class="loadMetric"><small>MILES</small><b>'+Number(l.loadedMiles||0).toLocaleString()+'</b></div><div class="loadMetric"><small>WEIGHT</small><b>'+Number(l.weight||0).toLocaleString()+' lb</b></div><div class="loadMetric"><small>SOURCE</small><b>via LoadBoot</b></div></div>'+
-    '<div class="loadFoot"><span class="sourceTag">LOADBOOT SANDBOX</span><span class="verdictTag">TEST DATA</span></div></button>';
- }).join("");
- document.querySelectorAll(".candidateLoad").forEach(btn=>btn.addEventListener("click",()=>selectCandidate(Number(btn.dataset.loadIndex))));
- document.querySelectorAll(".stackPick").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();toggleStackLoad(Number(x.dataset.stackIndex))}));
- document.querySelectorAll(".candidateLoad").forEach((b,i)=>{const l=(S.candidateLoads||[])[i];b.classList.toggle("stackChosen",!!l&&selectedStackKeys.has(loadKey(l)))});
- updateStackTray();
+ S.allUnifiedLoads=loads;renderUnifiedLoadList(loads);
  showScreen(2);
 }
 bind("viewLoadBootSandbox",showLoadBootSandbox);
+bind("viewLoadBootLive",async()=>{await browseLiveLoadBoard(false);if(el("providerFilter")){el("providerFilter").value="loadboot";await applyProviderFilter();}showScreen(2);});
 fetchLoadBootSandbox(false);
 
 window.MileCountBookingBridge={
@@ -2193,6 +2194,10 @@ window.MileCountBookingBridge={
   if(provider==="direct freight"){
    const refreshed=await fetchDirectFreightLocal(load.pickup||S.origin||el("from")?.value||"");
    return refreshed.find(x=>String(x.providerLoadId||x.bookingReference||"")===String(load.providerLoadId||load.bookingReference||""))||null;
+  }
+  if(provider==="loadboot"){
+   const refreshed=await window.MileCountLoadBoot.search({origin:load.pickup});
+   return refreshed.find(x=>x.providerLoadId===load.providerLoadId)||null;
   }
   if(provider==="truktek"){
    const refreshed=await fetchTrukTekLocal(load.pickup||S.origin||el("from")?.value||"");
@@ -2237,17 +2242,27 @@ bind('buildOpportunityTrip',finishMyPicks);
 bind("smartAutoStack",smartAutoStack);
 bind("doneStack",finishMyPicks);
 bind("clearStack",()=>{stackSelectionRevision++;selectedStackKeys.clear();S.basePlanLoad=null;S.planCommitments=physicalBrain?.get().onboardLoads||[];physicalBrain?.configure({commitments:S.planCommitments,baseLoadId:null});invalidateStackProjection();S.stackPlan=null;el("doneStack")?.classList.add("hidden");updateStackTray();document.querySelectorAll(".candidateLoad").forEach(b=>b.classList.remove("stackChosen"))});
+function removeExpiredLoadBootDiscovery(){
+ let changed=false;
+ for(const key of ['allUnifiedLoads','liveBoardLoads','candidateLoads','tripOpportunityLoads']){
+  if(!Array.isArray(S[key]))continue;
+  const next=S[key].filter(l=>!isLoadBootRecord(l)||l.isSandbox||window.MileCountLoadBoot?.fresh(l));
+  if(next.length!==S[key].length){S[key]=next;changed=true;}
+ }
+ if(changed){renderUnifiedLoadList(S.candidateLoads||[]);const p=updateCostUI();window.renderMileCountLoadMap?.(S.candidateLoads||[],{breakEven:p.breakEven,target:p.target,origin:S.origin,destination:S.destination});}
+}
 silentAudit();
 setInterval(()=>{
  try{
    if(document.hidden)return;
    silentAudit();
+   removeExpiredLoadBootDiscovery();
    refreshLiveLoadCount();
    // LoadBoot fetch remains cached for at least 5 minutes; this does not poll it every minute.
    fetchLoadBootSandbox(false).catch(()=>{});
  }catch(e){console.warn("MileCount background audit",e)}
 },60000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden){silentAudit();refreshLiveLoadCount()}});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){silentAudit();removeExpiredLoadBootDiscovery();refreshLiveLoadCount()}});
 ["weight","space"].forEach(id=>el(id)?.addEventListener("input",()=>{captureCapacityInputs();syncCapacityState(S.capacityState.availableWeight,S.capacityState.availableSpace,false);if(S.stackPlan||mcActiveStackBuildId)invalidateStackProjection('Truck capacity changed — rebuild the route.')}));
 ["from","vehicleType","pickupDate","dayStartTime","dispatchTimeZone","dispatchHos","hosDriveUsed","hosDutyUsed","hosSinceBreak","hosCycleRemaining","pickupServiceMin","dropServiceMin"].forEach(id=>el(id)?.addEventListener("change",()=>{if(S.stackPlan||mcActiveStackBuildId)invalidateStackProjection('Truck or schedule constraints changed — rebuild the route.')}));
 captureCapacityInputs();

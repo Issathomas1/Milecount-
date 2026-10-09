@@ -15,23 +15,24 @@ const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:
    if(url.includes('/rpc/is_milecount_admin'))return json(true);
    if(url.includes('/rpc/milecount_entitlements'))return json({admin:true,active:true,plan:'platinum'});
    if(url.includes('/rest/v1/'))return json([]);
-   if(url.includes('/directfreight-adapter'))return json({ok:false,error:'Provider unavailable in QA'},503);
-   if(url.includes('/truktek-public-pilot'))return json({loads,live_found:100});
-   if(url.includes('/loadboot-sandbox'))return json(url.includes('mode=production')?{ok:true,mode:'LIVE',sandbox:false,fetchedAt:new Date().toISOString(),data:{loads:[]}}:{data:[]});
+   if(url.includes('/directfreight-adapter'))return json({connected:false});
+   if(url.includes('/truktek-public-pilot'))return json({loads:[],live_found:0});
+   if(url.includes('/loadboot-sandbox'))return json(url.includes('mode=production')?{ok:true,mode:'LIVE',sandbox:false,fetchedAt:new Date().toISOString(),data:{loads:[{ref:'LIVE-FIXTURE-1',origin:'Atlanta, GA',destination:'Macon, GA',rate:350,miles:90,weight:1000,equipment:'Box Truck'},{ref:'SBX-FIXTURE',origin:'Atlanta, GA',destination:'Macon, GA'}]}}:{data:[]});
    if(url.includes('/nominatim'))return json([]);
    return json({error:'Unavailable in QA'},503);
   });
   await page.goto(base,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>document.querySelectorAll('.stackPick').length===100);
-  await page.locator('#from').fill('Atlanta, GA');await page.locator('#to').fill('Charlotte, NC');
-  // Simulate a never-completing map calculation after initial board discovery.
-  await page.evaluate(()=>{window.getMileCountRoadRoute=()=>new Promise(()=>{});document.getElementById('minRPM').value=3});
-  const started=Date.now();await page.locator('#find').click();await page.waitForFunction(()=>!document.getElementById('find').disabled&&document.querySelectorAll('.stackPick').length===100,{},{timeout:12000}).catch(async e=>{console.log('SEARCH DEBUG',errors,await page.evaluate(()=>({count:document.querySelectorAll('.stackPick').length,disabled:document.getElementById('find').disabled,health:document.getElementById('boardHealth').textContent})));throw e});
-  assert(Date.now()-started<12000);assert((await page.locator('#boardHealth').textContent()).includes('Direct Freight unavailable'));assert.equal(await page.locator('#to').inputValue(),'Charlotte, NC');
-  await page.locator('.inspectLoad').first().click();assert((await page.locator('#loadDetails-0').textContent()).includes('Road costs not calculated yet'));
-  await page.locator('.stackPick').first().click();assert.equal(await page.locator('.stackPick[aria-pressed="true"]').count(),1);
-  assert.equal(await page.locator('.loadMeta').first().textContent(),'LIVE • TrukTek');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
-  console.log('PASS mobile Find Loads: 100 TrukTek loads survive Direct Freight outage and hung routing; search finishes, unknown costs labeled, +Stack works');
+  await page.waitForFunction(()=>document.querySelectorAll('.stackPick').length===1);
+  await page.locator('#viewLoadList').click();
+  assert.equal(await page.locator('.loadMeta').first().textContent(),'LIVE • LoadBoot');
+  const link=page.getByRole('link',{name:'via LoadBoot',exact:true}).first();
+  assert.equal(await link.getAttribute('href'),'https://loadboot.com/app/carrier/?src=milecount-edit-all-futures-llc&ref=LIVE-FIXTURE-1');
+  await page.locator('.stackPick').first().click();
+  assert.equal(await page.locator('.stackPick[aria-pressed="true"]').count(),1);
+  assert((await page.locator('#loadCandidates').textContent()).includes('$350'));
+  assert.equal(await page.locator('#providerFilter option[value="loadboot"]').count(),1);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
+  console.log('PASS mobile LoadBoot production fixture: live label, exact attribution link, sandbox excluded, amount, provider filter and +Stack');
   await ctx.close();
  }finally{await browser.close();await new Promise(r=>server.close(r))}
 })().catch(e=>{console.error(e);process.exitCode=1});

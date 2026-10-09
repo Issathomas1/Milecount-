@@ -38,7 +38,7 @@ const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:
     return json({ok:true,connected:true,subscriptionTier:'free',loads:direct});
    }
    if(url.includes('/truktek-public-pilot'))return json({loads:[{...load,provider_load_id:'truk-fixture'}],live_found:1});
-   if(url.includes('/loadboot-sandbox'))return json({data:[]});
+   if(url.includes('/loadboot-sandbox'))return json(url.includes('mode=production')?{ok:true,mode:'LIVE',sandbox:false,fetchedAt:new Date().toISOString(),data:{loads:[]}}:{data:[]});
    if(url.includes('/nominatim'))return json([]);
    return json({error:'Unavailable in QA'},503);
   });

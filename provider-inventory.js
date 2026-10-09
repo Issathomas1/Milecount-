@@ -11,10 +11,10 @@ class Inventory{
   const job=(async()=>{try{
    const loads=await adapter.search(copy(query));if(!Array.isArray(loads))throw Error('Provider returned an invalid load list');
    if((adapter.mode||'LIVE')==='LIVE'&&loads.some(l=>l.isSandbox||l.isLocalSim||['TEST','SIM'].includes(l.mode)||['TEST','SIM'].includes(l.status)))throw Error('Provider response mixed LIVE and TEST/SIM freight');
-   const normalized=loads.map(l=>({...l,provider:l.provider||adapter.name,providerId:adapter.id,mode:adapter.mode||'LIVE',dataFreshness:'fresh',observedAt:new Date(this.now()).toISOString()}));
+   const normalized=loads.map(l=>({...l,provider:l.provider||adapter.name,providerId:adapter.id,mode:adapter.mode||'LIVE',dataFreshness:'fresh',observedAt:l.observedAt||new Date(this.now()).toISOString()}));
    if(normalized.some(l=>l.mode==='LIVE'&&(l.isSandbox||l.isLocalSim||['TEST','SIM'].includes(l.status))))throw Error('Provider response mixed LIVE and TEST/SIM freight');
    const result={provider:adapter.name,status:normalized.length?'ok':'empty',loads:normalized,updatedAt:this.now(),error:null};this.cache.set(key,{at:this.now(),result});return copy(result);
-  }catch(e){return {provider:adapter.name,status:cached?'stale':'error',error:e.message||'Provider unavailable',updatedAt:cached?.at||null,loads:(cached?.result.loads||[]).map(l=>({...l,dataFreshness:'stale'}))};}
+  }catch(e){return {provider:adapter.name,status:cached?'stale':'error',error:e.message||'Provider unavailable',updatedAt:cached?.at||null,loads:(cached&&this.now()-cached.at<(adapter.maxStaleMs??Infinity)?cached.result.loads:[]).map(l=>({...l,dataFreshness:'stale'}))};}
   finally{this.pending.delete(key);}})();this.pending.set(key,job);return job;
  }
  async search(query){const providers=await Promise.all(this.adapters.map(a=>this.provider(a,query)));return {providers,loads:providers.flatMap(p=>p.loads),searchedAt:this.now(),complete:providers.every(p=>p.status==='ok'||p.status==='empty')};}
