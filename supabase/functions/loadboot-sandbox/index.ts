@@ -1,5 +1,6 @@
 // Existing endpoint retained for sandbox compatibility; production is explicit.
 const BASE = "https://rwscphuhpjoudvljvmdk.supabase.co/functions/v1/dev-api";
+const SANDBOX_BASE = "https://snslhvmkjusozgjelghi.supabase.co/functions/v1/dev-api";
 const ORIGINS = new Set(["https://issathomas1.github.io", "https://milecount.editallfutures.com", "https://mymilecount.com", "https://www.mymilecount.com"]);
 const cache = new Map<string, {at:number; data:any}>();
 const pending = new Map<string, Promise<any>>();
@@ -37,7 +38,7 @@ export async function handler(req:Request) {
       if(!job){job=(async()=>{
         const token=production?await productionToken():Deno.env.get("LOADBOOT_SANDBOX_TOKEN");
         if(!token)throw Error("Sandbox credential unavailable");
-        const r=await fetch(BASE+"?"+params,{headers:{Authorization:"Bearer "+token,Accept:"application/json"},signal:AbortSignal.timeout(8000)});
+        const r=await fetch((production?BASE:SANDBOX_BASE)+"?"+params,{headers:{Authorization:"Bearer "+token,Accept:"application/json"},signal:AbortSignal.timeout(8000)});
         if(r.status===429){retryAt=Date.now()+Math.max(1,Number(r.headers.get("Retry-After"))||60)*1000;throw Error("LoadBoot rate limited");}
         if(!r.ok)throw Error("LoadBoot returned HTTP "+r.status);
         const data=await r.json();
