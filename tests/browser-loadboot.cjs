@@ -23,7 +23,10 @@ const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:
   });
   await page.goto(base,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.querySelectorAll('.stackPick').length===1);
-  await page.locator('#viewLoadList').click();
+  await page.locator('#from').fill('Atlanta, GA');
+  await page.locator('#to').fill('Macon, GA');
+  await page.locator('#find').click();
+  await page.waitForFunction(()=>!document.getElementById('find').disabled&&document.querySelectorAll('.stackPick').length===1);
   assert.equal(await page.locator('.loadMeta').first().textContent(),'LIVE • LoadBoot');
   const link=page.getByRole('link',{name:'via LoadBoot',exact:true}).first();
   assert.equal(await link.getAttribute('href'),'https://loadboot.com/app/carrier/?src=milecount-edit-all-futures-llc&ref=LIVE-FIXTURE-1');
