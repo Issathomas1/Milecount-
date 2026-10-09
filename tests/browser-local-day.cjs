@@ -18,6 +18,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
   await page.route('**/*',async route=>{
    const req=route.request(),url=req.url(),u=new URL(url),json=(x,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(x)});
    if(url.startsWith(base))return route.continue();
+   if(url.includes('/loadboot-sandbox')&&url.includes('mode=production'))return json({ok:true,mode:'LIVE',sandbox:false,fetchedAt:new Date().toISOString(),data:{loads:[]}});
    if(url.includes('unpkg.com/leaflet')){const name=url.includes('.css')?'leaflet.css':'leaflet.js';return route.fulfill({body:fs.readFileSync(process.env.LEAFLET_FIXTURE_DIR?path.join(process.env.LEAFLET_FIXTURE_DIR,name):require.resolve('leaflet/dist/'+name)),contentType:name.endsWith('css')?'text/css':'application/javascript'});}
    if(u.pathname==='/auth/v1/user')return json({id:'00000000-0000-0000-0000-000000000001',email:'qa@example.invalid'});
    if(url.includes('/rpc/is_milecount_admin'))return json(true);
