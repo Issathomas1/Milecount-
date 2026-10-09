@@ -1,3 +1,5 @@
+> Retired from the public app on 2026-10-09. The former car workspace redirects to the cargo van and box truck planner. The implementation notes below are historical.
+
 # Cars and small packages pilot
 
 ## Scope and architecture

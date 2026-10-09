@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "test": "node tests/run.cjs",
-    "test:browser": "node tests/browser-loadboot.cjs && node tests/browser-workflow.cjs && node tests/browser-search.cjs && node tests/browser-direct-freight.cjs && node tests/browser-local-day.cjs && node tests/browser-car.cjs && node tests/browser-connections.cjs && node tests/browser-offer-import.cjs"
+    "test:browser": "node tests/browser-loadboot.cjs && node tests/browser-workflow.cjs && node tests/browser-search.cjs && node tests/browser-direct-freight.cjs && node tests/browser-local-day.cjs && node tests/browser-freight-only.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

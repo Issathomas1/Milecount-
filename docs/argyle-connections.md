@@ -1,3 +1,5 @@
+> Retired from the public app on 2026-10-09. The former car workspace redirects to the cargo van and box truck planner. The implementation notes below are historical.
+
 # Argyle account connections
 
 The Accounts section of `car.html` uses the existing MileCount login. The
