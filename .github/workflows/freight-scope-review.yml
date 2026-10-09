@@ -1,0 +1,53 @@
+name: Freight scope review
+on:
+  push:
+    branches: [freight-only-2026-10-09]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Inspect freight and passenger-car entry points
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          print('=== TRACKED APP AND TEST FILES ===')
+          for p in sorted(Path('.').rglob('*')):
+            if p.is_file() and '.git' not in p.parts and (len(p.parts)==1 or p.parts[0]=='tests'):
+              print(str(p))
+          print('=== PASSENGER-CAR REFERENCES ===')
+          for p in sorted(Path('.').glob('*')):
+            if p.is_file() and p.suffix in ('.html','.js','.json') and not p.name.startswith('car-') and p.name not in ('car.html','package-lock.json'):
+              for i,line in enumerate(p.read_text().splitlines(),1):
+                if re.search(r'car\.html|passenger|gig|carMode|vehicleType|Cars &|Cars &amp;|DoorDash|Instacart|Spark',line,re.I):
+                  print(f'{p}:{i}: {line[:2400]}')
+          for name in ('tests/run.cjs','truck-state.js','equipment-fit.js','tests/browser-workflow.cjs','tests/browser-car.cjs'):
+            p=Path(name)
+            if p.exists():
+              print('\n=== FILE '+name+' ===\n'+p.read_text())
+          PY
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Existing unit and integration regressions
+        run: npm test
+      - run: npx playwright install --with-deps chromium
+      - name: Existing browser regressions
+        run: npm run test:browser
+      - name: Package tracked source for local review
+        if: always()
+        run: git archive --format=zip HEAD -o source-review.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: freight-scope-source
+          path: source-review.zip
+          retention-days: 3
