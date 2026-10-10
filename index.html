@@ -1175,6 +1175,7 @@ START NEW ORIGINAL TRIP
 <span class="badge">MILECOUNT CLOUD</span>
 <h2>Your MileCount account</h2>
 <div id="authLoggedOut">
+<a href="?signin=1" style="color:#8adbb5">Sign-in help / reset password</a>
 <label>DISPLAY NAME<input id="authName" type="text" placeholder="Your name"></label>
 <label>EMAIL<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
 <label>PASSWORD<input id="authPassword" type="password" autocomplete="current-password" placeholder="8+ characters"></label>
@@ -1250,10 +1251,18 @@ app
 <script src="booking.js?v=20261001-simple1"></script>
 <script src="simple-ui.js?v=20261001-simple1"></script>
 <script>
-(async function mileCountRequireLogin(){
+(async function mileCountOptionalLogin(){
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
  const signInButton=document.getElementById("gateSignIn"),passwordInput=document.getElementById("gatePassword");
  const recovery=window.MileCountCloud.isPasswordRecovery();
+ // Visitors can browse the public site. Account data still requires its existing session.
+ const requestedSignIn=new URLSearchParams(location.search).get("signin")==="1";
+ if(!recovery&&!requestedSignIn){
+  gate.style.display="none";
+  document.body.classList.remove("mcAuthLocked");
+  document.body.style.overflow="";
+  return;
+ }
  document.getElementById("gateShowPassword").addEventListener("click",function(){
   const show=passwordInput.type==="password";passwordInput.type=show?"text":"password";
   this.textContent=show?"Hide password":"Show password";this.setAttribute("aria-pressed",String(show));
