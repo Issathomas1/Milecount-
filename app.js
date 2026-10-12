@@ -379,19 +379,7 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
    loads.push(...matching);providerResponded=true;providerLiveFound+=matching.length;liveProvider=liveProvider||matching.length>0;
    if(el('loadBootLiveStatus'))el('loadBootLiveStatus').textContent=matching.length+' LIVE LOADS in this pickup area';
  }catch(e){providerErrors.push('LoadBoot');if(el('loadBootLiveStatus'))el('loadBootLiveStatus').textContent='LoadBoot temporarily unavailable';}
- // Sandbox remains separate from production and never contributes to live revenue.
- if(!isLiveBrowse){
-   try{
-     const sb=await sandboxRequest;
-     if(generation!==loadSearchGeneration)return;
-     const matching=enforceWeightCap(sb.filter(l=>laneMatches(l,searchOrigin,searchDestination))).map(l=>({...l,dateMatchesSearch:pickupDateMatches(l,requestedDate),demoWorkflow:true}));
-     if(matching.length){
-       loads=[...loads,...matching];
-       providerResponded=true;
-     }
-   }catch(e){providerErrors.push("LoadBoot Sandbox");console.warn("LoadBoot lane aggregation unavailable",e)}
- }
-
+ // Production searches intentionally never merge sandbox or simulated freight.
  if(el("dataModeBadge")){
   el("dataModeBadge").textContent=isLiveBrowse
     ?(providerResponded?(liveProvider?"LIVE LOAD BOARD":"LIVE • NO MATCHES"):"LIVE API UNAVAILABLE")
@@ -1401,11 +1389,23 @@ function updateProviderFilterOptions(loads){
  sel.innerHTML=options.map(([v,label])=>'<option value="'+v+'">'+label+'</option>').join("");
  sel.value=options.some(x=>x[0]===current)?current:"all";
 }
+function isVerifiedLiveFreight(load){
+ if(!load||load.isSandbox||load.isLocalSim||load.isSimulation||load.isTest)return false;
+ const mode=String(load.mode||"").toUpperCase();
+ if(["TEST","SIM","SANDBOX","DEMO","SIMULATION"].includes(mode))return false;
+ const provider=String(load.provider||"").trim().toLowerCase();
+ if(!provider||provider.includes("simulation")||provider.includes("sandbox")||provider.includes("test")||provider.includes("milecount"))return false;
+ if(isLoadBootRecord(load))return !load.isSandbox&&!!window.MileCountLoadBoot?.fresh(load);
+ if(!["truktek","direct freight"].includes(provider))return false;
+ if(load.expiresAt&&Date.parse(load.expiresAt)<=Date.now())return false;
+ if(load.observedAt&&(!Number.isFinite(Date.parse(load.observedAt))||Date.now()-Date.parse(load.observedAt)>15*60*1000))return false;
+ return true;
+}
 function filteredUnifiedLoads(loads){
  const mode=el("providerFilter")?.value||"all";
- if(mode==="all")return loads;
- if(mode==="live")return loads.filter(l=>!l.isSandbox);
- if(mode==="sandbox")return loads.filter(l=>!!l.isSandbox);
+ if(mode==="all")return loads.filter(isVerifiedLiveFreight);
+ if(mode==="live")return loads.filter(isVerifiedLiveFreight);
+ if(mode==="sandbox")return loads.filter(l=>!!l.isSandbox||l.isLocalSim||["TEST","SIM","SANDBOX"].includes(String(l.mode||"").toUpperCase()));
  return loads.filter(l=>providerFilterKey(l)===mode);
 }
 async function applyProviderFilter(){
@@ -2149,10 +2149,10 @@ function renderUnifiedLoadList(loads){
  updateStackTray();
 }
 async function refreshUnifiedFreightBoard(forceSandbox=false,generation=loadSearchGeneration){
- const sandbox=await fetchLoadBootSandbox(forceSandbox);
+ // The production board contains only authorized live-provider records.
  if(generation!==loadSearchGeneration)return;
  const live=Array.isArray(S.liveBoardLoads)?S.liveBoardLoads:[];
- const all=enforceWeightCap([...live,...sandbox]).filter(l=>!isLoadBootRecord(l)||l.isSandbox||window.MileCountLoadBoot?.fresh(l));
+ const all=enforceWeightCap(live).filter(isVerifiedLiveFreight);
  S.allUnifiedLoads=all;
  updateProviderFilterOptions(all);
  const filtered=filteredUnifiedLoads(all);
@@ -2162,11 +2162,11 @@ async function refreshUnifiedFreightBoard(forceSandbox=false,generation=loadSear
  if(generation!==loadSearchGeneration)return;
  renderUnifiedLoadList(filtered);
  const showing=el("providerFilterShowing");
- if(showing)showing.textContent="Showing "+filtered.length+" of "+all.length+" freight opportunities";
+ if(showing)showing.textContent=filtered.length+" verified live loads available";
  const total=el("unifiedFreightCount");
  if(total)total.textContent=all.length.toLocaleString();
  const split=el("unifiedFreightSplit");
- if(split)split.textContent=live.length+" LIVE • "+sandbox.length+" SANDBOX TEST";
+ if(split)split.textContent=all.length+" VERIFIED LIVE LOADS • TEST DATA HIDDEN";
 }
 
 async function showLoadBootSandbox(){
