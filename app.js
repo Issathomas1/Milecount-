@@ -1402,6 +1402,8 @@ function isVerifiedLiveFreight(load){
  if(!provider||provider.includes("simulation")||provider.includes("sandbox")||provider.includes("test")||provider.includes("milecount"))return false;
  if(isLoadBootRecord(load))return !load.isSandbox&&!!window.MileCountLoadBoot?.fresh(load);
  if(!["truktek","direct freight"].includes(provider))return false;
+ const fit=window.MileCountEquipment?.check(load,el("vehicleType")?.value);
+ if(fit&&fit.status!=="listed")return false;
  if(load.expiresAt&&Date.parse(load.expiresAt)<=Date.now())return false;
  if(load.observedAt&&(!Number.isFinite(Date.parse(load.observedAt))||Date.now()-Date.parse(load.observedAt)>15*60*1000))return false;
  return true;
