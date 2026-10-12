@@ -1275,14 +1275,6 @@ app
   this.textContent=show?"Hide password":"Show password";this.setAttribute("aria-pressed",String(show));
  });
  const requestedSignIn=new URLSearchParams(location.search).get("signin")==="1";
- if(!recovery&&!requestedSignIn){
-  gate.style.display="none";document.body.classList.remove("mcAuthLocked");document.body.style.overflow="";
-  return;
- }
- document.getElementById("gateShowPassword").addEventListener("click",function(){
-  const show=passwordInput.type==="password";passwordInput.type=show?"text":"password";
-  this.textContent=show?"Hide password":"Show password";this.setAttribute("aria-pressed",String(show));
- });
  document.getElementById("gateForgotPassword").addEventListener("click",async function(){
   const email=document.getElementById("gateEmail");
   if(!email.value.trim()||!email.checkValidity()){msg.textContent="Enter a valid email address above to request a reset link.";email.focus();return}
