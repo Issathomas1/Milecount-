@@ -1302,7 +1302,7 @@ app
 
  let hasSession=false;
  try{const session=await window.MileCountCloud?.session?.();hasSession=!!session?.user}catch(e){}
- const shouldShowGate=recovery||requestedSignIn;
+ const shouldShowGate=recovery||requestedSignIn||!hasSession;
  if(shouldShowGate&&!hasSession){
   document.body.classList.add("mcAuthLocked");gate.style.display="flex";document.body.style.overflow="hidden";
  }else{
