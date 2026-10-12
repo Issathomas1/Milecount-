@@ -430,6 +430,11 @@ applyVehicle(el("vehicleType")?.value||"box26",false);
  const best=loads.find(l=>!l.economicsPending)||{pay:0,space:0,weight:0,stop:searchDestination,extraMiles:0,extraDriveTime:"0 min",fuel:fuelFor(0),afterFuel:0};
  S.primaryPay=pay;S.addedPay=best.pay;S.totalPay=pay+best.pay;S.extraMiles=best.extraMiles;S.selectedStop=best.stop;S.homeAdded=false;
 
+ // Never retain explicit TEST/SIM/demo records in the production board.
+ loads=loads.filter(l=>{
+  const mode=String(l?.mode||"").toUpperCase(),provider=String(l?.provider||"").toLowerCase();
+  return !l?.isSandbox&&!l?.isLocalSim&&!l?.isSimulation&&!l?.isTest&&!["TEST","SIM","SANDBOX","DEMO","SIMULATION"].includes(mode)&&!/(simulation|sandbox|test|milecount)/.test(provider);
+ });
  if(isLiveBrowse)S.liveBoardLoads=[...loads];
  if(providerErrors.length)setBoardStatus("warn",providerErrors.join(" / ")+" unavailable • "+loads.length+" loads from responding sources. Retry to refresh.");
  else setBoardStatus("ok",loads.length?((nearbyAlternatives?"No truck-fit lane matches • nearby alternatives: ":"Freight updated • ")+loads.length+" provider load"+(loads.length===1?"":"s")+" processed"):"Connected • no matching live freight right now");
@@ -2152,7 +2157,10 @@ async function refreshUnifiedFreightBoard(forceSandbox=false,generation=loadSear
  // The production board contains only authorized live-provider records.
  if(generation!==loadSearchGeneration)return;
  const live=Array.isArray(S.liveBoardLoads)?S.liveBoardLoads:[];
- const all=enforceWeightCap(live).filter(isVerifiedLiveFreight);
+ const all=enforceWeightCap(live).filter(l=>{
+  const mode=String(l?.mode||"").toUpperCase(),provider=String(l?.provider||"").toLowerCase();
+  return !l?.isSandbox&&!l?.isLocalSim&&!l?.isSimulation&&!l?.isTest&&!["TEST","SIM","SANDBOX","DEMO","SIMULATION"].includes(mode)&&!/(simulation|sandbox|test|milecount)/.test(provider);
+ });
  S.allUnifiedLoads=all;
  updateProviderFilterOptions(all);
  const filtered=filteredUnifiedLoads(all);
