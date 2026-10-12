@@ -426,7 +426,7 @@ button{cursor:pointer}button:disabled{cursor:default}
 
 
 <body>
-<div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px;width:100vw;height:100dvh;overflow:auto"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 id="gateTitle" style="margin:14px 0 6px">Welcome to MileCount</h1><p class="details">Plan profitable routes and keep your truck setup and trips in one place.</p><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label id="gatePasswordLabel">PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><div class="authActions"><button id="gateShowPassword" type="button" aria-controls="gatePassword" aria-pressed="false">Show password</button><button id="gateForgotPassword" type="button">Forgot password?</button></div><button id="gateSignIn" type="button">SIGN IN</button><button id="gateCreate" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">CREATE ACCOUNT</button><div id="gateMessage" class="details" role="status" aria-live="polite" style="margin-top:10px"></div></div></div>
+<div id="authGate" style="position:fixed;inset:0;z-index:99999;background:#050a08;display:none;align-items:center;justify-content:center;padding:22px;width:100vw;height:100dvh;overflow:auto"><div class="card" style="width:min(520px,100%);margin:0"><span class="badge">MILECOUNT</span><h1 id="gateTitle" style="margin:14px 0 6px">Welcome to MileCount</h1><p class="details">Plan profitable routes and keep your truck setup and trips in one place.</p><label id="gateNameLabel" hidden>NAME<input id="gateName" type="text" autocomplete="name" placeholder="Your name"></label><label>EMAIL<input id="gateEmail" type="email" autocomplete="email" placeholder="you@example.com" required></label><label id="gatePasswordLabel">PASSWORD<input id="gatePassword" type="password" autocomplete="current-password" placeholder="Your password"></label><div class="authActions"><button id="gateShowPassword" type="button" aria-controls="gatePassword" aria-pressed="false">Show password</button><button id="gateForgotPassword" type="button">Forgot password?</button></div><button id="gateSignIn" type="button">SIGN IN</button><button id="gateCreate" type="button" style="background:#15271f;border:1px solid #2b4438;margin-top:8px">CREATE ACCOUNT</button><div id="gateMessage" class="details" role="status" aria-live="polite" style="margin-top:10px"></div></div></div>
 <div id="dfDetailsModal" class="hidden" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;overflow:auto">
  <div class="card" style="max-width:650px;margin:7vh auto;background:#07150f">
   <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><span class="badge">LIVE • DIRECT FREIGHT</span><h2 id="dfDetailLane" style="margin:8px 0">Load details</h2></div><button id="closeDfDetails" type="button" style="width:auto;padding:10px 14px">CLOSE</button></div>
@@ -447,8 +447,10 @@ button{cursor:pointer}button:disabled{cursor:default}
 MileCount<span class="green">.</span>
 </a>
 
-<div style="display:flex;gap:8px;align-items:center">
+<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
 <div class="demo" id="dataModeBadge">LIVE LOAD SEARCH</div>
+<button id="headerSignIn" type="button" style="width:auto;margin:0;padding:9px 10px;font-size:10px;background:#15271f;border:1px solid #2b4438">SIGN IN</button>
+<button id="headerSignUp" type="button" style="width:auto;margin:0;padding:9px 10px;font-size:10px">SIGN UP</button>
 <select id="driverMenu" aria-label="MileCount menu" style="width:auto;max-width:132px;margin:0;padding:8px 28px 8px 10px;font-size:11px;font-weight:900;background:#15271f;border:1px solid #2b4438;color:#f3f8f5">
 <option value="">MENU ▾</option>
 <option value="planner">PLANNER</option>
@@ -1255,12 +1257,26 @@ app
  const gate=document.getElementById("authGate"),msg=document.getElementById("gateMessage");
  const signInButton=document.getElementById("gateSignIn"),passwordInput=document.getElementById("gatePassword");
  const recovery=window.MileCountCloud.isPasswordRecovery();
- // Visitors can browse the public site. Account data still requires its existing session.
+ let authMode="signin";
+ function showAuth(mode){
+  authMode=mode==="signup"?"signup":"signin";
+  gate.style.display="flex";document.body.classList.add("mcAuthLocked");document.body.style.overflow="hidden";
+  document.getElementById("gateTitle").textContent=authMode==="signup"?"Create your MileCount account":"Welcome to MileCount";
+  document.getElementById("gateNameLabel").hidden=authMode!=="signup";
+  document.getElementById("gateForgotPassword").hidden=authMode==="signup";
+  signInButton.textContent=authMode==="signup"?"CREATE ACCOUNT":"SIGN IN";
+  document.getElementById("gateCreate").textContent=authMode==="signup"?"BACK TO SIGN IN":"CREATE ACCOUNT";
+  msg.textContent="";
+ }
+ document.getElementById("headerSignIn")?.addEventListener("click",()=>showAuth("signin"));
+ document.getElementById("headerSignUp")?.addEventListener("click",()=>showAuth("signup"));
+ document.getElementById("gateShowPassword").addEventListener("click",function(){
+  const show=passwordInput.type==="password";passwordInput.type=show?"text":"password";
+  this.textContent=show?"Hide password":"Show password";this.setAttribute("aria-pressed",String(show));
+ });
  const requestedSignIn=new URLSearchParams(location.search).get("signin")==="1";
  if(!recovery&&!requestedSignIn){
-  gate.style.display="none";
-  document.body.classList.remove("mcAuthLocked");
-  document.body.style.overflow="";
+  gate.style.display="none";document.body.classList.remove("mcAuthLocked");document.body.style.overflow="";
   return;
  }
  document.getElementById("gateShowPassword").addEventListener("click",function(){
@@ -1294,11 +1310,20 @@ app
  signInButton.addEventListener("click",async()=>{
   const email=document.getElementById("gateEmail");
   if(!recovery&&(!email.value.trim()||!email.checkValidity())){msg.textContent="Enter a valid email address.";email.focus();return}
-  if(!passwordInput.value||(recovery&&passwordInput.value.length<8)){msg.textContent=recovery?"Use at least 8 characters for your new password.":"Enter your password.";passwordInput.focus();return}
+  if(!passwordInput.value||((recovery||authMode==="signup")&&passwordInput.value.length<8)){msg.textContent=(recovery||authMode==="signup")?"Use at least 8 characters for your password.":"Enter your password.";passwordInput.focus();return}
   signInButton.disabled=true;
   try{
-   msg.textContent=recovery?"Updating password…":"Signing in…";
-   if(recovery){await window.MileCountCloud.finishPasswordReset(passwordInput.value);passwordInput.value="";msg.textContent="Password updated. Return to sign in with your new password.";signInButton.hidden=true;const link=document.createElement("a");link.href="./";link.textContent="Return to sign in";msg.appendChild(document.createElement("br"));msg.appendChild(link);return}
+   if(recovery){msg.textContent="Updating password…";await window.MileCountCloud.finishPasswordReset(passwordInput.value);passwordInput.value="";msg.textContent="Password updated. Return to sign in with your new password.";signInButton.hidden=true;const link=document.createElement("a");link.href="./";link.textContent="Return to sign in";msg.appendChild(document.createElement("br"));msg.appendChild(link);return}
+   if(authMode==="signup"){
+    const name=document.getElementById("gateName").value.trim();
+    msg.textContent="Creating your account…";
+    const created=await window.MileCountCloud.signUp(email.value.trim(),passwordInput.value,name);
+    passwordInput.value="";
+    if(created.access_token){msg.textContent="Account created. Opening MileCount…";location.reload()}
+    else{showAuth("signin");msg.textContent="Account created. Check your email to confirm it, then sign in here."}
+    return;
+   }
+   msg.textContent="Signing in…";
    await window.MileCountCloud.signIn(email.value.trim(),passwordInput.value);
    msg.textContent="Signed in. Opening your workspace…";location.reload();
   }catch(e){msg.textContent=recovery?"This reset link may have expired. Request a new link from the sign-in page.":"Couldn't sign in. Check your email and password, or use Forgot password."}
@@ -1306,10 +1331,7 @@ app
  });
  passwordInput.addEventListener("keydown",e=>{if(e.key==="Enter"&&!signInButton.disabled)signInButton.click()});
  document.getElementById("gateCreate")?.addEventListener("click",()=>{
-  gate.style.display="none";
-  document.body.classList.remove("mcAuthLocked");
-  document.body.style.overflow="";
-  document.getElementById("accountButton")?.click();
+  if(authMode==="signup")showAuth("signin");else showAuth("signup");
  });
 })();
 </script>
