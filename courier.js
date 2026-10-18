@@ -1,0 +1,45 @@
+(function(){
+'use strict';
+const STORE='milecount-courier-mvp-v1';
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number.isFinite(n)?n:0);
+const num=v=>{const n=Number(v);return Number.isFinite(n)&&n>=0?n:0};
+const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let state={gigs:[],earnings:[],deletedGigs:[],deletedEarnings:[]},cloudIsConnected=false;
+try{const saved=JSON.parse(localStorage.getItem(STORE)||'null');if(saved&&Array.isArray(saved.gigs)&&Array.isArray(saved.earnings))state={deletedGigs:[],deletedEarnings:[],...saved};}catch(_){}
+function persist(){try{localStorage.setItem(STORE,JSON.stringify(state));return true;}catch(_){$('cloudStatus').textContent='Browser storage is unavailable. Your changes may not persist after leaving this page.';return false;}}
+function newId(){return crypto.randomUUID?crypto.randomUUID():('mc-'+Date.now()+'-'+Math.random().toString(16).slice(2));}
+function cloud(){return window.MileCountCloud||null;}
+function cloudConnected(){return cloudIsConnected;}
+function setCloudStatus(message,connected=false){cloudIsConnected=connected;$('cloudStatus').textContent=message;$('cloudDisconnect').classList.toggle('hidden',!connected);$('cloudEmail').disabled=connected;$('cloudPassword').disabled=connected;$('cloudForm').querySelector('button[type=submit]').classList.toggle('hidden',connected);}
+function mergeById(local,remote){const map=new Map(local.map(x=>[x.id,x]));for(const x of remote){if(!map.has(x.id))map.set(x.id,x);}return [...map.values()];}
+async function syncCloud(){const c=cloud();if(!c)return setCloudStatus('Cloud sync could not load. Refresh and try again.');const s=await c.session();if(!s){setCloudStatus('Not connected. Your entries remain on this device until you sign in and sync.');return;}setCloudStatus('Syncing your opportunities and earnings…',true);try{state.gigs.forEach(g=>{if(!g.id)g.id=newId()});state.earnings.forEach(e=>{if(!e.id)e.id=newId()});persist();for(const id of state.deletedGigs)await c.deleteCourierOpportunity(id);for(const id of state.deletedEarnings)await c.deleteCourierEarning(id);for(const g of state.gigs)await c.saveCourierOpportunity(g);for(const e of state.earnings)await c.saveCourierEarning(e);const [remoteGigs,remoteEarnings]=await Promise.all([c.courierOpportunities(),c.courierEarnings()]);state.gigs=mergeById(state.gigs,remoteGigs);state.earnings=mergeById(state.earnings,remoteEarnings);state.deletedGigs=[];state.deletedEarnings=[];persist();renderGigs();renderEarnings();setCloudStatus('Connected. Your saved opportunities and earnings are synced to your MileCount account.',true);}catch(e){setCloudStatus('Sync needs attention: '+(e?.message||'request failed')+'. Your local copy is retained.',true);}}
+function updateCalculator(){
+ const pay=num($('pay').value),miles=num($('miles').value),hours=num($('hours').value),mpg=Math.max(1,num($('mpg').value)),fuel=num($('fuel').value),wear=num($('wear').value),other=num($('other').value);
+ const cost=(miles/mpg)*fuel+miles*wear+other,net=pay-cost;
+ $('estNet').textContent=money(net);$('netMile').textContent=miles?money(net/miles):'—';$('netHour').textContent=hours?money(net/hours):'—';$('estCost').textContent=money(cost);
+ $('estNet').style.color=net<0?'#ffb0a6':'var(--green)';
+}
+function renderGigs(){
+ $('savedCount').textContent=String(state.gigs.length);
+ $('gigList').innerHTML=state.gigs.length?state.gigs.map((g,i)=>'<article class="gig-card"><h3>'+escape(g.title)+'</h3><p>'+escape(g.pickup)+' → '+escape(g.dropoff)+'</p><div class="pay">'+money(g.pay)+'</div><p>Estimated miles: '+num(g.miles)+' · Status: '+escape(g.status)+'</p>'+(g.notes?'<p>'+escape(g.notes)+'</p>':'')+'<div class="actions">'+(g.status!=='completed'?'<button type="button" class="button secondary" data-complete="'+i+'">Mark completed</button>':'')+'<button type="button" class="button danger" data-delete-gig="'+i+'">Delete</button></div></article>').join(''):'<p class="empty">No saved opportunities yet. Add a lead above to get started.</p>';
+ $('gigList').querySelectorAll('[data-complete]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.complete);if(state.gigs[i]){state.gigs[i].status='completed';persist();renderGigs();if(cloudConnected())syncCloud();}}));
+ $('gigList').querySelectorAll('[data-delete-gig]').forEach(b=>b.addEventListener('click',()=>{const removed=state.gigs.splice(Number(b.dataset.deleteGig),1)[0];if(removed?.id&&cloudConnected())cloud().deleteCourierOpportunity(removed.id).catch(()=>{state.deletedGigs.push(removed.id);persist();});else if(removed?.id)state.deletedGigs.push(removed.id);persist();renderGigs();}));
+}
+function renderEarnings(){
+ const gross=state.earnings.reduce((s,e)=>s+num(e.gross),0),expenses=state.earnings.reduce((s,e)=>s+num(e.expenses),0);
+ $('grossTotal').textContent=money(gross);$('expenseTotal').textContent=money(expenses);$('netTotal').textContent=money(gross-expenses);
+ $('earningsList').innerHTML=state.earnings.length?state.earnings.slice().reverse().map((e,reverseIndex)=>{const i=state.earnings.length-1-reverseIndex;return '<article class="gig-card"><h3>'+escape(e.title)+'</h3><p>'+escape(e.date)+' · '+num(e.miles)+' miles</p><p>Gross pay: '+money(e.gross)+' · Expenses: '+money(e.expenses)+'</p><div class="pay">Net: '+money(num(e.gross)-num(e.expenses))+'</div><div class="actions"><button type="button" class="button danger" data-delete-earning="'+i+'">Delete record</button></div></article>';}).join(''):'<p class="empty">No earnings recorded yet.</p>';
+ $('earningsList').querySelectorAll('[data-delete-earning]').forEach(b=>b.addEventListener('click',()=>{const removed=state.earnings.splice(Number(b.dataset.deleteEarning),1)[0];if(removed?.id&&cloudConnected())cloud().deleteCourierEarning(removed.id).catch(()=>{state.deletedEarnings.push(removed.id);persist();});else if(removed?.id)state.deletedEarnings.push(removed.id);persist();renderEarnings();}));
+}
+['pay','miles','hours','mpg','fuel','wear','other'].forEach(id=>$(id).addEventListener('input',updateCalculator));
+$('gigForm').addEventListener('submit',e=>{e.preventDefault();const f=new FormData(e.currentTarget);state.gigs.push({id:newId(),title:String(f.get('title')).trim(),pickup:String(f.get('pickup')).trim(),dropoff:String(f.get('dropoff')).trim(),pay:num(f.get('pay')),miles:num(f.get('miles')),status:String(f.get('status')),notes:String(f.get('notes')).trim(),createdAt:new Date().toISOString()});persist();renderGigs();e.currentTarget.reset();$('formStatus').textContent='Saved locally. This lead has not been published or verified.';if(cloudConnected())syncCloud();});
+$('earningsForm').addEventListener('submit',e=>{e.preventDefault();const f=new FormData(e.currentTarget);state.earnings.push({id:newId(),title:String(f.get('title')).trim(),gross:num(f.get('gross')),expenses:num(f.get('expenses')),miles:num(f.get('miles')),date:String(f.get('date'))||new Date().toISOString().slice(0,10)});persist();renderEarnings();e.currentTarget.reset();e.currentTarget.elements.namedItem('date').value=new Date().toISOString().slice(0,10);if(cloudConnected())syncCloud();e.currentTarget.elements.namedItem('expenses').value='0';e.currentTarget.elements.namedItem('miles').value='0';});
+$('exportData').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),...state},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='milecount-courier-data.json';a.click();URL.revokeObjectURL(url);});
+$('clearData').addEventListener('click',()=>{if(!confirm('Clear all Courier Hub opportunities and earnings? This cannot be undone. If cloud sync is connected, synced copies will also be deleted.'))return;const wasConnected=cloudConnected();state={gigs:[],earnings:[],deletedGigs:state.gigs.map(x=>x.id).filter(Boolean),deletedEarnings:state.earnings.map(x=>x.id).filter(Boolean)};persist();renderGigs();renderEarnings();$('formStatus').textContent='Browser data cleared.';if(wasConnected)syncCloud();});
+$('earningsForm').elements.namedItem('date').value=new Date().toISOString().slice(0,10);
+$('cloudForm').addEventListener('submit',async e=>{e.preventDefault();const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;try{setCloudStatus('Signing in securely…');await cloud().signIn(email,password);$('cloudPassword').value='';await syncCloud();}catch(err){setCloudStatus('Sign-in failed: '+(err?.message||'check your credentials'));}});
+$('cloudDisconnect').addEventListener('click',async()=>{try{await cloud().signOut();setCloudStatus('Disconnected. Cloud copies remain in your account; this browser copy is retained.');}catch(e){setCloudStatus('Could not disconnect cleanly. Refresh and retry.');}});
+updateCalculator();renderGigs();renderEarnings();
+cloud().session().then(s=>{if(s)syncCloud().catch(e=>setCloudStatus('Cloud sync failed: '+(e?.message||'retry later'),true));}).catch(()=>{});
+})();

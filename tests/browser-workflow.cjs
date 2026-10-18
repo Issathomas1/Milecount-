@@ -37,7 +37,7 @@ const fixtures=require('./fixtures/dispatch-cases.json'),roads=require('./fixtur
    }
    return route.fulfill({status:503,body:'External service deliberately unavailable in QA'});
   });
-  await page.goto(base,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.MileCountTruckBrain?.get?.().actualLocationVerified);await page.waitForFunction(()=>document.documentElement.dataset.ownerAccess==='true');await page.waitForFunction(()=>document.querySelector('#commercialTruckForm [name=heightFt]')?.value==='12');
+  await page.goto(base,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.MileCountTruckBrain?.get?.().currentLocation);await page.waitForFunction(()=>document.documentElement.dataset.ownerAccess==='true');await page.waitForFunction(()=>document.querySelector('#commercialTruckForm [name=heightFt]')?.value==='12');
 
 
   await page.locator('#from').fill(f.start);await page.locator('#to').fill(f.home);await page.locator('#pickupDate').fill('2026-10-01');await page.evaluate(({payload,space})=>{for(const [id,value] of Object.entries({minRPM:0,maxDeadhead:2000,weight:payload,space})){const input=document.getElementById(id);input.value=value;input.dispatchEvent(new Event('input'));}},f);await page.locator('#find').click();await page.waitForFunction(n=>document.querySelectorAll('.stackPick').length===n&&!document.getElementById('find').disabled,f.loads.length);

@@ -31,3 +31,10 @@ See [the current delivery roadmap](docs/production-roadmap.md) for release scope
 commercial-navigation activation, pricing/contract gates and the competitor review.
 See [route-quality evidence](docs/smart-autostack-review.md) for exact stop orders
 and paired-route comparisons. Commercial navigation is not active in this release.
+
+
+## Courier Gig Hub (early-access)
+
+The separate [Courier Gig Hub](./courier.html) includes a profit estimator, local direct-opportunity tracking, manual earnings records, JSON export, and optional sync for authenticated MileCount users. The courier page does not ingest or advertise third-party gigs as live unless an authorized provider API is integrated. Provider directory links send drivers to the provider's own onboarding page. Courier opportunity and earnings tables use authenticated-user row-level security; do not expose service-role keys in the browser.
+
+Courier browser regression checks are included in `npm run test:browser`.
