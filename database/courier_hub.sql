@@ -30,3 +30,6 @@ create index if not exists courier_earnings_user_date_idx on public.courier_earn
 alter table public.courier_earnings enable row level security;
 drop policy if exists "Users manage own courier earnings" on public.courier_earnings;
 create policy "Users manage own courier earnings" on public.courier_earnings for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+revoke all on table public.courier_opportunities, public.courier_earnings from anon, public;
+grant select, insert, update, delete on table public.courier_opportunities, public.courier_earnings to authenticated;
