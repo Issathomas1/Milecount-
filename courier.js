@@ -23,7 +23,7 @@ function updateCalculator(){
 function renderGigs(){
  $('savedCount').textContent=String(state.gigs.length);
  $('gigList').innerHTML=state.gigs.length?state.gigs.map((g,i)=>'<article class="gig-card"><h3>'+escape(g.title)+'</h3><p>'+escape(g.pickup)+' → '+escape(g.dropoff)+'</p><div class="pay">'+money(g.pay)+'</div><p>Estimated miles: '+num(g.miles)+' · Status: '+escape(g.status)+'</p>'+(g.notes?'<p>'+escape(g.notes)+'</p>':'')+'<div class="actions">'+(g.status!=='completed'?'<button type="button" class="button secondary" data-complete="'+i+'">Mark completed</button>':'')+'<button type="button" class="button danger" data-delete-gig="'+i+'">Delete</button></div></article>').join(''):'<p class="empty">No saved opportunities yet. Add a lead above to get started.</p>';
- $('gigList').querySelectorAll('[data-complete]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.complete);if(state.gigs[i]){state.gigs[i].status='completed';persist();renderGigs();}}));
+ $('gigList').querySelectorAll('[data-complete]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.complete);if(state.gigs[i]){state.gigs[i].status='completed';persist();renderGigs();if(cloudConnected())syncCloud();}}));
  $('gigList').querySelectorAll('[data-delete-gig]').forEach(b=>b.addEventListener('click',()=>{const removed=state.gigs.splice(Number(b.dataset.deleteGig),1)[0];if(removed?.id&&cloudConnected())cloud().deleteCourierOpportunity(removed.id).catch(()=>{state.deletedGigs.push(removed.id);persist();});else if(removed?.id)state.deletedGigs.push(removed.id);persist();renderGigs();}));
 }
 function renderEarnings(){
@@ -38,5 +38,8 @@ $('earningsForm').addEventListener('submit',e=>{e.preventDefault();const f=new F
 $('exportData').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),...state},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='milecount-courier-data.json';a.click();URL.revokeObjectURL(url);});
 $('clearData').addEventListener('click',()=>{if(!confirm('Clear all Courier Hub opportunities and earnings? This cannot be undone. If cloud sync is connected, synced copies will also be deleted.'))return;const wasConnected=cloudConnected();state={gigs:[],earnings:[],deletedGigs:state.gigs.map(x=>x.id).filter(Boolean),deletedEarnings:state.earnings.map(x=>x.id).filter(Boolean)};persist();renderGigs();renderEarnings();$('formStatus').textContent='Browser data cleared.';if(wasConnected)syncCloud();});
 $('earningsForm').elements.namedItem('date').value=new Date().toISOString().slice(0,10);
+$('cloudForm').addEventListener('submit',async e=>{e.preventDefault();const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;try{setCloudStatus('Signing in securely…');await cloud().signIn(email,password);$('cloudPassword').value='';await syncCloud();}catch(err){setCloudStatus('Sign-in failed: '+(err?.message||'check your credentials'));}});
+$('cloudDisconnect').addEventListener('click',async()=>{try{await cloud().signOut();setCloudStatus('Disconnected. Cloud copies remain in your account; this browser copy is retained.');}catch(e){setCloudStatus('Could not disconnect cleanly. Refresh and retry.');}});
 updateCalculator();renderGigs();renderEarnings();
+cloud().session().then(s=>{if(s)syncCloud().catch(e=>setCloudStatus('Cloud sync failed: '+(e?.message||'retry later'),true));}).catch(()=>{});
 })();
