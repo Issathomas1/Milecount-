@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#07110d">
 <meta name="description" content="MileCount Courier helps independent cargo van couriers discover delivery platforms, estimate gig profitability, organize direct opportunities, and track earnings.">
 <title>MileCount Courier | Independent Courier Hub</title>
-<link rel="stylesheet" href="./courier.css?v=1">
+<link rel="stylesheet" href="./courier.css?v=2">
 </head>
 <body>
 <header class="topbar">
@@ -25,7 +25,7 @@
     <div class="notice"><strong>Early-access MVP:</strong> provider buttons open their own sites. This page does not have authorized live gig feeds yet. Direct opportunities and earnings you enter are saved only in this browser on this device.</div>
   </section>
 
-  <section class="metrics" aria-label="Courier summary">
+  <section id="cloudPanel" class="cloud-panel" aria-labelledby="cloudTitle"><div><p class="eyebrow">BACKUP & SYNC</p><h2 id="cloudTitle">Sync your work across devices</h2><p class="muted">Sign in with your existing MileCount account to securely back up your opportunities and earnings.</p></div><form id="cloudForm" class="cloud-form"><label>Email<input id="cloudEmail" type="email" autocomplete="username" required placeholder="you@example.com"></label><label>Password<input id="cloudPassword" type="password" autocomplete="current-password" required placeholder="Your MileCount password"></label><button class="button primary" type="submit">Sign in & sync</button><button id="cloudDisconnect" class="button secondary hidden" type="button">Disconnect sync</button><p id="cloudStatus" class="fine-print" role="status">Not connected. Your entries remain on this device until you sign in and sync.</p></form></section>\n\n  <section class="metrics" aria-label="Courier summary">
     <article class="metric"><span>Saved opportunities</span><strong id="savedCount">0</strong></article>
     <article class="metric"><span>Recorded gross pay</span><strong id="grossTotal">$0.00</strong></article>
     <article class="metric"><span>Recorded expenses</span><strong id="expenseTotal">$0.00</strong></article>
@@ -101,6 +101,6 @@
 
   <footer><a href="./">← Back to MileCount freight</a><p>MileCount is a tool by Edit All Futures LLC. Provider names belong to their respective owners. MileCount is not claiming a partnership or guaranteeing work availability.</p><p>Early access: information is stored in this browser only. Clearing browser data or changing devices may remove these records.</p><button id="exportData" class="button secondary small" type="button">Export my browser data (JSON)</button> <button id="clearData" class="button danger small" type="button">Clear browser data</button></footer>
 </main>
-<script src="./courier.js?v=1"></script>
+<script src="./cloud.js?v=2"></script>\n<script src="./courier.js?v=2"></script>
 </body>
 </html>
