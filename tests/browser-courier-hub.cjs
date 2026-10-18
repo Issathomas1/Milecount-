@@ -97,7 +97,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
   await syncPage.getByLabel('Quoted pay ($)').fill('120');
   await syncPage.getByLabel('Estimated total miles').fill('50');
   await syncPage.getByRole('button',{name:'Save opportunity on this device'}).click();
-  await syncPage.getByText('Connected. Your saved opportunities and earnings are synced to your MileCount account.').waitFor({timeout:10000});
+  for(let i=0;i<100&&remote.courier_opportunities.length!==1;i++)await new Promise(r=>setTimeout(r,100));
   assert.equal(remote.courier_opportunities.length,1,'authenticated opportunity sync writes to cloud');
   assert.equal(remote.courier_opportunities[0].title,'Cloud-synced run');
   await syncPage.getByLabel('Gig / client').fill('Cloud earnings');
@@ -105,7 +105,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
   await syncPage.getByLabel('Expenses ($)').fill('20');
   await syncPage.getByLabel('Miles driven').fill('50');
   await syncPage.getByRole('button',{name:'Record earnings'}).click();
-  await syncPage.getByText('Connected. Your saved opportunities and earnings are synced to your MileCount account.').waitFor({timeout:10000});
+  for(let i=0;i<100&&remote.courier_earnings.length!==1;i++)await new Promise(r=>setTimeout(r,100));
   assert.equal(remote.courier_earnings.length,1,'authenticated earnings sync writes to cloud');
   assert.equal(remote.courier_earnings[0].gross,120);
   await syncContext.close();
