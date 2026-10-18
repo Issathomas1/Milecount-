@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07110d">
+<meta name="description" content="MileCount Courier helps independent cargo van couriers discover delivery platforms, estimate gig profitability, organize direct opportunities, and track earnings.">
+<title>MileCount Courier | Independent Courier Hub</title>
+<link rel="stylesheet" href="./courier.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./" aria-label="MileCount freight home">MileCount<span>.</span></a>
+  <nav aria-label="Main navigation">
+    <a href="./">Freight</a>
+    <a class="active" href="./courier.html" aria-current="page">Courier Gig Hub</a>
+  </nav>
+</header>
+<main class="shell">
+  <section class="hero">
+    <p class="eyebrow">INDEPENDENT COURIER TOOLS</p>
+    <h1>Your van. Your gigs.<br><span>Your profit.</span></h1>
+    <p>One place to explore courier platforms, evaluate delivery offers, organize direct jobs, and track your operating numbers.</p>
+    <div class="hero-actions"><a class="button primary" href="#profit">Check a gig's profit</a><a class="button secondary" href="#providers">Explore platforms</a></div>
+    <div class="notice"><strong>Early-access MVP:</strong> provider buttons open their own sites. This page does not have authorized live gig feeds yet. Direct opportunities and earnings you enter are saved only in this browser on this device.</div>
+  </section>
+
+  <section class="metrics" aria-label="Courier summary">
+    <article class="metric"><span>Saved opportunities</span><strong id="savedCount">0</strong></article>
+    <article class="metric"><span>Recorded gross pay</span><strong id="grossTotal">$0.00</strong></article>
+    <article class="metric"><span>Recorded expenses</span><strong id="expenseTotal">$0.00</strong></article>
+    <article class="metric"><span>Recorded net</span><strong id="netTotal">$0.00</strong></article>
+  </section>
+
+  <section id="providers" class="section">
+    <div class="section-heading"><div><p class="eyebrow">START FINDING WORK</p><h2>Courier platforms</h2></div><span class="tag">External signup links</span></div>
+    <p class="muted">Check each provider's eligibility, vehicle requirements, service area, insurance requirements, and current openings directly with the provider.</p>
+    <div class="provider-grid">
+      <article class="provider-card"><div class="provider-icon">R</div><h3>Roadie</h3><p>Local and long-distance delivery opportunities; eligibility and gig availability vary.</p><a href="https://www.roadie.com/drive" target="_blank" rel="noopener noreferrer">Driver information ↗</a></article>
+      <article class="provider-card"><div class="provider-icon">G</div><h3>GoShare</h3><p>Delivery work for eligible drivers and vehicles, including cargo vans in supported markets.</p><a href="https://goshare.co/driver/" target="_blank" rel="noopener noreferrer">Driver information ↗</a></article>
+      <article class="provider-card"><div class="provider-icon">C</div><h3>Curri</h3><p>Construction-material and business delivery opportunities; market and vehicle eligibility vary.</p><a href="https://curri.com/drivers/" target="_blank" rel="noopener noreferrer">Driver information ↗</a></article>
+      <article class="provider-card"><div class="provider-icon">D</div><h3>Dispatch</h3><p>Business-to-business delivery platform. Confirm courier onboarding availability in your area.</p><a href="https://dispatchit.com/" target="_blank" rel="noopener noreferrer">Provider website ↗</a></article>
+    </div>
+  </section>
+
+  <section id="profit" class="section">
+    <div class="section-heading"><div><p class="eyebrow">BEFORE YOU ACCEPT</p><h2>Gig profit calculator</h2></div><span class="tag">Estimate</span></div>
+    <div class="panel">
+      <div class="form-grid">
+        <label>Offer pay ($)<input id="pay" type="number" min="0" step="0.01" value="100"></label>
+        <label>Total miles (include return/deadhead)<input id="miles" type="number" min="0" step="0.1" value="45"></label>
+        <label>Expected total hours<input id="hours" type="number" min="0" step="0.1" value="2"></label>
+        <label>Van fuel economy (MPG)<input id="mpg" type="number" min="1" step="0.1" value="20"></label>
+        <label>Fuel price per gallon ($)<input id="fuel" type="number" min="0" step="0.01" value="3.25"></label>
+        <label>Other vehicle cost per mile ($)<input id="wear" type="number" min="0" step="0.01" value="0.20"></label>
+        <label>Other job expenses ($)<input id="other" type="number" min="0" step="0.01" value="0"></label>
+      </div>
+      <div class="results-grid" aria-live="polite">
+        <div class="result main-result"><span>Estimated net before taxes</span><strong id="estNet">$0.00</strong></div>
+        <div class="result"><span>Net per mile</span><strong id="netMile">$0.00</strong></div>
+        <div class="result"><span>Net per working hour</span><strong id="netHour">$0.00</strong></div>
+        <div class="result"><span>Estimated vehicle + job costs</span><strong id="estCost">$0.00</strong></div>
+      </div>
+      <p class="fine-print">Estimates only. Add all miles, including unpaid return travel, and account for tolls, parking, insurance, maintenance, depreciation, and taxes where applicable. This is not tax or financial advice.</p>
+    </div>
+  </section>
+
+  <section id="direct" class="section">
+    <div class="section-heading"><div><p class="eyebrow">LOCAL CONTRACTS</p><h2>My direct opportunities</h2></div><span class="tag">Private to this browser</span></div>
+    <p class="muted">Record a lead from a local business or a direct contract you found. This does not publish it to other drivers or verify that a job is available.</p>
+    <form id="gigForm" class="panel">
+      <div class="form-grid">
+        <label>Business / opportunity name<input name="title" required maxlength="100" placeholder="e.g. Auto parts delivery lead"></label>
+        <label>Pickup area<input name="pickup" required maxlength="120" placeholder="City or ZIP"></label>
+        <label>Delivery area<input name="dropoff" required maxlength="120" placeholder="City or ZIP"></label>
+        <label>Quoted pay ($)<input name="pay" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+        <label>Estimated total miles<input name="miles" type="number" min="0" step="0.1" placeholder="Include return miles"></label>
+        <label>Status<select name="status"><option value="lead">Lead to contact</option><option value="quoted">Quote received</option><option value="accepted">Accepted by me</option><option value="completed">Completed</option></select></label>
+        <label class="wide">Notes<input name="notes" maxlength="300" placeholder="Contact details, timing, requirements (avoid sensitive data)"></label>
+      </div>
+      <button class="button primary" type="submit">Save opportunity on this device</button>
+      <p id="formStatus" class="fine-print" role="status"></p>
+    </form>
+    <div id="gigList" class="gig-list"><p class="empty">No saved opportunities yet. Add a lead above to get started.</p></div>
+  </section>
+
+  <section id="earnings" class="section">
+    <div class="section-heading"><div><p class="eyebrow">KEEP YOUR NUMBERS TOGETHER</p><h2>Record a completed gig</h2></div><span class="tag">Manual tracking</span></div>
+    <form id="earningsForm" class="panel">
+      <div class="form-grid">
+        <label>Gig / client<input name="title" required maxlength="100" placeholder="Client or platform"></label>
+        <label>Gross pay received ($)<input name="gross" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+        <label>Expenses ($)<input name="expenses" type="number" min="0" step="0.01" value="0" required></label>
+        <label>Miles driven<input name="miles" type="number" min="0" step="0.1" value="0" required></label>
+        <label>Date<input name="date" type="date" required></label>
+      </div>
+      <button class="button primary" type="submit">Record earnings</button>
+    </form>
+    <div id="earningsList" class="gig-list"><p class="empty">No earnings recorded yet.</p></div>
+  </section>
+
+  <footer><a href="./">← Back to MileCount freight</a><p>MileCount is a tool by Edit All Futures LLC. Provider names belong to their respective owners. MileCount is not claiming a partnership or guaranteeing work availability.</p><p>Early access: information is stored in this browser only. Clearing browser data or changing devices may remove these records.</p><button id="exportData" class="button secondary small" type="button">Export my browser data (JSON)</button> <button id="clearData" class="button danger small" type="button">Clear browser data</button></footer>
+</main>
+<script src="./courier.js?v=1"></script>
+</body>
+</html>
