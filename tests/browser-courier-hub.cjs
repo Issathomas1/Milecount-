@@ -59,6 +59,56 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
    assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'layout does not overflow viewport');
    await context.close();
   }
-  console.log('PASS courier hub desktop/mobile, provider directory, calculator, local opportunity/earnings persistence, and overflow checks');
+  // Verify authenticated sync with a mocked Supabase API, without touching production data.
+  const syncContext=await browser.newContext({viewport:{width:1280,height:900}});
+  await syncContext.addInitScript(()=>localStorage.setItem('milecount_supabase_session',JSON.stringify({access_token:'fake-test-token',user:{id:'test-user'}})));
+  const syncPage=await syncContext.newPage();
+  const remote={courier_opportunities:[],courier_earnings:[]};
+  await syncPage.route('**/*',async route=>{
+   const url=new URL(route.request().url());
+   if(url.origin===base){return route.continue();}
+   if(url.hostname==='lrnyxqtmywkhtrmsjquc.supabase.co'){
+    const path=url.pathname;
+    if(path==='/auth/v1/user'){return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:'test-user',email:'driver@example.com'})});}
+    const table=path.endsWith('/courier_opportunities')?'courier_opportunities':path.endsWith('/courier_earnings')?'courier_earnings':null;
+    if(table){
+     if(route.request().method()==='GET'){return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(remote[table])});}
+     if(route.request().method()==='POST'){
+      const body=route.request().postDataJSON();
+      const idx=remote[table].findIndex(x=>x.id===body.id);
+      if(idx>=0)remote[table][idx]={...remote[table][idx],...body};else remote[table].push(body);
+      return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify([remote[table].find(x=>x.id===body.id)])});
+     }
+     if(route.request().method()==='DELETE'){
+      const id=url.searchParams.get('id')?.replace('eq.','');
+      remote[table]=remote[table].filter(x=>x.id!==id);
+      return route.fulfill({status:204,body:''});
+     }
+    }
+    return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({message:'Unexpected mocked cloud endpoint'})});
+   }
+   return route.abort();
+  });
+  await syncPage.goto(base+'/courier.html');
+  await syncPage.getByText('Connected. Your saved opportunities and earnings are synced to your MileCount account.').waitFor({timeout:10000});
+  await syncPage.getByLabel('Business / opportunity name').fill('Cloud-synced run');
+  await syncPage.getByLabel('Pickup area').fill('Riverdale, GA');
+  await syncPage.getByLabel('Delivery area').fill('Atlanta, GA');
+  await syncPage.getByLabel('Quoted pay ($)').fill('120');
+  await syncPage.getByLabel('Estimated total miles').fill('50');
+  await syncPage.getByRole('button',{name:'Save opportunity on this device'}).click();
+  await syncPage.getByText('Connected. Your saved opportunities and earnings are synced to your MileCount account.').waitFor({timeout:10000});
+  assert.equal(remote.courier_opportunities.length,1,'authenticated opportunity sync writes to cloud');
+  assert.equal(remote.courier_opportunities[0].title,'Cloud-synced run');
+  await syncPage.getByLabel('Gig / client').fill('Cloud earnings');
+  await syncPage.getByLabel('Gross pay received ($)').fill('120');
+  await syncPage.getByLabel('Expenses ($)').fill('20');
+  await syncPage.getByLabel('Miles driven').fill('50');
+  await syncPage.getByRole('button',{name:'Record earnings'}).click();
+  await syncPage.getByText('Connected. Your saved opportunities and earnings are synced to your MileCount account.').waitFor({timeout:10000});
+  assert.equal(remote.courier_earnings.length,1,'authenticated earnings sync writes to cloud');
+  assert.equal(remote.courier_earnings[0].gross,120);
+  await syncContext.close();
+  console.log('PASS courier hub desktop/mobile, provider directory, calculator, local persistence, authenticated cloud sync, and overflow checks');
  }finally{await browser.close();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exit(1);});
